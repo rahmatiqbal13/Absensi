@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isWithinRadius } from "./geofencing";
+import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
+
+// Postgres SQLSTATE for unique_violation, surfaced by PostgREST as
+// PostgrestError.code — the `unique (employee_id, tanggal)` constraint on
+// attendances is the race-condition backstop for the duplicate pre-check.
+const PG_UNIQUE_VIOLATION = "23505";
+const DUPLICATE_CLOCK_IN_MESSAGE = "Anda sudah absen masuk hari ini.";
 
 export type ClockInInput = {
   employeeId: string;
@@ -17,10 +24,6 @@ export type ClockInResult =
   | { ok: true; attendanceId: string; status: AttendanceStatus }
   | { ok: false; error: string };
 
-function toDateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<ClockInResult> {
   const now = input.now ?? new Date();
 
@@ -29,16 +32,22 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     return { ok: false, error: "Persetujuan pemrosesan data lokasi/foto diperlukan sebelum absen." };
   }
 
-  const tanggal = toDateOnly(now);
+  const tanggal = toJakartaDateOnly(now);
 
-  const { data: existing } = await db
+  const { data: existing, error: existingErr } = await db
     .from("attendances")
     .select("id")
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .limit(1);
+  // Fail closed: a failed duplicate check must not fall through as "no
+  // duplicate found", which would let a second row be attempted for the day.
+  if (existingErr) {
+    console.error("clockIn: duplicate check failed", existingErr);
+    return { ok: false, error: "Gagal memeriksa absensi hari ini." };
+  }
   if (existing && existing.length > 0) {
-    return { ok: false, error: "Anda sudah absen masuk hari ini." };
+    return { ok: false, error: DUPLICATE_CLOCK_IN_MESSAGE };
   }
 
   const { data: employee, error: employeeErr } = await db
@@ -63,7 +72,13 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     .from("work_schedules")
     .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
     .eq("branch_id", employee.branch_id)
-    .single();
+    // work_schedules has no unique constraint on branch_id alone (a branch may
+    // have several rows for different hari_kerja patterns), so .single() would
+    // error with PGRST116 as soon as a second row exists. Taking the first row
+    // keeps this path working; picking the row matching today's hari_kerja is
+    // deliberately out of scope here.
+    .limit(1)
+    .maybeSingle();
   if (scheduleErr || !schedule) {
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }
@@ -76,7 +91,10 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     branch.radius_geofencing_meter,
   );
 
-  if (!withinRadius && !input.catatan) {
+  // A whitespace-only catatan is not a reason — treat it as absent.
+  const catatan = input.catatan?.trim() || null;
+
+  if (!withinRadius && !catatan) {
     return { ok: false, error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan." };
   }
 
@@ -97,13 +115,21 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
       foto_masuk_url: input.photoPath,
       foto_masuk_expires_at: input.photoExpiresAt,
       status,
-      catatan: input.catatan ?? null,
+      catatan,
     })
     .select()
     .single();
 
   if (insertErr || !inserted) {
-    return { ok: false, error: insertErr?.message ?? "Gagal menyimpan absensi." };
+    // Never surface raw Postgres/PostgREST text to the user: it is English,
+    // internal, and can disclose schema details. Log it, return Indonesian.
+    console.error("clockIn: insert failed", insertErr);
+    if (insertErr?.code === PG_UNIQUE_VIOLATION) {
+      // Lost the race against a concurrent clock-in; same invariant as the
+      // pre-check above, so the user sees the same message.
+      return { ok: false, error: DUPLICATE_CLOCK_IN_MESSAGE };
+    }
+    return { ok: false, error: "Gagal menyimpan absensi." };
   }
 
   return { ok: true, attendanceId: inserted.id, status };
