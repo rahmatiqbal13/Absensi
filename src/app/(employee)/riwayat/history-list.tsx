@@ -9,9 +9,23 @@ export type AttendanceRecord = {
   catatan: string | null;
 };
 
+// `HistoryList` renders inside a Server Component with no `"use client"`
+// directive, so `formatTime` executes in the Node server process using
+// whatever timezone that process happens to be configured with — not
+// necessarily Asia/Jakarta. Without an explicit `timeZone`, `toLocaleTimeString`
+// reads the instant in the EXECUTING PROCESS's local timezone, not any
+// timezone implied by how the ISO string was written. On a UTC-default
+// cloud/serverless deployment, a clock-in stored as 09:00 WIB (02:00Z) would
+// render as "02.00" instead of "09.00". Pinning `timeZone: "Asia/Jakarta"`
+// makes the result independent of the process's own TZ configuration — same
+// pattern as jakarta-date.ts and status.ts.
 function formatTime(iso: string | null): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jakarta",
+  });
 }
 
 function formatDate(dateOnly: string): string {
