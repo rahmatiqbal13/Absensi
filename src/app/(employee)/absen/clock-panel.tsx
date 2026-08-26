@@ -45,6 +45,8 @@ export function ClockPanel({
       const result = await action(formData);
       if (!result.ok) {
         setError(result.error);
+      } else {
+        setPhoto(null);
       }
     } catch {
       setError("Gagal mengambil lokasi. Pastikan GPS aktif dan izin lokasi diberikan.");
@@ -71,6 +73,7 @@ export function ClockPanel({
         <PhotoCaptureButton
           label="Absen Pulang"
           disabled={submitting}
+          photo={photo}
           onPhotoChange={setPhoto}
           onSubmit={() => handleClock("pulang")}
         />
@@ -84,6 +87,7 @@ export function ClockPanel({
       <PhotoCaptureButton
         label="Absen Masuk"
         disabled={submitting}
+        photo={photo}
         onPhotoChange={setPhoto}
         onSubmit={() => handleClock("masuk")}
       />
@@ -95,11 +99,13 @@ export function ClockPanel({
 function PhotoCaptureButton({
   label,
   disabled,
+  photo,
   onPhotoChange,
   onSubmit,
 }: {
   label: string;
   disabled: boolean;
+  photo: File | null;
   onPhotoChange: (file: File | null) => void;
   onSubmit: () => void;
 }) {
@@ -115,7 +121,7 @@ function PhotoCaptureButton({
       />
       <button
         type="button"
-        disabled={disabled}
+        disabled={disabled || !photo}
         onClick={onSubmit}
         className="flex min-h-16 w-full items-center justify-center rounded-lg bg-blue-600 px-6 py-4 text-lg font-semibold text-white disabled:opacity-60"
       >

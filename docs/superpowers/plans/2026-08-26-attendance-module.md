@@ -1754,6 +1754,10 @@ git commit -m "feat: attendance status badge (icon + color + label, colorblind-a
 - Consumes: `clockIn` (Task 6), `clockOut` (Task 7), `uploadAttendancePhoto` (Task 5), `hasActiveConsent`/`recordConsent` (Task 4), `isMobileUserAgent` (Task 3), `AttendanceStatusBadge` (Task 8), `toJakartaDateOnly` (Task 6, `src/lib/attendance/jakarta-date.ts`), `getCurrentEmployee` (Foundation), `createServerSupabaseClient`/`createServiceRoleSupabaseClient` (Foundation).
 - **Do NOT re-derive today's date with `new Date().toISOString().slice(0, 10)`** — that's the UTC date, not the Asia/Jakarta date `clockIn`/`clockOut` key attendance rows by. Use `toJakartaDateOnly(new Date())`.
 - Produces: Server Actions `submitClockIn(formData: FormData)` and `submitClockOut(formData: FormData)`, exported from `actions.ts`, both reading `headers()` for the User-Agent mobile check and using the **service-role client** for the actual `clockIn`/`clockOut` call (per Global Constraints — status must not be client-writable via a user-scoped RLS path).
+- **`PhotoCaptureButton` renders a real `<button>`, not a `<label>` wrapping a hidden file input.** This project's installed `aria-query` (bundled via `@testing-library/dom` 10.4.1 / `aria-query` 5.3.2) has no `input[type="file"]` → `button` role mapping, so `screen.getByRole("button", ...)` cannot find a label/hidden-input pattern in this environment. Use a decoupled, always-visible `<input type="file" accept="image/*" capture="user" aria-label="Foto selfie">` for photo selection plus a real `<button type="button">` as the submit trigger.
+- **The submit button must be disabled until a photo is actually selected**, not just while `submitting`. Lift the selected photo into `ClockPanel` state (`useState<File | null>`) and thread it into `PhotoCaptureButton` as a `photo` prop so it can compute `disabled={disabled || !photo}` — otherwise a user (or a scripted client) can click submit with no photo and round-trip to the server just to get a "Foto selfie diperlukan." error. Reset the photo state to `null` after a successful submit, so a failed-then-retried attempt can't silently reuse an earlier capture.
+- **`submitClockIn`/`submitClockOut` must validate `lat`/`long` as finite, in-range numbers** before doing anything else: `Number(formData.get("lat"))` silently produces `0` for a missing field or `NaN` for garbage, and `clockOut` has no out-of-radius/catatan rule the way `clockIn` does — a direct `submitClockOut` call omitting `lat`/`long` would otherwise close the attendance record at fabricated/zero coordinates. Check `Number.isFinite(lat) && Number.isFinite(long)` plus range (`lat` in [-90, 90], `long` in [-180, 180]); return `{ ok: false, error: "Lokasi tidak valid." }` before constructing the service-role client or calling `uploadAttendancePhoto`/`clockIn`/`clockOut`.
+- **`formData.get("photo")` must be checked with `instanceof Blob` (File extends Blob), not just a truthy check**, before being handed to `uploadAttendancePhoto` — a plain string value passes a truthy check but isn't image data. Treat a present-but-non-Blob value the same as missing (`"Foto selfie diperlukan."`). Also reject an empty or oversized blob (~10MB cap) and a non-`image/*` MIME type when a `type` is present.
 
 - [ ] **Step 1: Write the failing test for the client panel**
 
@@ -1828,11 +1832,36 @@ describe("ClockPanel", () => {
         submitClockOut={mockSubmitClockOut}
       />,
     );
+    // The submit button is disabled until a photo is selected (see the Task 9
+    // interface note below) — select one before clicking, matching the real,
+    // fixed flow rather than the defective "submit with no photo" case.
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    const photo = new File(["x"], "selfie.jpg", { type: "image/jpeg" });
+    fireEvent.change(fileInput, { target: { files: [photo] } });
     fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
     await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
     const formData = mockSubmitClockIn.mock.calls[0][0] as FormData;
     expect(formData.get("lat")).toBe("-6.2");
     expect(formData.get("long")).toBe("106.8");
+    expect(formData.get("photo")).toBe(photo);
+  });
+
+  it("disables the submit button until a photo is selected", () => {
+    render(
+      <ClockPanel
+        todaysAttendance={null}
+        submitClockIn={mockSubmitClockIn}
+        submitClockOut={mockSubmitClockOut}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /absen masuk/i });
+    expect(button).toBeDisabled();
+
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["x"], "selfie.jpg", { type: "image/jpeg" })] },
+    });
+    expect(button).not.toBeDisabled();
   });
 
   it("shows an error message when submitClockIn returns ok: false", async () => {
@@ -1844,6 +1873,10 @@ describe("ClockPanel", () => {
         submitClockOut={mockSubmitClockOut}
       />,
     );
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["x"], "selfie.jpg", { type: "image/jpeg" })] },
+    });
     fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
     expect(await screen.findByText("Anda sudah absen masuk hari ini.")).toBeInTheDocument();
   });
@@ -1872,6 +1905,34 @@ import { clockIn, type ClockInResult } from "@/lib/attendance/clock-in";
 import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
 
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+// `Number(formData.get("lat"))` silently produces 0 for a missing field or
+// NaN for garbage — neither is caught by a plain `!lat` check. clockOut in
+// particular has no out-of-radius/catatan rule the way clockIn does, so an
+// unvalidated submitClockOut could close the attendance record at
+// fabricated/zero coordinates.
+function isValidCoordinate(lat: number, long: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(long) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    long >= -180 &&
+    long <= 180
+  );
+}
+
+// A plain string value for the "photo" field passes a truthy check but isn't
+// image data — `instanceof Blob` (File extends Blob) catches that before the
+// value is handed to uploadAttendancePhoto.
+function isValidPhoto(photo: FormDataEntryValue | null): photo is File {
+  if (!(photo instanceof Blob)) return false;
+  if (photo.size === 0 || photo.size > MAX_PHOTO_BYTES) return false;
+  if (photo.type && !photo.type.startsWith("image/")) return false;
+  return true;
+}
+
 async function requireMobileEmployee() {
   const headerList = await headers();
   const userAgent = headerList.get("user-agent");
@@ -1894,9 +1955,12 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
 
   const lat = Number(formData.get("lat"));
   const long = Number(formData.get("long"));
+  if (!isValidCoordinate(lat, long)) {
+    return { ok: false, error: "Lokasi tidak valid." };
+  }
   const catatan = (formData.get("catatan") as string | null) ?? undefined;
-  const photo = formData.get("photo") as Blob | null;
-  if (!photo) {
+  const photo = formData.get("photo");
+  if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
   }
 
@@ -1923,8 +1987,11 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
 
   const lat = Number(formData.get("lat"));
   const long = Number(formData.get("long"));
-  const photo = formData.get("photo") as Blob | null;
-  if (!photo) {
+  if (!isValidCoordinate(lat, long)) {
+    return { ok: false, error: "Lokasi tidak valid." };
+  }
+  const photo = formData.get("photo");
+  if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
   }
 
@@ -1974,6 +2041,7 @@ export function ClockPanel({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
 
   function getPosition(): Promise<GeolocationPosition> {
     return new Promise((resolve, reject) => {
@@ -1981,7 +2049,7 @@ export function ClockPanel({
     });
   }
 
-  async function handleClock(kind: "masuk" | "pulang", photo: File | null) {
+  async function handleClock(kind: "masuk" | "pulang") {
     setError(null);
     setSubmitting(true);
     try {
@@ -1995,6 +2063,10 @@ export function ClockPanel({
       const result = await action(formData);
       if (!result.ok) {
         setError(result.error);
+      } else {
+        // Clear the captured photo after a successful submit — otherwise a
+        // failed-then-retried attempt could silently reuse an earlier capture.
+        setPhoto(null);
       }
     } catch {
       setError("Gagal mengambil lokasi. Pastikan GPS aktif dan izin lokasi diberikan.");
@@ -2021,7 +2093,9 @@ export function ClockPanel({
         <PhotoCaptureButton
           label="Absen Pulang"
           disabled={submitting}
-          onCapture={(file) => handleClock("pulang", file)}
+          photo={photo}
+          onPhotoChange={setPhoto}
+          onSubmit={() => handleClock("pulang")}
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
@@ -2033,34 +2107,52 @@ export function ClockPanel({
       <PhotoCaptureButton
         label="Absen Masuk"
         disabled={submitting}
-        onCapture={(file) => handleClock("masuk", file)}
+        photo={photo}
+        onPhotoChange={setPhoto}
+        onSubmit={() => handleClock("masuk")}
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }
 
+// Renders a real <button> as the submit trigger (not a <label> wrapping a
+// hidden file input — see the Task 9 interface note on aria-query above) plus
+// a decoupled, always-visible file input for photo selection. The photo is
+// lifted into ClockPanel state and passed back down as `photo` so the submit
+// button can stay disabled until a photo is actually selected.
 function PhotoCaptureButton({
   label,
   disabled,
-  onCapture,
+  photo,
+  onPhotoChange,
+  onSubmit,
 }: {
   label: string;
   disabled: boolean;
-  onCapture: (file: File | null) => void;
+  photo: File | null;
+  onPhotoChange: (file: File | null) => void;
+  onSubmit: () => void;
 }) {
   return (
-    <label className="flex min-h-16 w-full max-w-xs cursor-pointer items-center justify-center rounded-lg bg-blue-600 px-6 py-4 text-lg font-semibold text-white">
-      {label}
+    <div className="flex w-full max-w-xs flex-col items-center gap-2">
       <input
         type="file"
         accept="image/*"
         capture="user"
-        className="hidden"
+        aria-label="Foto selfie"
         disabled={disabled}
-        onChange={(event) => onCapture(event.target.files?.[0] ?? null)}
+        onChange={(event) => onPhotoChange(event.target.files?.[0] ?? null)}
       />
-    </label>
+      <button
+        type="button"
+        disabled={disabled || !photo}
+        onClick={onSubmit}
+        className="flex min-h-16 w-full items-center justify-center rounded-lg bg-blue-600 px-6 py-4 text-lg font-semibold text-white disabled:opacity-60"
+      >
+        {label}
+      </button>
+    </div>
   );
 }
 ```
@@ -2071,7 +2163,7 @@ function PhotoCaptureButton({
 npm test -- clock-panel.test.tsx
 ```
 
-Expected: PASS (5 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 6: Wire the page**
 

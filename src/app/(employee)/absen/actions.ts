@@ -8,6 +8,26 @@ import { clockIn, type ClockInResult } from "@/lib/attendance/clock-in";
 import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
 
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+function isValidCoordinate(lat: number, long: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(long) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    long >= -180 &&
+    long <= 180
+  );
+}
+
+function isValidPhoto(photo: FormDataEntryValue | null): photo is File {
+  if (!(photo instanceof Blob)) return false;
+  if (photo.size === 0 || photo.size > MAX_PHOTO_BYTES) return false;
+  if (photo.type && !photo.type.startsWith("image/")) return false;
+  return true;
+}
+
 async function requireMobileEmployee() {
   const headerList = await headers();
   const userAgent = headerList.get("user-agent");
@@ -30,9 +50,12 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
 
   const lat = Number(formData.get("lat"));
   const long = Number(formData.get("long"));
+  if (!isValidCoordinate(lat, long)) {
+    return { ok: false, error: "Lokasi tidak valid." };
+  }
   const catatan = (formData.get("catatan") as string | null) ?? undefined;
-  const photo = formData.get("photo") as Blob | null;
-  if (!photo) {
+  const photo = formData.get("photo");
+  if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
   }
 
@@ -59,8 +82,11 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
 
   const lat = Number(formData.get("lat"));
   const long = Number(formData.get("long"));
-  const photo = formData.get("photo") as Blob | null;
-  if (!photo) {
+  if (!isValidCoordinate(lat, long)) {
+    return { ok: false, error: "Lokasi tidak valid." };
+  }
+  const photo = formData.get("photo");
+  if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
   }
 

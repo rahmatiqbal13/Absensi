@@ -67,11 +67,33 @@ describe("ClockPanel", () => {
         submitClockOut={mockSubmitClockOut}
       />,
     );
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    const photo = new File(["x"], "selfie.jpg", { type: "image/jpeg" });
+    fireEvent.change(fileInput, { target: { files: [photo] } });
     fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
     await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
     const formData = mockSubmitClockIn.mock.calls[0][0] as FormData;
     expect(formData.get("lat")).toBe("-6.2");
     expect(formData.get("long")).toBe("106.8");
+    expect(formData.get("photo")).toBe(photo);
+  });
+
+  it("disables the submit button until a photo is selected", () => {
+    render(
+      <ClockPanel
+        todaysAttendance={null}
+        submitClockIn={mockSubmitClockIn}
+        submitClockOut={mockSubmitClockOut}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /absen masuk/i });
+    expect(button).toBeDisabled();
+
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["x"], "selfie.jpg", { type: "image/jpeg" })] },
+    });
+    expect(button).not.toBeDisabled();
   });
 
   it("shows an error message when submitClockIn returns ok: false", async () => {
@@ -83,6 +105,10 @@ describe("ClockPanel", () => {
         submitClockOut={mockSubmitClockOut}
       />,
     );
+    const fileInput = screen.getByLabelText(/foto selfie/i);
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["x"], "selfie.jpg", { type: "image/jpeg" })] },
+    });
     fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
     expect(await screen.findByText("Anda sudah absen masuk hari ini.")).toBeInTheDocument();
   });
