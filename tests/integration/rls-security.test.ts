@@ -228,9 +228,50 @@ describe("RLS & anti-fraud triggers", () => {
   }, 30_000);
 
   it("lets an atasan read payroll_periods, which is is_admin_role()-only", async () => {
+    // PostgREST answers 200/[]/error:null whether a read is allowed and empty
+    // or denied by RLS, so asserting `error === null` alone proves nothing.
+    // Seed a row first and assert the atasan actually sees THAT row.
+    const db = createServiceRoleSupabaseClient();
+    const { data: period, error: seedError } = await db
+      .from("payroll_periods")
+      .insert({ branch_id: branchId, bulan: 6, tahun: 2026 })
+      .select()
+      .single();
+    expect(seedError).toBeNull();
+
     const clientD = await signInAs(atasanD.email, password);
-    const { error } = await clientD.from("payroll_periods").select("id").limit(1);
+    const { data, error } = await clientD
+      .from("payroll_periods")
+      .select("id")
+      .eq("id", period!.id);
     expect(error).toBeNull();
+    expect(data!.length).toBeGreaterThan(0);
+    expect(data![0].id).toBe(period!.id);
+  }, 30_000);
+
+  it("blocks an atasan from escalating their OWN gaji_pokok (anti-fraud triggers are hr_admin-only since 0010)", async () => {
+    // Upper bound of the power 0009 granted: `atasan` is an admin for
+    // route/read access via is_admin_role(), but the three anti-fraud triggers
+    // now gate on the stricter is_hr_admin_role(), which excludes `atasan`.
+    // The employees_update policy still lets D through (id = auth.uid()), so
+    // the trigger is the only thing that can stop this.
+    const clientD = await signInAs(atasanD.email, password);
+    const { error } = await clientD
+      .from("employees")
+      .update({ gaji_pokok: 99_000_000 })
+      .eq("id", atasanD.id);
+    expect(error, "expected the atasan self-raise to be rejected").not.toBeNull();
+    expect(error!.message).toContain(
+      "not allowed to change protected fields on own employee record",
+    );
+
+    const db = createServiceRoleSupabaseClient();
+    const { data: row } = await db
+      .from("employees")
+      .select("gaji_pokok, role")
+      .eq("id", atasanD.id)
+      .single();
+    expect(row).toMatchObject({ gaji_pokok: 0, role: "atasan" });
   }, 30_000);
 
   // --- leave_requests: self-approval ---------------------------------------

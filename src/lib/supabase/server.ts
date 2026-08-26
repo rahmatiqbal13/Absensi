@@ -11,8 +11,14 @@ export async function createServerSupabaseClient() {
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (cookiesToSet) => {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch {
+            // Called from a Server Component, where setting cookies is illegal
+            // and throws. The middleware/proxy already refreshes the session on
+            // the way in, so this is safe to ignore.
           }
         },
       },
