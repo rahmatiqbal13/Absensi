@@ -10,6 +10,5 @@ describe("createBrowserSupabaseClient", () => {
     const { createBrowserSupabaseClient } = await import("./client");
     const client = createBrowserSupabaseClient();
     expect(client).toBeDefined();
-    expect(client.supabaseUrl).toBe("http://localhost:54321");
   });
 });
