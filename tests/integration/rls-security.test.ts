@@ -25,6 +25,7 @@ describe("RLS & anti-fraud triggers", () => {
   let karyawanA: { id: string; email: string };
   let karyawanB: { id: string; email: string };
   let karyawanC: { id: string; email: string };
+  let atasanD: { id: string; email: string };
   const password = "TestPassword123!";
   const suffix = Date.now();
 
@@ -51,10 +52,14 @@ describe("RLS & anti-fraud triggers", () => {
       .single();
     departmentId = department.id;
 
-    for (const [key, email] of [
-      ["A", `karyawan.a+${suffix}@test.local`],
-      ["B", `karyawan.b+${suffix}@test.local`],
-      ["C", `karyawan.c+${suffix}@test.local`],
+    // D is an `atasan` with no direct reports: since 0009 made `atasan` a full
+    // admin at the DB layer (is_admin_role()), D's admin reach must come from
+    // the role alone and not from any atasan_id link.
+    for (const [key, email, role] of [
+      ["A", `karyawan.a+${suffix}@test.local`, "karyawan"],
+      ["B", `karyawan.b+${suffix}@test.local`, "karyawan"],
+      ["C", `karyawan.c+${suffix}@test.local`, "karyawan"],
+      ["D", `atasan.d+${suffix}@test.local`, "atasan"],
     ] as const) {
       const { data: authUser } = await db.auth.admin.createUser({
         email,
@@ -71,13 +76,14 @@ describe("RLS & anti-fraud triggers", () => {
           jabatan: "Staff",
           status_kontrak: "tetap",
           tanggal_mulai_kerja: "2026-01-01",
-          role: "karyawan",
+          role,
         })
         .select()
         .single();
       if (key === "A") karyawanA = { id: employee!.id, email };
       else if (key === "B") karyawanB = { id: employee!.id, email };
-      else karyawanC = { id: employee!.id, email };
+      else if (key === "C") karyawanC = { id: employee!.id, email };
+      else atasanD = { id: employee!.id, email };
     }
   }, 60_000);
 
@@ -147,6 +153,84 @@ describe("RLS & anti-fraud triggers", () => {
       designated_approver_id: null,
       status: "aktif",
     });
+  }, 30_000);
+
+  it("blocks a non-admin from changing fields the old denylist missed (allowlist guard, 0009)", async () => {
+    const clientA = await signInAs(karyawanA.email, password);
+    // None of these five were in the seven-field denylist that 0005 shipped.
+    const attempts: Array<{ field: string; value: unknown }> = [
+      { field: "tanggal_mulai_kerja", value: "2020-01-01" },
+      { field: "status_kontrak", value: "kontrak" },
+      { field: "email", value: `hijacked+${suffix}@test.local` },
+      { field: "nama", value: "Nama Palsu" },
+      { field: "jabatan", value: "Direktur" },
+    ];
+
+    for (const { field, value } of attempts) {
+      const { error } = await clientA
+        .from("employees")
+        .update({ [field]: value })
+        .eq("id", karyawanA.id);
+      expect(error, `expected ${field} update to be rejected`).not.toBeNull();
+      expect(
+        error!.message,
+        `unexpected error for ${field}: ${error!.message}`,
+      ).toContain("not allowed to change protected fields");
+    }
+
+    const db = createServiceRoleSupabaseClient();
+    const { data: row } = await db
+      .from("employees")
+      .select("tanggal_mulai_kerja, status_kontrak, email, nama, jabatan")
+      .eq("id", karyawanA.id)
+      .single();
+    expect(row).toMatchObject({
+      tanggal_mulai_kerja: "2026-01-01",
+      status_kontrak: "tetap",
+      email: karyawanA.email,
+      nama: "Karyawan A",
+      jabatan: "Staff",
+    });
+  }, 30_000);
+
+  it("still lets a non-admin update the two allowlisted fields on their own row", async () => {
+    const clientA = await signInAs(karyawanA.email, password);
+    const { error } = await clientA
+      .from("employees")
+      .update({ no_telp: "08123456789", foto_profil_url: "https://example.test/a.jpg" })
+      .eq("id", karyawanA.id);
+    expect(error).toBeNull();
+
+    const db = createServiceRoleSupabaseClient();
+    const { data: row } = await db
+      .from("employees")
+      .select("no_telp, foto_profil_url")
+      .eq("id", karyawanA.id)
+      .single();
+    expect(row).toMatchObject({
+      no_telp: "08123456789",
+      foto_profil_url: "https://example.test/a.jpg",
+    });
+  }, 30_000);
+
+  it("lets an atasan read an unrelated employee's row (atasan is an admin since 0009)", async () => {
+    // D is not B's atasan, so the `atasan_id = auth.uid()` clause of
+    // employees_select does not apply: this read can only succeed through
+    // is_admin_role(), which is exactly what 0009 changed.
+    const clientD = await signInAs(atasanD.email, password);
+    const { data, error } = await clientD
+      .from("employees")
+      .select("id, gaji_pokok")
+      .eq("id", karyawanB.id);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+    expect(data![0].id).toBe(karyawanB.id);
+  }, 30_000);
+
+  it("lets an atasan read payroll_periods, which is is_admin_role()-only", async () => {
+    const clientD = await signInAs(atasanD.email, password);
+    const { error } = await clientD.from("payroll_periods").select("id").limit(1);
+    expect(error).toBeNull();
   }, 30_000);
 
   // --- leave_requests: self-approval ---------------------------------------
