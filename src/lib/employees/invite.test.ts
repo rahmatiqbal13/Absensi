@@ -77,4 +77,21 @@ describe("inviteEmployee", () => {
     expect(result).toEqual({ ok: false, error: "duplicate email" });
     expect(db.auth.admin.deleteUser).toHaveBeenCalledWith("new-user-id");
   });
+
+  it("returns early if auth user creation fails, without attempting employees insert", async () => {
+    const db = makeMockDb({
+      auth: {
+        admin: {
+          createUser: vi.fn().mockResolvedValue({
+            data: { user: null },
+            error: { message: "auth service error" },
+          }),
+          deleteUser: vi.fn().mockResolvedValue({ error: null }),
+        },
+      },
+    });
+    const result = await inviteEmployee(baseInput, db as any);
+    expect(result).toEqual({ ok: false, error: "auth service error" });
+    expect(db.from).not.toHaveBeenCalled();
+  });
 });

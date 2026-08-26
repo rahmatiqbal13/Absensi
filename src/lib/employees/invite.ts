@@ -60,7 +60,13 @@ export async function inviteEmployee(
     .single();
 
   if (employeeErr || !employee) {
-    await db.auth.admin.deleteUser(authUser.user.id);
+    const { error: deleteErr } = await db.auth.admin.deleteUser(authUser.user.id);
+    if (deleteErr) {
+      console.error(
+        `inviteEmployee: failed to roll back auth user ${authUser.user.id} after employees insert failed:`,
+        deleteErr.message,
+      );
+    }
     return { ok: false, error: employeeErr?.message ?? "failed to create employee record" };
   }
 
