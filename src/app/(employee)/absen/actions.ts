@@ -7,6 +7,7 @@ import { isMobileUserAgent } from "@/lib/attendance/mobile-detect";
 import { clockIn, type ClockInResult } from "@/lib/attendance/clock-in";
 import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
+import { hasActiveConsent } from "@/lib/consent/consent";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
@@ -41,7 +42,7 @@ async function requireMobileEmployee() {
     return { ok: false as const, error: "Anda belum masuk. Silakan login ulang." };
   }
 
-  return { ok: true as const, employee };
+  return { ok: true as const, employee, authedDb };
 }
 
 export async function submitClockIn(formData: FormData): Promise<ClockInResult> {
@@ -57,6 +58,21 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
   const photo = formData.get("photo");
   if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
+  }
+
+  // Consent must be verified BEFORE the selfie is written to storage. clockIn()
+  // checks this too (defense in depth), but by the time it runs the photo is
+  // already in the bucket — and because the retention marker
+  // (foto_masuk_expires_at) lives only on the attendances row that a rejected
+  // clock-in never creates, such a photo is an orphan no retention job can ever
+  // find. Checking here keeps the biometric data out of storage entirely when
+  // the employee has not consented to its processing.
+  const consented = await hasActiveConsent(guard.authedDb, guard.employee.id);
+  if (!consented) {
+    return {
+      ok: false,
+      error: "Persetujuan pemrosesan data lokasi/foto diperlukan sebelum absen.",
+    };
   }
 
   const serviceDb = createServiceRoleSupabaseClient();
