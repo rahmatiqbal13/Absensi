@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Role } from "./route-access";
 
 export type CurrentEmployee = {
   id: string;
   nama: string;
   email: string;
-  role: "karyawan" | "atasan" | "hr_admin" | "super_admin";
+  role: Role;
   branchId: string;
 };
 

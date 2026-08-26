@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Role } from "@/lib/auth/route-access";
 
 export type InviteEmployeeInput = {
   nama: string;
@@ -11,7 +12,7 @@ export type InviteEmployeeInput = {
   statusKontrak: string;
   tanggalMulaiKerja: string;
   gajiPokok: number;
-  role: "karyawan" | "atasan" | "hr_admin" | "super_admin";
+  role: Role;
 };
 
 export type InviteEmployeeResult =

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { resolveRouteAccess } from "@/lib/auth/route-access";
+import { resolveRouteAccess, type Role } from "@/lib/auth/route-access";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
   );
 
   const { data: userData } = await supabase.auth.getUser();
-  let role: "karyawan" | "atasan" | "hr_admin" | "super_admin" | null = null;
+  let role: Role | null = null;
   if (userData.user) {
     const { data: employee } = await supabase
       .from("employees")
