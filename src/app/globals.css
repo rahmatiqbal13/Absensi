@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --color-brand: #2563eb; /* vibrant, high-saturation accent (spec §7.1/§8) */
+  --color-neutral-50: #fafafa;
+  --color-neutral-900: #171717;
 }
 
 @theme inline {
