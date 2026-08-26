@@ -3,7 +3,7 @@ import { runSeed } from "../../scripts/seed";
 import { createServiceRoleSupabaseClient } from "../../src/lib/supabase/server";
 
 describe("runSeed", () => {
-  it("creates exactly one Kantor Pusat branch and two super_admins, and is idempotent", async () => {
+  it("finds or creates a Kantor Pusat branch with exactly 2 mutually-approving super_admins, and is idempotent", async () => {
     await runSeed();
     await runSeed(); // run twice on purpose
 

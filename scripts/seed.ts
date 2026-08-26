@@ -43,7 +43,16 @@ export async function runSeed() {
       .select()
       .single();
     branch = created;
+  }
 
+  // Ensure a work_schedules row exists for this branch, whether the branch was
+  // just created above or an existing branch was reused (it may not have one).
+  const { data: existingSchedules } = await db
+    .from("work_schedules")
+    .select("*")
+    .eq("branch_id", branch!.id);
+
+  if (!existingSchedules || existingSchedules.length === 0) {
     await db.from("work_schedules").insert({
       branch_id: branch!.id,
       jam_masuk: "09:00",
@@ -141,16 +150,48 @@ export async function runSeed() {
     adminIds.push(employee!.id);
   }
 
-  // Update cross-references (ensure we have exactly 2)
-  if (adminIds.length >= 2) {
-    await db.from("employees").update({ designated_approver_id: adminIds[1] }).eq("id", adminIds[0]);
-    await db.from("employees").update({ designated_approver_id: adminIds[0] }).eq("id", adminIds[1]);
+  // Fail loudly instead of silently returning if we couldn't resolve 2 admins
+  // (e.g. an admin couldn't be created or found) — the 2-mutual-super-admin
+  // invariant could not be established.
+  if (adminIds.length < 2) {
+    throw new Error(
+      `Seed failed to establish the required 2-mutual-super-admin invariant for branch ${branch!.id}: ` +
+        `only resolved ${adminIds.length} admin(s) (expected 2).`,
+    );
   }
+
+  // Guard against cross-branch admin mismatch: every resolved admin must
+  // actually belong to the selected branch before we cross-reference them as
+  // each other's designated_approver_id. This can happen if an admin's auth
+  // user already existed but their employee record was tied to a different
+  // (orphan) "Kantor Pusat" branch.
+  const { data: resolvedAdmins } = await db
+    .from("employees")
+    .select("id, branch_id")
+    .in("id", adminIds);
+
+  for (const admin of resolvedAdmins ?? []) {
+    if (admin.branch_id !== branch!.id) {
+      throw new Error(
+        `Seed invariant violation: resolved admin ${admin.id} belongs to branch ${admin.branch_id}, ` +
+          `but expected branch ${branch!.id}. Refusing to cross-reference admins from different branches.`,
+      );
+    }
+  }
+
+  // Update cross-references (we now have exactly the admins we need)
+  await db.from("employees").update({ designated_approver_id: adminIds[1] }).eq("id", adminIds[0]);
+  await db.from("employees").update({ designated_approver_id: adminIds[0] }).eq("id", adminIds[1]);
 }
 
 if (require.main === module) {
-  runSeed().then(() => {
-    console.log("Seed complete.");
-    process.exit(0);
-  });
+  runSeed()
+    .then(() => {
+      console.log("Seed complete.");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
