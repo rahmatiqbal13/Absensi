@@ -335,6 +335,43 @@ describe("RLS & anti-fraud triggers", () => {
     expect(after!.approver_id).toBe(karyawanB.id);
   }, 30_000);
 
+  it("blocks an atasan who is not the assigned approver from approving (anti-fraud triggers are hr_admin-only since 0010)", async () => {
+    // Unlike karyawanA above, D's is_admin_role() (atasan is an admin since
+    // 0009) lets this UPDATE pass the leave_requests_update RLS policy's USING
+    // clause, so the row is actually reached. Only the trigger's stricter
+    // is_hr_admin_role() check (0010) can stop it.
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: karyawanA.id,
+        jenis: "tahunan",
+        tanggal_mulai: "2026-10-11",
+        tanggal_selesai: "2026-10-12",
+        approver_id: karyawanB.id,
+      })
+      .select()
+      .single();
+
+    const clientD = await signInAs(atasanD.email, password);
+    const { error } = await clientD
+      .from("leave_requests")
+      .update({ status: "approved" })
+      .eq("id", leave.id);
+    expect(error, "expected the atasan approval to be rejected").not.toBeNull();
+    expect(error!.message).toContain(
+      "only the assigned approver may act on this request",
+    );
+
+    const { data: after } = await db
+      .from("leave_requests")
+      .select("status, approver_id")
+      .eq("id", leave.id)
+      .single();
+    expect(after!.status).toBe("pending");
+    expect(after!.approver_id).toBe(karyawanB.id);
+  }, 30_000);
+
   it("raises 'only the assigned approver may act' when the approver reassigns approver_id while deciding", async () => {
     const db = createServiceRoleSupabaseClient();
     const { data: leave } = await db
@@ -575,5 +612,41 @@ describe("RLS & anti-fraud triggers", () => {
     expect(new Date(after!.jam_pulang).toISOString()).toBe(
       "2026-12-02T10:00:00.000Z",
     );
+  }, 30_000);
+
+  it("blocks an atasan from rewriting status on their own closed attendance record (anti-fraud triggers are hr_admin-only since 0010)", async () => {
+    // The attendances_update RLS policy lets D through (employee_id =
+    // auth.uid()), same as the gaji_pokok escalation test above: the trigger's
+    // stricter is_hr_admin_role() check (0010) is the only thing that can stop
+    // an atasan from tampering with their OWN closed record.
+    const db = createServiceRoleSupabaseClient();
+    const { data: attendance } = await db
+      .from("attendances")
+      .insert({
+        employee_id: atasanD.id,
+        tanggal: "2026-12-03",
+        jam_masuk: "2026-12-03T01:00:00Z",
+        jam_pulang: "2026-12-03T10:00:00Z",
+        status: "pulang_cepat",
+      })
+      .select()
+      .single();
+
+    const clientD = await signInAs(atasanD.email, password);
+    const { error } = await clientD
+      .from("attendances")
+      .update({ status: "tepat_waktu" })
+      .eq("id", attendance.id);
+    expect(error, "expected the atasan status rewrite to be rejected").not.toBeNull();
+    expect(error!.message).toContain(
+      "not allowed to modify a closed attendance record",
+    );
+
+    const { data: after } = await db
+      .from("attendances")
+      .select("status")
+      .eq("id", attendance.id)
+      .single();
+    expect(after!.status).toBe("pulang_cepat");
   }, 30_000);
 });
