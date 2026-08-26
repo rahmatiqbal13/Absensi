@@ -500,9 +500,82 @@ describe("RLS & anti-fraud triggers", () => {
     expect(after!.employee_id).toBe(karyawanA.id);
   }, 30_000);
 
-  // --- attendances: status backdating --------------------------------------
+  // --- attendances: direct client writes (C1, migration 0011) --------------
 
-  it("allows clock-out but blocks a later status rewrite by the employee", async () => {
+  it("blocks a karyawan from INSERTing a fabricated attendances row directly", async () => {
+    // The core anti-fraud claim of the attendance module: status is never
+    // trusted from the client. Before 0011, attendances_insert only required
+    // `employee_id = auth.uid()`, so any karyawan holding a session JWT plus
+    // the public anon key could POST this straight to PostgREST from the
+    // browser -- a perfect attendance record with a self-chosen status, no
+    // geofence check, no selfie, no mobile-lock and no consent. 0011 restricts
+    // INSERT to is_hr_admin_role(), so the WITH CHECK now fails outright.
+    const clientA = await signInAs(karyawanA.email, password);
+    const { error } = await clientA.from("attendances").insert({
+      employee_id: karyawanA.id,
+      tanggal: "2026-12-10",
+      jam_masuk: "2026-12-10T02:00:00Z",
+      lokasi_masuk: "(-6.2,106.8)",
+      foto_masuk_url: "fabricated.jpg",
+      status: "tepat_waktu",
+    });
+    expect(error, "expected the direct attendances insert to be rejected").not.toBeNull();
+    // 42501 = insufficient_privilege, i.e. "new row violates row-level
+    // security policy". A WITH CHECK failure is a hard error, unlike a USING
+    // failure which silently matches zero rows.
+    expect(error!.code, `unexpected error: ${error!.message}`).toBe("42501");
+
+    // ...and nothing was written.
+    const db = createServiceRoleSupabaseClient();
+    const { data: rows } = await db
+      .from("attendances")
+      .select("id")
+      .eq("employee_id", karyawanA.id)
+      .eq("tanggal", "2026-12-10");
+    expect(rows).toEqual([]);
+  }, 30_000);
+
+  it("blocks a karyawan from UPDATEing their own OPEN attendances row directly", async () => {
+    // The pre-clock-out window used to be completely unguarded: the
+    // prevent_attendance_status_backdating trigger only fires once
+    // `old.jam_pulang is not null`, so while a record was open an employee
+    // could rewrite `status` at will through attendances_update's
+    // `employee_id = auth.uid()` clause. 0011 removes that clause.
+    const db = createServiceRoleSupabaseClient();
+    const { data: attendance } = await db
+      .from("attendances")
+      .insert({
+        employee_id: karyawanA.id,
+        tanggal: "2026-12-11",
+        jam_masuk: "2026-12-11T03:00:00Z",
+        status: "terlambat",
+      })
+      .select()
+      .single();
+
+    const clientA = await signInAs(karyawanA.email, password);
+    // A USING-clause rejection filters the row out before it is reached, so
+    // PostgREST answers 200 with zero affected rows rather than an error.
+    // `.select()` is what makes that observable.
+    const { data: updated, error } = await clientA
+      .from("attendances")
+      .update({ status: "tepat_waktu" })
+      .eq("id", attendance.id)
+      .select();
+    expect(error).toBeNull();
+    expect(updated, "expected the update to match zero rows under RLS").toEqual([]);
+
+    const { data: after } = await db
+      .from("attendances")
+      .select("status")
+      .eq("id", attendance.id)
+      .single();
+    expect(after!.status).toBe("terlambat");
+  }, 30_000);
+
+  it("blocks a karyawan from writing a clock-out (jam_pulang + status) directly", async () => {
+    // Same row shape the real clockOut() writes. Before 0011 this was the
+    // legitimate client path; now it is only reachable via the service role.
     const db = createServiceRoleSupabaseClient();
     const { data: attendance } = await db
       .from("attendances")
@@ -516,109 +589,28 @@ describe("RLS & anti-fraud triggers", () => {
       .single();
 
     const clientA = await signInAs(karyawanA.email, password);
-
-    // Legitimate clock-out: jam_pulang was NULL, so status may still be set.
-    const { error: clockOutError } = await clientA
+    const { data: updated, error } = await clientA
       .from("attendances")
       .update({ jam_pulang: "2026-12-01T10:00:00Z", status: "pulang_cepat" })
-      .eq("id", attendance.id);
-    expect(clockOutError).toBeNull();
-
-    // Retroactive tampering after the record is closed.
-    const { error } = await clientA
-      .from("attendances")
-      .update({ status: "tepat_waktu" })
-      .eq("id", attendance.id);
-    expect(error).not.toBeNull();
-    expect(error!.message).toContain(
-      "not allowed to modify a closed attendance record",
-    );
+      .eq("id", attendance.id)
+      .select();
+    expect(error).toBeNull();
+    expect(updated).toEqual([]);
 
     const { data: after } = await db
       .from("attendances")
-      .select("status")
+      .select("status, jam_pulang")
       .eq("id", attendance.id)
       .single();
-    expect(after!.status).toBe("pulang_cepat");
+    expect(after!.status).toBe("terlambat");
+    expect(after!.jam_pulang).toBeNull();
   }, 30_000);
 
-  it("blocks the two-step reopen-then-rewrite attendance bypass", async () => {
-    const db = createServiceRoleSupabaseClient();
-    const { data: attendance } = await db
-      .from("attendances")
-      .insert({
-        employee_id: karyawanA.id,
-        tanggal: "2026-12-02",
-        jam_masuk: "2026-12-02T01:00:00Z",
-        status: "terlambat",
-      })
-      .select()
-      .single();
-
-    const clientA = await signInAs(karyawanA.email, password);
-
-    // Legitimate single-statement clock-out (jam_pulang IS NULL beforehand):
-    // must still succeed even though the guard now also watches jam_pulang.
-    const { error: clockOutError } = await clientA
-      .from("attendances")
-      .update({ jam_pulang: "2026-12-02T10:00:00Z", status: "pulang_cepat" })
-      .eq("id", attendance.id);
-    expect(clockOutError).toBeNull();
-
-    // Step 1 of the bypass: "reopen" the closed record by nulling jam_pulang
-    // without touching status. This is now itself rejected.
-    const { error: reopenError } = await clientA
-      .from("attendances")
-      .update({ jam_pulang: null })
-      .eq("id", attendance.id);
-    expect(reopenError, "expected the reopen UPDATE to be rejected").not.toBeNull();
-    expect(reopenError!.message).toContain(
-      "not allowed to modify a closed attendance record",
-    );
-
-    // Step 2 of the bypass: rewrite status now that jam_pulang is supposedly
-    // NULL again. Must also fail.
-    const { error: rewriteError } = await clientA
-      .from("attendances")
-      .update({
-        status: "tepat_waktu",
-        jam_pulang: "2026-12-02T17:00:00Z",
-      })
-      .eq("id", attendance.id);
-    expect(rewriteError, "expected the status rewrite to be rejected").not.toBeNull();
-    expect(rewriteError!.message).toContain(
-      "not allowed to modify a closed attendance record",
-    );
-
-    // jam_masuk is protected on a closed record too.
-    const { error: jamMasukError } = await clientA
-      .from("attendances")
-      .update({ jam_masuk: "2026-12-02T00:00:00Z" })
-      .eq("id", attendance.id);
-    expect(jamMasukError, "expected the jam_masuk rewrite to be rejected").not.toBeNull();
-    expect(jamMasukError!.message).toContain(
-      "not allowed to modify a closed attendance record",
-    );
-
-    const { data: after } = await db
-      .from("attendances")
-      .select("status, jam_masuk, jam_pulang")
-      .eq("id", attendance.id)
-      .single();
-    expect(after!.status).toBe("pulang_cepat");
-    expect(new Date(after!.jam_masuk).toISOString()).toBe(
-      "2026-12-02T01:00:00.000Z",
-    );
-    expect(new Date(after!.jam_pulang).toISOString()).toBe(
-      "2026-12-02T10:00:00.000Z",
-    );
-  }, 30_000);
-
-  it("blocks an atasan from rewriting status on their own closed attendance record (anti-fraud triggers are hr_admin-only since 0010)", async () => {
-    // The attendances_update RLS policy lets D through (employee_id =
-    // auth.uid()), same as the gaji_pokok escalation test above: the trigger's
-    // stricter is_hr_admin_role() check (0010) is the only thing that can stop
-    // an atasan from tampering with their OWN closed record.
+  it("blocks an atasan from writing attendances directly (0011 uses the hr_admin tier, not is_admin_role)", async () => {
+    // 0009 made `atasan` an admin via is_admin_role(), which is what the old
+    // attendances_update policy checked. 0011 deliberately gates on the
+    // stricter is_hr_admin_role() -- direct attendance writes are exactly the
+    // anti-fraud-sensitive class 0010 already carved out for HR only.
     const db = createServiceRoleSupabaseClient();
     const { data: attendance } = await db
       .from("attendances")
@@ -633,14 +625,22 @@ describe("RLS & anti-fraud triggers", () => {
       .single();
 
     const clientD = await signInAs(atasanD.email, password);
-    const { error } = await clientD
+    const { data: updated, error } = await clientD
       .from("attendances")
       .update({ status: "tepat_waktu" })
-      .eq("id", attendance.id);
-    expect(error, "expected the atasan status rewrite to be rejected").not.toBeNull();
-    expect(error!.message).toContain(
-      "not allowed to modify a closed attendance record",
-    );
+      .eq("id", attendance.id)
+      .select();
+    expect(error).toBeNull();
+    expect(updated, "expected the atasan update to match zero rows under RLS").toEqual([]);
+
+    const { error: insertError } = await clientD.from("attendances").insert({
+      employee_id: atasanD.id,
+      tanggal: "2026-12-12",
+      jam_masuk: "2026-12-12T02:00:00Z",
+      status: "tepat_waktu",
+    });
+    expect(insertError, "expected the atasan insert to be rejected").not.toBeNull();
+    expect(insertError!.code).toBe("42501");
 
     const { data: after } = await db
       .from("attendances")
@@ -648,5 +648,69 @@ describe("RLS & anti-fraud triggers", () => {
       .eq("id", attendance.id)
       .single();
     expect(after!.status).toBe("pulang_cepat");
+  }, 30_000);
+
+  it("still lets a karyawan READ their own attendances (0011 left attendances_select untouched)", async () => {
+    // Positive control: 0011 removed only the write path. absen/page.tsx and
+    // riwayat/page.tsx read with the user-scoped client and must keep working.
+    const db = createServiceRoleSupabaseClient();
+    const { data: attendance } = await db
+      .from("attendances")
+      .insert({
+        employee_id: karyawanA.id,
+        tanggal: "2026-12-13",
+        jam_masuk: "2026-12-13T02:00:00Z",
+        status: "tepat_waktu",
+      })
+      .select()
+      .single();
+
+    const clientA = await signInAs(karyawanA.email, password);
+    const { data, error } = await clientA
+      .from("attendances")
+      .select("id, status")
+      .eq("id", attendance.id);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+    expect(data![0].status).toBe("tepat_waktu");
+  }, 30_000);
+
+  it("lets the service role insert AND clock out an attendance row (clockIn/clockOut are unaffected by 0011)", async () => {
+    // The service role bypasses RLS entirely, which is why 0011 is invisible
+    // to clockIn()/clockOut(): both are only ever called with
+    // createServiceRoleSupabaseClient() from the Server Actions in
+    // src/app/(employee)/absen/actions.ts. This test is the standing proof
+    // that locking the client out did not lock the app out.
+    const db = createServiceRoleSupabaseClient();
+    const { data: attendance, error: insertError } = await db
+      .from("attendances")
+      .insert({
+        employee_id: karyawanA.id,
+        tanggal: "2026-12-14",
+        jam_masuk: "2026-12-14T02:00:00Z",
+        lokasi_masuk: "(-6.2,106.8)",
+        foto_masuk_url: `${karyawanA.id}/masuk-1.jpg`,
+        status: "tepat_waktu",
+      })
+      .select()
+      .single();
+    expect(insertError).toBeNull();
+
+    // The single atomic clock-out UPDATE clockOut() performs, including the
+    // `.is("jam_pulang", null)` compare-and-set guard.
+    const { data: updated, error: updateError } = await db
+      .from("attendances")
+      .update({
+        jam_pulang: "2026-12-14T11:00:00Z",
+        lokasi_pulang: "(-6.2,106.8)",
+        foto_pulang_url: `${karyawanA.id}/pulang-1.jpg`,
+        status: "tepat_waktu",
+      })
+      .eq("id", attendance!.id)
+      .is("jam_pulang", null)
+      .select()
+      .single();
+    expect(updateError).toBeNull();
+    expect(updated!.jam_pulang).not.toBeNull();
   }, 30_000);
 });
