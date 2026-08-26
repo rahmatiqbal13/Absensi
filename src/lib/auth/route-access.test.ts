@@ -28,4 +28,16 @@ describe("resolveRouteAccess", () => {
       expect(resolveRouteAccess("/dashboard", role)).toBe("allow");
     }
   });
+
+  it("blocks karyawan from the admin leave-approval route and allows other roles", () => {
+    expect(resolveRouteAccess("/persetujuan-cuti", "karyawan")).toBe("redirect-employee-home");
+    for (const role of ["atasan", "hr_admin", "super_admin"] as const) {
+      expect(resolveRouteAccess("/persetujuan-cuti", role)).toBe("allow");
+    }
+  });
+
+  it("does not treat /login-audit as the public /login path", () => {
+    expect(resolveRouteAccess("/login-audit", null)).not.toBe("allow");
+    expect(resolveRouteAccess("/login-audit", null)).toBe("redirect-login");
+  });
 });

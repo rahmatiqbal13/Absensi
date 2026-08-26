@@ -22,7 +22,7 @@ Sengaja tidak dikerjakan sekarang, untuk spec/fase terpisah nanti:
   - `(auth)/login` — shared login, redirect sesuai role setelah sukses.
   - `(employee)/absen`, `/cuti`, `/riwayat`, `/profil` — mobile-first, **semua role** bisa akses
     (karyawan berrole admin tetap absen di sini, sesuai PRD §4 — tidak ada jalur pintas).
-  - `(admin)/dashboard`, `/karyawan`, `/cuti`, `/laporan`, `/pengaturan`, `/payroll` — desktop,
+  - `(admin)/dashboard`, `/karyawan`, `/persetujuan-cuti`, `/laporan`, `/pengaturan`, `/payroll` — desktop,
     hanya role `atasan`/`hr_admin`/`super_admin` (middleware cek role dari session, redirect
     role `karyawan` yang mencoba akses).
 - Semua write divalidasi di server action/API route, tidak hanya di client.
