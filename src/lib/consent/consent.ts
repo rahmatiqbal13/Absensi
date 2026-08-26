@@ -7,12 +7,19 @@ export async function hasActiveConsent(
   db: SupabaseClient,
   employeeId: string,
 ): Promise<boolean> {
-  const { data } = await db
+  const { data, error } = await db
     .from("consents")
     .select("id")
     .eq("employee_id", employeeId)
     .eq("jenis", CONSENT_JENIS_LOKASI_FOTO)
     .limit(1);
+
+  if (error) {
+    console.error(
+      `Failed to check consent for employee ${employeeId}:`,
+      error.message,
+    );
+  }
 
   return Boolean(data && data.length > 0);
 }
