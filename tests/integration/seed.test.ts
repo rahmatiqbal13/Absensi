@@ -1,9 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { runSeed } from "../../scripts/seed";
 import { createServiceRoleSupabaseClient } from "../../src/lib/supabase/server";
 
 describe("runSeed", () => {
   it("finds or creates a Kantor Pusat branch with exactly 2 mutually-approving super_admins, and is idempotent", async () => {
+    vi.stubEnv("SEED_SUPERADMIN_PASSWORD", "TestSeedPassword123!");
+
     await runSeed();
     await runSeed(); // run twice on purpose
 

@@ -7,6 +7,13 @@ if (require.main === module) {
 }
 
 export async function runSeed() {
+  const seedPassword = process.env.SEED_SUPERADMIN_PASSWORD;
+  if (!seedPassword) {
+    throw new Error(
+      "SEED_SUPERADMIN_PASSWORD env var is required to run the seed script (no hardcoded password is used).",
+    );
+  }
+
   const db = createServiceRoleSupabaseClient();
 
   // Get all "Kantor Pusat" branches, preferring those with existing super_admins
@@ -106,7 +113,7 @@ export async function runSeed() {
     let userId: string;
     const { data: authUser, error: authError } = await db.auth.admin.createUser({
       email: seed.email,
-      password: "ChangeMe123!",
+      password: seedPassword,
       email_confirm: true,
     });
 
