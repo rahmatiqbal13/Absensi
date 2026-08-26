@@ -744,13 +744,15 @@ git commit -m "feat: attendance photo upload to private bucket with 90-day reten
 **Files:**
 - Create: `src/lib/attendance/clock-in.ts`
 - Create: `src/lib/attendance/clock-in.test.ts`
+- Create: `src/lib/attendance/jakarta-date.ts` (shared Asia/Jakarta date helper — see note below)
 
 **Interfaces:**
 - Consumes: `isWithinRadius` (Task 1), `resolveClockInStatus` (Task 2), `hasActiveConsent` (Task 4).
+- Produces: `toJakartaDateOnly(date: Date): string` in `src/lib/attendance/jakarta-date.ts` — returns the Asia/Jakarta calendar date (`YYYY-MM-DD`) for any instant, independent of the executing process's own timezone (via `Intl.DateTimeFormat` pinned to `Asia/Jakarta`, same rationale as Task 2's status-time pinning). **Never** derive `tanggal` with `date.toISOString().slice(0, 10)` — that's the UTC date, which is the previous day for any instant before 07:00 WIB.
 - Produces: `type ClockInInput = { employeeId: string; lat: number; long: number; photoPath: string; photoExpiresAt: string; catatan?: string; now?: Date }`.
 - Produces: `type ClockInResult = { ok: true; attendanceId: string; status: AttendanceStatus } | { ok: false; error: string }`.
 - Produces: `clockIn(db: SupabaseClient, input: ClockInInput): Promise<ClockInResult>`.
-- Consumed by: Task 9 (`/absen` Server Action) — always called with a **service-role client**, per Global Constraints.
+- Consumed by: Task 7 (`toJakartaDateOnly`), Task 9 (`/absen` Server Action + page, both `clockIn`/`clockOut` and `toJakartaDateOnly`) — `clockIn`/`clockOut` always called with a **service-role client**, per Global Constraints.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1575,7 +1577,8 @@ git commit -m "feat: attendance status badge (icon + color + label, colorblind-a
 - Create: `src/app/(employee)/absen/clock-panel.test.tsx`
 
 **Interfaces:**
-- Consumes: `clockIn` (Task 6), `clockOut` (Task 7), `uploadAttendancePhoto` (Task 5), `hasActiveConsent`/`recordConsent` (Task 4), `isMobileUserAgent` (Task 3), `AttendanceStatusBadge` (Task 8), `getCurrentEmployee` (Foundation), `createServerSupabaseClient`/`createServiceRoleSupabaseClient` (Foundation).
+- Consumes: `clockIn` (Task 6), `clockOut` (Task 7), `uploadAttendancePhoto` (Task 5), `hasActiveConsent`/`recordConsent` (Task 4), `isMobileUserAgent` (Task 3), `AttendanceStatusBadge` (Task 8), `toJakartaDateOnly` (Task 6, `src/lib/attendance/jakarta-date.ts`), `getCurrentEmployee` (Foundation), `createServerSupabaseClient`/`createServiceRoleSupabaseClient` (Foundation).
+- **Do NOT re-derive today's date with `new Date().toISOString().slice(0, 10)`** — that's the UTC date, not the Asia/Jakarta date `clockIn`/`clockOut` key attendance rows by. Use `toJakartaDateOnly(new Date())`.
 - Produces: Server Actions `submitClockIn(formData: FormData)` and `submitClockOut(formData: FormData)`, exported from `actions.ts`, both reading `headers()` for the User-Agent mobile check and using the **service-role client** for the actual `clockIn`/`clockOut` call (per Global Constraints — status must not be client-writable via a user-scoped RLS path).
 
 - [ ] **Step 1: Write the failing test for the client panel**
@@ -1904,6 +1907,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { hasActiveConsent } from "@/lib/consent/consent";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { ClockPanel, type TodaysAttendance } from "./clock-panel";
 import { submitClockIn, submitClockOut } from "./actions";
 
@@ -1919,7 +1923,10 @@ export default async function AbsenPage() {
     redirect("/absen/consent");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Do NOT use `new Date().toISOString().slice(0, 10)` here — that's the UTC
+  // date, which is the previous day for any instant before 07:00 WIB and
+  // would miss the row Task 6's clockIn() wrote under the Jakarta date.
+  const today = toJakartaDateOnly(new Date());
   const { data: attendance } = await db
     .from("attendances")
     .select("jam_masuk, jam_pulang, status")
