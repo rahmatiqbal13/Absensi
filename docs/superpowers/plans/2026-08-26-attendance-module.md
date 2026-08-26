@@ -1100,7 +1100,7 @@ git commit -m "feat: clock-in business logic (consent, duplicate, geofence, serv
 - **Do NOT re-derive `tanggal` locally.** The `tanggal` column is the Asia/Jakarta calendar date; computing it with `date.toISOString().slice(0, 10)` yields the UTC date, which is the previous day for any instant before 07:00 WIB and would fail to find the clock-in row that Task 6 wrote under the Jakarta date. Import `toJakartaDateOnly` instead.
 - Produces: `type ClockOutInput = { employeeId: string; lat: number; long: number; photoPath: string; photoExpiresAt: string; now?: Date }`.
 - Produces: `type ClockOutResult = { ok: true; status: AttendanceStatus } | { ok: false; error: string }`.
-- Produces: `clockOut(db: SupabaseClient, input: ClockOutInput): Promise<ClockOutResult>` — performs exactly ONE `update` (never a second corrective write), matching the Foundation anti-tampering trigger's expectations.
+- Produces: `clockOut(db: SupabaseClient, input: ClockOutInput): Promise<ClockOutResult>` — performs exactly ONE `update` (never a second corrective write); the close is additionally an atomic compare-and-set via `.is("jam_pulang", null)` in the update's own filter, since the Foundation anti-tampering trigger does not backstop this path (it's gated on `auth.uid() = old.employee_id`, which is NULL under the service-role client this function always uses).
 - Consumed by: Task 9 (`/absen` Server Action), always with a **service-role client**.
 - **The double clock-out guard must be atomic, not just an app-level pre-check.** `today.jam_pulang` truthy → reject is a read-then-write race: two concurrent requests can both pass it, and the later write overwrites `jam_pulang`/photos/**status**, letting an employee launder their final status. The Foundation anti-tampering trigger `prevent_attendance_status_backdating` (migration 0010) does **NOT** backstop this: it is gated on `auth.uid() = old.employee_id`, and `clockOut` always runs with a **service-role client** where `auth.uid()` is NULL, so its guard body never executes on this path. Add `.is("jam_pulang", null)` to the update's filter chain and map the resulting zero-row error (PGRST116) to the same "Anda sudah absen pulang hari ini." message the pre-check uses. Keep the pre-check too — it is the faster, cheaper rejection in the non-race case.
 - **`work_schedules` has no unique constraint on `branch_id`** (a branch may have several rows for different `hari_kerja` patterns), so `.single()` throws PGRST116 as soon as a second row exists. Use `.limit(1).maybeSingle()`, same as Task 6's `clockIn`.
@@ -1541,6 +1541,10 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     // pre-check and this write. Report it exactly as the pre-check does, so
     // both paths read identically to the user.
     if (updateErr?.code === PGRST_NO_ROWS || (!updateErr && !updated)) {
+      console.error("clockOut: lost double clock-out race", {
+        attendanceId: today.id,
+        employeeId: input.employeeId,
+      });
       return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
     }
     console.error("clockOut: update failed", updateErr);

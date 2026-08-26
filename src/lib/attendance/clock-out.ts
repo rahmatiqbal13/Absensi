@@ -129,6 +129,10 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     // pre-check and this write. Report it exactly as the pre-check does, so
     // both paths read identically to the user.
     if (updateErr?.code === PGRST_NO_ROWS || (!updateErr && !updated)) {
+      console.error("clockOut: lost double clock-out race", {
+        attendanceId: today.id,
+        employeeId: input.employeeId,
+      });
       return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
     }
     console.error("clockOut: update failed", updateErr);
