@@ -45,6 +45,23 @@ describe("resolveClockInStatus", () => {
     });
     expect(result).toBe("di_luar_lokasi");
   });
+
+  it("regression: correctly resolves a UTC-only Date (no +07:00 offset in the literal) as 08:55 Jakarta time, independent of process TZ", () => {
+    // 2026-09-01T01:55:00Z is 2026-09-01T08:55:00+07:00 in Jakarta.
+    // This is the same instant/status as the first test above, but
+    // constructed without any timezone offset in the literal, so it
+    // exercises minutesSinceMidnight's Intl-based, process-TZ-independent
+    // extraction rather than relying on the offset being embedded in the
+    // source string.
+    const clockInTime = new Date("2026-09-01T01:55:00Z");
+    const result = resolveClockInStatus({
+      clockInTime,
+      scheduledStart: "09:00",
+      toleranceMinutes: 15,
+      withinRadius: true,
+    });
+    expect(result).toBe("tepat_waktu");
+  });
 });
 
 describe("resolveClockOutStatus", () => {

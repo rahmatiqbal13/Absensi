@@ -5,8 +5,29 @@ export type AttendanceStatus =
   | "alpa"
   | "di_luar_lokasi";
 
+// This module assumes all work schedules (jam_masuk / jam_pulang) are
+// expressed in Asia/Jakarta wall-clock time (the app has no per-branch
+// timezone column; a single-timezone assumption is correct for this
+// project's scope). Hour/minute extraction is deliberately pinned to
+// Asia/Jakarta via Intl.DateTimeFormat rather than Date.prototype.getHours()/
+// getMinutes(), because those read the hour/minute in the EXECUTING
+// PROCESS's local timezone, not any timezone implied by how the Date was
+// constructed. On a server not configured with TZ=Asia/Jakarta (e.g. a
+// UTC-default cloud/serverless deployment), getHours()/getMinutes() would
+// silently compute attendance status up to 7 hours wrong. Pinning via Intl
+// makes the result independent of the process's own TZ configuration.
+const JAKARTA_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Jakarta",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function minutesSinceMidnight(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes();
+  const parts = JAKARTA_TIME_FORMATTER.formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
 }
 
 function parseHHMM(value: string): number {
