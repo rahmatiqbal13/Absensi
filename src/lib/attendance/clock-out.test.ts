@@ -1,18 +1,61 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clockOut } from "./clock-out";
 
 const BASE_EMPLOYEE = { id: "employee-1", branch_id: "branch-1" };
 const BASE_BRANCH = { id: "branch-1", lat: -6.2, long: 106.8, radius_geofencing_meter: 100 };
 const BASE_SCHEDULE = { branch_id: "branch-1", jam_masuk: "09:00:00", jam_pulang: "17:00:00" };
 
-function makeMockDb(opts: {
-  todaysAttendance?: any;
-  updateError?: { message: string } | null;
-} = {}) {
+type QueryResult = { data: any; error: { message: string; code?: string } | null };
+
+const UPDATE_OK: QueryResult = {
+  data: { id: "attendance-1", status: "tepat_waktu" },
+  error: null,
+};
+// What PostgREST returns when a filtered `.update(...).select().single()`
+// matches zero rows — here, because `jam_pulang is null` no longer holds.
+const UPDATE_ZERO_ROWS: QueryResult = {
+  data: null,
+  error: { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" },
+};
+
+function makeMockDb(
+  opts: {
+    todaysAttendance?: any;
+    todaysAttendanceError?: { message: string; code?: string } | null;
+    updateError?: { message: string; code?: string } | null;
+    /** Successive results for repeated update() calls; the last one repeats. */
+    updateResults?: QueryResult[];
+  } = {},
+) {
   const {
     todaysAttendance = { id: "attendance-1", status: "tepat_waktu", jam_pulang: null },
+    todaysAttendanceError = todaysAttendance
+      ? null
+      : { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" },
     updateError = null,
+    updateResults = [updateError ? { data: null, error: updateError } : UPDATE_OK],
   } = opts;
+
+  // Spies for the chain steps whose arguments/payloads the tests assert on.
+  const todaySingleMock = vi
+    .fn()
+    .mockResolvedValue({ data: todaysAttendance, error: todaysAttendanceError });
+  const todayTanggalEqMock = vi.fn().mockReturnValue({ single: todaySingleMock });
+  const todayEmployeeEqMock = vi.fn().mockReturnValue({ eq: todayTanggalEqMock });
+  const attendancesSelectMock = vi.fn().mockReturnValue({ eq: todayEmployeeEqMock });
+
+  let updateCall = 0;
+  const updateSingleMock = vi.fn(() =>
+    Promise.resolve(updateResults[Math.min(updateCall++, updateResults.length - 1)]),
+  );
+  const updateSelectMock = vi.fn().mockReturnValue({ single: updateSingleMock });
+  const updateIsMock = vi.fn().mockReturnValue({ select: updateSelectMock });
+  const updateEqMock = vi.fn().mockReturnValue({ is: updateIsMock });
+  const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
+
+  const scheduleMaybeSingleMock = vi.fn().mockResolvedValue({ data: BASE_SCHEDULE, error: null });
+  const scheduleLimitMock = vi.fn().mockReturnValue({ maybeSingle: scheduleMaybeSingleMock });
+  const scheduleEqMock = vi.fn().mockReturnValue({ limit: scheduleLimitMock });
 
   const tables: Record<string, any> = {
     employees: {
@@ -26,68 +69,112 @@ function makeMockDb(opts: {
       }),
     },
     work_schedules: {
-      select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_SCHEDULE, error: null }) }),
-      }),
+      select: vi.fn().mockReturnValue({ eq: scheduleEqMock }),
     },
     attendances: {
-      select: () => ({
-        eq: () => ({
-          eq: () =>
-            todaysAttendance
-              ? { single: () => Promise.resolve({ data: todaysAttendance, error: null }) }
-              : { single: () => Promise.resolve({ data: null, error: { message: "not found" } }) },
-        }),
-      }),
-      update: () => ({
-        eq: () => ({
-          select: () => ({
-            single: () =>
-              updateError
-                ? Promise.resolve({ data: null, error: updateError })
-                : Promise.resolve({
-                    data: { id: "attendance-1", status: "tepat_waktu" },
-                    error: null,
-                  }),
-          }),
-        }),
-      }),
+      select: attendancesSelectMock,
+      update: updateMock,
     },
   };
 
-  return { from: vi.fn((table: string) => tables[table]) };
+  return {
+    from: vi.fn((table: string) => tables[table]),
+    __attendancesSelectMock: attendancesSelectMock,
+    __todayEmployeeEqMock: todayEmployeeEqMock,
+    __todayTanggalEqMock: todayTanggalEqMock,
+    __updateMock: updateMock,
+    __updateEqMock: updateEqMock,
+    __updateIsMock: updateIsMock,
+    __scheduleEqMock: scheduleEqMock,
+    __scheduleLimitMock: scheduleLimitMock,
+    __scheduleMaybeSingleMock: scheduleMaybeSingleMock,
+  };
 }
 
+const BASE_INPUT = {
+  employeeId: "employee-1",
+  lat: -6.2,
+  long: 106.8,
+  photoPath: "employee-1/pulang-1.jpg",
+  photoExpiresAt: "2026-12-01T00:00:00.000Z",
+};
+
 describe("clockOut", () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   it("updates the attendance row with tepat_waktu when on time and within radius", async () => {
     const db = makeMockDb();
     const now = new Date("2026-09-01T17:05:00+07:00");
 
-    const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
-      now,
-    });
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
 
     expect(result).toEqual({ ok: true, status: "tepat_waktu" });
+
+    // The today lookup must be scoped to this employee and the Jakarta date.
+    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang");
+    expect(db.__todayEmployeeEqMock).toHaveBeenCalledWith("employee_id", "employee-1");
+    expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-01");
+
+    // The persisted payload, not just the returned status.
+    expect(db.__updateMock).toHaveBeenCalledTimes(1);
+    expect(db.__updateMock).toHaveBeenCalledWith({
+      jam_pulang: now.toISOString(),
+      lokasi_pulang: "(-6.2,106.8)",
+      foto_pulang_url: "employee-1/pulang-1.jpg",
+      foto_pulang_expires_at: "2026-12-01T00:00:00.000Z",
+      status: "tepat_waktu",
+    });
+    expect(db.__updateEqMock).toHaveBeenCalledWith("id", "attendance-1");
+    // The atomic compare-and-set that backstops the double clock-out race.
+    expect(db.__updateIsMock).toHaveBeenCalledWith("jam_pulang", null);
+  });
+
+  it("keys the today lookup to the Asia/Jakarta calendar date, not the UTC date", async () => {
+    const db = makeMockDb();
+    // 2026-09-01T20:00:00Z is 2026-09-02T03:00:00+07:00 — the Jakarta date
+    // (2026-09-02) differs from the UTC date (2026-09-01).
+    const now = new Date("2026-09-01T20:00:00Z");
+    expect(now.toISOString().slice(0, 10)).toBe("2026-09-01");
+
+    await clockOut(db as any, { ...BASE_INPUT, now });
+
+    expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-02");
   });
 
   it("rejects when there is no clock-in record for today", async () => {
     const db = makeMockDb({ todaysAttendance: null });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
       now: new Date("2026-09-01T17:05:00+07:00"),
     });
 
     expect(result).toEqual({ ok: false, error: "Anda belum absen masuk hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a failed today lookup from a genuine missing clock-in", async () => {
+    const db = makeMockDb({
+      todaysAttendance: null,
+      todaysAttendanceError: { message: "connection reset" },
+    });
+
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      now: new Date("2026-09-01T17:05:00+07:00"),
+    });
+
+    expect(result).toEqual({ ok: false, error: "Gagal memeriksa absensi hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it("rejects a second clock-out attempt on an already-closed record", async () => {
@@ -100,31 +187,46 @@ describe("clockOut", () => {
     });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
+      ...BASE_INPUT,
       photoPath: "employee-1/pulang-2.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
       now: new Date("2026-09-01T18:00:00+07:00"),
     });
 
     expect(result).toEqual({ ok: false, error: "Anda sudah absen pulang hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects the losing request when two concurrent clock-outs pass the pre-check", async () => {
+    // Both requests read jam_pulang as NULL (the read-then-write race), so both
+    // reach the update. The `.is("jam_pulang", null)` filter makes the second
+    // one match zero rows instead of overwriting the first one's status.
+    const db = makeMockDb({ updateResults: [UPDATE_OK, UPDATE_ZERO_ROWS] });
+    const now = new Date("2026-09-01T17:05:00+07:00");
+
+    const first = await clockOut(db as any, { ...BASE_INPUT, now });
+    const second = await clockOut(db as any, {
+      ...BASE_INPUT,
+      photoPath: "employee-1/pulang-2.jpg",
+      now,
+    });
+
+    expect(first).toEqual({ ok: true, status: "tepat_waktu" });
+    expect(second).toEqual({ ok: false, error: "Anda sudah absen pulang hari ini." });
+    expect(db.__updateMock).toHaveBeenCalledTimes(2);
+    expect(db.__updateIsMock).toHaveBeenNthCalledWith(2, "jam_pulang", null);
   });
 
   it("merges pulang_cepat over an existing tepat_waktu clock-in status", async () => {
     const db = makeMockDb();
     const now = new Date("2026-09-01T16:00:00+07:00");
 
-    const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
-      now,
-    });
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
 
-    expect(result.ok).toBe(true);
+    expect(result).toEqual({ ok: true, status: "pulang_cepat" });
+    expect(db.__updateMock).toHaveBeenCalledTimes(1);
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "pulang_cepat" }),
+    );
   });
 
   it("keeps terlambat from clock-in even when clocking out on time", async () => {
@@ -133,30 +235,54 @@ describe("clockOut", () => {
     });
     const now = new Date("2026-09-01T17:05:00+07:00");
 
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
+
+    expect(result).toEqual({ ok: true, status: "terlambat" });
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "terlambat" }),
+    );
+  });
+
+  it("records di_luar_lokasi when clocking out beyond the branch geofence radius", async () => {
+    const db = makeMockDb();
+    const now = new Date("2026-09-01T17:05:00+07:00");
+
+    // Bandung — far outside branch-1's 100 m radius around (-6.2, 106.8).
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
+      lat: -6.9175,
+      long: 107.6191,
       now,
     });
 
-    expect(result).toEqual({ ok: true, status: "terlambat" });
+    expect(result).toEqual({ ok: true, status: "di_luar_lokasi" });
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "di_luar_lokasi",
+        lokasi_pulang: "(-6.9175,107.6191)",
+      }),
+    );
   });
 
-  it("returns an error when the update fails", async () => {
-    const db = makeMockDb({ updateError: { message: "update failed" } });
+  it("takes the first work schedule row rather than erroring when a branch has several", async () => {
+    const db = makeMockDb();
+
+    await clockOut(db as any, { ...BASE_INPUT, now: new Date("2026-09-01T17:05:00+07:00") });
+
+    expect(db.__scheduleEqMock).toHaveBeenCalledWith("branch_id", "branch-1");
+    expect(db.__scheduleLimitMock).toHaveBeenCalledWith(1);
+    expect(db.__scheduleMaybeSingleMock).toHaveBeenCalled();
+  });
+
+  it("returns a generic Indonesian message and logs the raw error when the update fails", async () => {
+    const db = makeMockDb({ updateError: { message: "deadlock detected" } });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
       now: new Date("2026-09-01T17:05:00+07:00"),
     });
 
-    expect(result).toEqual({ ok: false, error: "update failed" });
+    expect(result).toEqual({ ok: false, error: "Gagal menyimpan absen pulang." });
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });

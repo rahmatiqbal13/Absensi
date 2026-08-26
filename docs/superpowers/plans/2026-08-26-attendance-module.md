@@ -1102,26 +1102,71 @@ git commit -m "feat: clock-in business logic (consent, duplicate, geofence, serv
 - Produces: `type ClockOutResult = { ok: true; status: AttendanceStatus } | { ok: false; error: string }`.
 - Produces: `clockOut(db: SupabaseClient, input: ClockOutInput): Promise<ClockOutResult>` — performs exactly ONE `update` (never a second corrective write), matching the Foundation anti-tampering trigger's expectations.
 - Consumed by: Task 9 (`/absen` Server Action), always with a **service-role client**.
+- **The double clock-out guard must be atomic, not just an app-level pre-check.** `today.jam_pulang` truthy → reject is a read-then-write race: two concurrent requests can both pass it, and the later write overwrites `jam_pulang`/photos/**status**, letting an employee launder their final status. The Foundation anti-tampering trigger `prevent_attendance_status_backdating` (migration 0010) does **NOT** backstop this: it is gated on `auth.uid() = old.employee_id`, and `clockOut` always runs with a **service-role client** where `auth.uid()` is NULL, so its guard body never executes on this path. Add `.is("jam_pulang", null)` to the update's filter chain and map the resulting zero-row error (PGRST116) to the same "Anda sudah absen pulang hari ini." message the pre-check uses. Keep the pre-check too — it is the faster, cheaper rejection in the non-race case.
+- **`work_schedules` has no unique constraint on `branch_id`** (a branch may have several rows for different `hari_kerja` patterns), so `.single()` throws PGRST116 as soon as a second row exists. Use `.limit(1).maybeSingle()`, same as Task 6's `clockIn`.
+- **Never return raw Postgres/PostgREST error text to the user.** It is English, internal, and can disclose schema details. `console.error` the raw error and return a fixed Indonesian message on every failure path. A failed *today* lookup must also be distinguished from a genuine missing clock-in — reporting an infrastructure error as "Anda belum absen masuk hari ini." is actively misleading.
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-// src/lib/attendance/clock-out.test.ts
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clockOut } from "./clock-out";
 
 const BASE_EMPLOYEE = { id: "employee-1", branch_id: "branch-1" };
 const BASE_BRANCH = { id: "branch-1", lat: -6.2, long: 106.8, radius_geofencing_meter: 100 };
 const BASE_SCHEDULE = { branch_id: "branch-1", jam_masuk: "09:00:00", jam_pulang: "17:00:00" };
 
-function makeMockDb(opts: {
-  todaysAttendance?: any;
-  updateError?: { message: string } | null;
-} = {}) {
+type QueryResult = { data: any; error: { message: string; code?: string } | null };
+
+const UPDATE_OK: QueryResult = {
+  data: { id: "attendance-1", status: "tepat_waktu" },
+  error: null,
+};
+// What PostgREST returns when a filtered `.update(...).select().single()`
+// matches zero rows — here, because `jam_pulang is null` no longer holds.
+const UPDATE_ZERO_ROWS: QueryResult = {
+  data: null,
+  error: { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" },
+};
+
+function makeMockDb(
+  opts: {
+    todaysAttendance?: any;
+    todaysAttendanceError?: { message: string; code?: string } | null;
+    updateError?: { message: string; code?: string } | null;
+    /** Successive results for repeated update() calls; the last one repeats. */
+    updateResults?: QueryResult[];
+  } = {},
+) {
   const {
     todaysAttendance = { id: "attendance-1", status: "tepat_waktu", jam_pulang: null },
+    todaysAttendanceError = todaysAttendance
+      ? null
+      : { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" },
     updateError = null,
+    updateResults = [updateError ? { data: null, error: updateError } : UPDATE_OK],
   } = opts;
+
+  // Spies for the chain steps whose arguments/payloads the tests assert on.
+  const todaySingleMock = vi
+    .fn()
+    .mockResolvedValue({ data: todaysAttendance, error: todaysAttendanceError });
+  const todayTanggalEqMock = vi.fn().mockReturnValue({ single: todaySingleMock });
+  const todayEmployeeEqMock = vi.fn().mockReturnValue({ eq: todayTanggalEqMock });
+  const attendancesSelectMock = vi.fn().mockReturnValue({ eq: todayEmployeeEqMock });
+
+  let updateCall = 0;
+  const updateSingleMock = vi.fn(() =>
+    Promise.resolve(updateResults[Math.min(updateCall++, updateResults.length - 1)]),
+  );
+  const updateSelectMock = vi.fn().mockReturnValue({ single: updateSingleMock });
+  const updateIsMock = vi.fn().mockReturnValue({ select: updateSelectMock });
+  const updateEqMock = vi.fn().mockReturnValue({ is: updateIsMock });
+  const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
+
+  const scheduleMaybeSingleMock = vi.fn().mockResolvedValue({ data: BASE_SCHEDULE, error: null });
+  const scheduleLimitMock = vi.fn().mockReturnValue({ maybeSingle: scheduleMaybeSingleMock });
+  const scheduleEqMock = vi.fn().mockReturnValue({ limit: scheduleLimitMock });
 
   const tables: Record<string, any> = {
     employees: {
@@ -1135,68 +1180,112 @@ function makeMockDb(opts: {
       }),
     },
     work_schedules: {
-      select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_SCHEDULE, error: null }) }),
-      }),
+      select: vi.fn().mockReturnValue({ eq: scheduleEqMock }),
     },
     attendances: {
-      select: () => ({
-        eq: () => ({
-          eq: () =>
-            todaysAttendance
-              ? { single: () => Promise.resolve({ data: todaysAttendance, error: null }) }
-              : { single: () => Promise.resolve({ data: null, error: { message: "not found" } }) },
-        }),
-      }),
-      update: () => ({
-        eq: () => ({
-          select: () => ({
-            single: () =>
-              updateError
-                ? Promise.resolve({ data: null, error: updateError })
-                : Promise.resolve({
-                    data: { id: "attendance-1", status: "tepat_waktu" },
-                    error: null,
-                  }),
-          }),
-        }),
-      }),
+      select: attendancesSelectMock,
+      update: updateMock,
     },
   };
 
-  return { from: vi.fn((table: string) => tables[table]) };
+  return {
+    from: vi.fn((table: string) => tables[table]),
+    __attendancesSelectMock: attendancesSelectMock,
+    __todayEmployeeEqMock: todayEmployeeEqMock,
+    __todayTanggalEqMock: todayTanggalEqMock,
+    __updateMock: updateMock,
+    __updateEqMock: updateEqMock,
+    __updateIsMock: updateIsMock,
+    __scheduleEqMock: scheduleEqMock,
+    __scheduleLimitMock: scheduleLimitMock,
+    __scheduleMaybeSingleMock: scheduleMaybeSingleMock,
+  };
 }
 
+const BASE_INPUT = {
+  employeeId: "employee-1",
+  lat: -6.2,
+  long: 106.8,
+  photoPath: "employee-1/pulang-1.jpg",
+  photoExpiresAt: "2026-12-01T00:00:00.000Z",
+};
+
 describe("clockOut", () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   it("updates the attendance row with tepat_waktu when on time and within radius", async () => {
     const db = makeMockDb();
     const now = new Date("2026-09-01T17:05:00+07:00");
 
-    const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
-      now,
-    });
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
 
     expect(result).toEqual({ ok: true, status: "tepat_waktu" });
+
+    // The today lookup must be scoped to this employee and the Jakarta date.
+    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang");
+    expect(db.__todayEmployeeEqMock).toHaveBeenCalledWith("employee_id", "employee-1");
+    expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-01");
+
+    // The persisted payload, not just the returned status.
+    expect(db.__updateMock).toHaveBeenCalledTimes(1);
+    expect(db.__updateMock).toHaveBeenCalledWith({
+      jam_pulang: now.toISOString(),
+      lokasi_pulang: "(-6.2,106.8)",
+      foto_pulang_url: "employee-1/pulang-1.jpg",
+      foto_pulang_expires_at: "2026-12-01T00:00:00.000Z",
+      status: "tepat_waktu",
+    });
+    expect(db.__updateEqMock).toHaveBeenCalledWith("id", "attendance-1");
+    // The atomic compare-and-set that backstops the double clock-out race.
+    expect(db.__updateIsMock).toHaveBeenCalledWith("jam_pulang", null);
+  });
+
+  it("keys the today lookup to the Asia/Jakarta calendar date, not the UTC date", async () => {
+    const db = makeMockDb();
+    // 2026-09-01T20:00:00Z is 2026-09-02T03:00:00+07:00 — the Jakarta date
+    // (2026-09-02) differs from the UTC date (2026-09-01).
+    const now = new Date("2026-09-01T20:00:00Z");
+    expect(now.toISOString().slice(0, 10)).toBe("2026-09-01");
+
+    await clockOut(db as any, { ...BASE_INPUT, now });
+
+    expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-02");
   });
 
   it("rejects when there is no clock-in record for today", async () => {
     const db = makeMockDb({ todaysAttendance: null });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
       now: new Date("2026-09-01T17:05:00+07:00"),
     });
 
     expect(result).toEqual({ ok: false, error: "Anda belum absen masuk hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a failed today lookup from a genuine missing clock-in", async () => {
+    const db = makeMockDb({
+      todaysAttendance: null,
+      todaysAttendanceError: { message: "connection reset" },
+    });
+
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      now: new Date("2026-09-01T17:05:00+07:00"),
+    });
+
+    expect(result).toEqual({ ok: false, error: "Gagal memeriksa absensi hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it("rejects a second clock-out attempt on an already-closed record", async () => {
@@ -1209,31 +1298,46 @@ describe("clockOut", () => {
     });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
+      ...BASE_INPUT,
       photoPath: "employee-1/pulang-2.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
       now: new Date("2026-09-01T18:00:00+07:00"),
     });
 
     expect(result).toEqual({ ok: false, error: "Anda sudah absen pulang hari ini." });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects the losing request when two concurrent clock-outs pass the pre-check", async () => {
+    // Both requests read jam_pulang as NULL (the read-then-write race), so both
+    // reach the update. The `.is("jam_pulang", null)` filter makes the second
+    // one match zero rows instead of overwriting the first one's status.
+    const db = makeMockDb({ updateResults: [UPDATE_OK, UPDATE_ZERO_ROWS] });
+    const now = new Date("2026-09-01T17:05:00+07:00");
+
+    const first = await clockOut(db as any, { ...BASE_INPUT, now });
+    const second = await clockOut(db as any, {
+      ...BASE_INPUT,
+      photoPath: "employee-1/pulang-2.jpg",
+      now,
+    });
+
+    expect(first).toEqual({ ok: true, status: "tepat_waktu" });
+    expect(second).toEqual({ ok: false, error: "Anda sudah absen pulang hari ini." });
+    expect(db.__updateMock).toHaveBeenCalledTimes(2);
+    expect(db.__updateIsMock).toHaveBeenNthCalledWith(2, "jam_pulang", null);
   });
 
   it("merges pulang_cepat over an existing tepat_waktu clock-in status", async () => {
     const db = makeMockDb();
     const now = new Date("2026-09-01T16:00:00+07:00");
 
-    const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
-      now,
-    });
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
 
-    expect(result.ok).toBe(true);
+    expect(result).toEqual({ ok: true, status: "pulang_cepat" });
+    expect(db.__updateMock).toHaveBeenCalledTimes(1);
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "pulang_cepat" }),
+    );
   });
 
   it("keeps terlambat from clock-in even when clocking out on time", async () => {
@@ -1242,31 +1346,55 @@ describe("clockOut", () => {
     });
     const now = new Date("2026-09-01T17:05:00+07:00");
 
+    const result = await clockOut(db as any, { ...BASE_INPUT, now });
+
+    expect(result).toEqual({ ok: true, status: "terlambat" });
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "terlambat" }),
+    );
+  });
+
+  it("records di_luar_lokasi when clocking out beyond the branch geofence radius", async () => {
+    const db = makeMockDb();
+    const now = new Date("2026-09-01T17:05:00+07:00");
+
+    // Bandung — far outside branch-1's 100 m radius around (-6.2, 106.8).
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
+      lat: -6.9175,
+      long: 107.6191,
       now,
     });
 
-    expect(result).toEqual({ ok: true, status: "terlambat" });
+    expect(result).toEqual({ ok: true, status: "di_luar_lokasi" });
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "di_luar_lokasi",
+        lokasi_pulang: "(-6.9175,107.6191)",
+      }),
+    );
   });
 
-  it("returns an error when the update fails", async () => {
-    const db = makeMockDb({ updateError: { message: "update failed" } });
+  it("takes the first work schedule row rather than erroring when a branch has several", async () => {
+    const db = makeMockDb();
+
+    await clockOut(db as any, { ...BASE_INPUT, now: new Date("2026-09-01T17:05:00+07:00") });
+
+    expect(db.__scheduleEqMock).toHaveBeenCalledWith("branch_id", "branch-1");
+    expect(db.__scheduleLimitMock).toHaveBeenCalledWith(1);
+    expect(db.__scheduleMaybeSingleMock).toHaveBeenCalled();
+  });
+
+  it("returns a generic Indonesian message and logs the raw error when the update fails", async () => {
+    const db = makeMockDb({ updateError: { message: "deadlock detected" } });
 
     const result = await clockOut(db as any, {
-      employeeId: "employee-1",
-      lat: -6.2,
-      long: 106.8,
-      photoPath: "employee-1/pulang-1.jpg",
-      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      ...BASE_INPUT,
       now: new Date("2026-09-01T17:05:00+07:00"),
     });
 
-    expect(result).toEqual({ ok: false, error: "update failed" });
+    expect(result).toEqual({ ok: false, error: "Gagal menyimpan absen pulang." });
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });
 ```
@@ -1282,11 +1410,16 @@ Expected: FAIL — `Cannot find module './clock-out'`.
 - [ ] **Step 3: Write minimal implementation**
 
 ```typescript
-// src/lib/attendance/clock-out.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isWithinRadius } from "./geofencing";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockOutStatus, mergeAttendanceStatus, type AttendanceStatus } from "./status";
+
+// PostgREST's "no rows returned" code, surfaced as PostgrestError.code when a
+// `.single()` matches zero rows. On the update below that means the atomic
+// `jam_pulang is null` filter did NOT match — i.e. the row was already closed.
+const PGRST_NO_ROWS = "PGRST116";
+const DUPLICATE_CLOCK_OUT_MESSAGE = "Anda sudah absen pulang hari ini.";
 
 export type ClockOutInput = {
   employeeId: string;
@@ -1310,11 +1443,19 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .single();
-  if (todayErr || !today) {
+  // A genuine "no row for today" (PGRST116, or null data with no error) means
+  // the employee has not clocked in. Any OTHER error is an infrastructure
+  // failure and must not be reported as "you haven't clocked in" — that
+  // message is actively misleading and invites a pointless retry.
+  if (todayErr && todayErr.code !== PGRST_NO_ROWS) {
+    console.error("clockOut: today lookup failed", todayErr);
+    return { ok: false, error: "Gagal memeriksa absensi hari ini." };
+  }
+  if (!today) {
     return { ok: false, error: "Anda belum absen masuk hari ini." };
   }
   if (today.jam_pulang) {
-    return { ok: false, error: "Anda sudah absen pulang hari ini." };
+    return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
   }
 
   const { data: employee, error: employeeErr } = await db
@@ -1323,7 +1464,10 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     .eq("id", input.employeeId)
     .single();
   if (employeeErr || !employee) {
-    return { ok: false, error: employeeErr?.message ?? "Data karyawan tidak ditemukan." };
+    // Never surface raw Postgres/PostgREST text to the user: it is English,
+    // internal, and can disclose schema details. Log it, return Indonesian.
+    console.error("clockOut: employee lookup failed", employeeErr);
+    return { ok: false, error: "Data karyawan tidak ditemukan." };
   }
 
   const { data: branch, error: branchErr } = await db
@@ -1332,16 +1476,24 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     .eq("id", employee.branch_id)
     .single();
   if (branchErr || !branch) {
-    return { ok: false, error: branchErr?.message ?? "Data cabang tidak ditemukan." };
+    console.error("clockOut: branch lookup failed", branchErr);
+    return { ok: false, error: "Data cabang tidak ditemukan." };
   }
 
   const { data: schedule, error: scheduleErr } = await db
     .from("work_schedules")
     .select("jam_pulang")
     .eq("branch_id", employee.branch_id)
-    .single();
+    // work_schedules has no unique constraint on branch_id alone (a branch may
+    // have several rows for different hari_kerja patterns), so .single() would
+    // error with PGRST116 as soon as a second row exists. Taking the first row
+    // keeps this path working; picking the row matching today's hari_kerja is
+    // deliberately out of scope here. Mirrors clockIn.
+    .limit(1)
+    .maybeSingle();
   if (scheduleErr || !schedule) {
-    return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
+    console.error("clockOut: work schedule lookup failed", scheduleErr);
+    return { ok: false, error: "Jadwal kerja cabang tidak ditemukan." };
   }
 
   const withinRadius = isWithinRadius(
@@ -1370,11 +1522,29 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
       status: finalStatus,
     })
     .eq("id", today.id)
+    // Atomic backstop for the `today.jam_pulang` pre-check above, which is a
+    // read-then-write race: two concurrent clock-outs can both pass it, and the
+    // later write would overwrite jam_pulang/photos/status — letting an employee
+    // launder their final status by firing two requests. The DB anti-tampering
+    // trigger (prevent_attendance_status_backdating, migration 0010) does NOT
+    // cover this path: it is gated on `auth.uid() = old.employee_id`, and
+    // clockOut always runs with a service-role client where auth.uid() is NULL,
+    // so its guard body never executes. Restricting the UPDATE to rows whose
+    // jam_pulang is still NULL makes "close the record" a single atomic
+    // compare-and-set — the loser matches zero rows instead of overwriting.
+    .is("jam_pulang", null)
     .select()
     .single();
 
   if (updateErr || !updated) {
-    return { ok: false, error: updateErr?.message ?? "Gagal menyimpan absen pulang." };
+    // Zero rows matched: another request closed the record between the
+    // pre-check and this write. Report it exactly as the pre-check does, so
+    // both paths read identically to the user.
+    if (updateErr?.code === PGRST_NO_ROWS || (!updateErr && !updated)) {
+      return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
+    }
+    console.error("clockOut: update failed", updateErr);
+    return { ok: false, error: "Gagal menyimpan absen pulang." };
   }
 
   return { ok: true, status: finalStatus };
@@ -1387,7 +1557,7 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
 npm test -- clock-out.test.ts
 ```
 
-Expected: PASS (6 tests).
+Expected: PASS (11 tests).
 
 - [ ] **Step 5: Commit**
 
