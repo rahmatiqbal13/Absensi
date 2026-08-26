@@ -135,8 +135,12 @@ describe("RLS & anti-fraud triggers", () => {
       .select("role, gaji_pokok, branch_id, department_id, atasan_id, designated_approver_id, status")
       .eq("id", karyawanA.id)
       .single();
+    // gaji_pokok is numeric(14,2) with default 0 (see 0001_core_entities.sql).
+    // Verified against the live API: PostgREST returns it as a JSON number
+    // (0), not the "0.00" string form, so assert the numeric value.
     expect(row).toMatchObject({
       role: "karyawan",
+      gaji_pokok: 0,
       branch_id: branchId,
       department_id: null,
       atasan_id: null,
@@ -365,7 +369,7 @@ describe("RLS & anti-fraud triggers", () => {
       .eq("id", attendance.id);
     expect(error).not.toBeNull();
     expect(error!.message).toContain(
-      "not allowed to change status after clock-out is recorded",
+      "not allowed to modify a closed attendance record",
     );
 
     const { data: after } = await db
@@ -374,5 +378,77 @@ describe("RLS & anti-fraud triggers", () => {
       .eq("id", attendance.id)
       .single();
     expect(after!.status).toBe("pulang_cepat");
+  }, 30_000);
+
+  it("blocks the two-step reopen-then-rewrite attendance bypass", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: attendance } = await db
+      .from("attendances")
+      .insert({
+        employee_id: karyawanA.id,
+        tanggal: "2026-12-02",
+        jam_masuk: "2026-12-02T01:00:00Z",
+        status: "terlambat",
+      })
+      .select()
+      .single();
+
+    const clientA = await signInAs(karyawanA.email, password);
+
+    // Legitimate single-statement clock-out (jam_pulang IS NULL beforehand):
+    // must still succeed even though the guard now also watches jam_pulang.
+    const { error: clockOutError } = await clientA
+      .from("attendances")
+      .update({ jam_pulang: "2026-12-02T10:00:00Z", status: "pulang_cepat" })
+      .eq("id", attendance.id);
+    expect(clockOutError).toBeNull();
+
+    // Step 1 of the bypass: "reopen" the closed record by nulling jam_pulang
+    // without touching status. This is now itself rejected.
+    const { error: reopenError } = await clientA
+      .from("attendances")
+      .update({ jam_pulang: null })
+      .eq("id", attendance.id);
+    expect(reopenError, "expected the reopen UPDATE to be rejected").not.toBeNull();
+    expect(reopenError!.message).toContain(
+      "not allowed to modify a closed attendance record",
+    );
+
+    // Step 2 of the bypass: rewrite status now that jam_pulang is supposedly
+    // NULL again. Must also fail.
+    const { error: rewriteError } = await clientA
+      .from("attendances")
+      .update({
+        status: "tepat_waktu",
+        jam_pulang: "2026-12-02T17:00:00Z",
+      })
+      .eq("id", attendance.id);
+    expect(rewriteError, "expected the status rewrite to be rejected").not.toBeNull();
+    expect(rewriteError!.message).toContain(
+      "not allowed to modify a closed attendance record",
+    );
+
+    // jam_masuk is protected on a closed record too.
+    const { error: jamMasukError } = await clientA
+      .from("attendances")
+      .update({ jam_masuk: "2026-12-02T00:00:00Z" })
+      .eq("id", attendance.id);
+    expect(jamMasukError, "expected the jam_masuk rewrite to be rejected").not.toBeNull();
+    expect(jamMasukError!.message).toContain(
+      "not allowed to modify a closed attendance record",
+    );
+
+    const { data: after } = await db
+      .from("attendances")
+      .select("status, jam_masuk, jam_pulang")
+      .eq("id", attendance.id)
+      .single();
+    expect(after!.status).toBe("pulang_cepat");
+    expect(new Date(after!.jam_masuk).toISOString()).toBe(
+      "2026-12-02T01:00:00.000Z",
+    );
+    expect(new Date(after!.jam_pulang).toISOString()).toBe(
+      "2026-12-02T10:00:00.000Z",
+    );
   }, 30_000);
 });
