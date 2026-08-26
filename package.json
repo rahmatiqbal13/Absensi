@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run src/",
+    "test:integration": "vitest run tests/integration/",
+    "test:all": "vitest run",
+    "test:watch": "vitest src/",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
