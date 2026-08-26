@@ -13,7 +13,7 @@ This is **Plan 2 of a 4-plan sequence** derived from `docs/superpowers/specs/202
 ## Global Constraints
 
 - TypeScript everywhere, strict mode on.
-- **Status is never trusted from the client.** Every write to `attendances.status` happens inside a Server Action that calls `createServiceRoleSupabaseClient()`, computes status from server-known inputs (branch coordinates, work schedule, server clock), and writes it — the client only supplies raw GPS coordinates and a photo. This closes the anti-fraud gap flagged in Foundation's final review (I2/attendances RLS policy).
+- **Status is never trusted from the client.** Every write to `attendances.status` happens inside a Server Action that calls `createServiceRoleSupabaseClient()`, computes status from server-known inputs (branch coordinates, work schedule, server clock), and writes it — the client only supplies raw GPS coordinates and a photo. Hardening the app's own write path is not by itself enough: the browser holds the anon key and a session JWT, so the anti-fraud gap flagged in Foundation's final review (I2/attendances RLS policy) is closed by **migration 0011**, which drops the `employee_id = auth.uid()` INSERT/UPDATE policies on `attendances` and restricts direct writes to `is_hr_admin_role()`. The service role bypasses RLS, so `clockIn`/`clockOut` are unaffected.
 - **Mobile-lock is enforced server-side**, in the Server Action, via `User-Agent` — never only in the UI. Client-side hiding of the button is a UX nicety on top, not the security boundary (per spec §4.1: "best-effort, not cryptographic proof").
 - **Radius geofencing is 100m for every branch and every employee, no exceptions** (PRD §6, stakeholder-confirmed) — already the default on `branches.radius_geofencing_meter` from Foundation; this plan reads it per-branch rather than hardcoding 100, so a future per-branch override still works.
 - **`di_luar_lokasi` requires a `catatan`** (reason) and is never auto-treated as a violation — it's context for the approving `atasan` (spec §4.4).
@@ -286,8 +286,29 @@ export type AttendanceStatus =
   | "alpa"
   | "di_luar_lokasi";
 
+// This module assumes all work schedules (jam_masuk / jam_pulang) are
+// expressed in Asia/Jakarta wall-clock time (the app has no per-branch
+// timezone column; a single-timezone assumption is correct for this
+// project's scope). Hour/minute extraction is deliberately pinned to
+// Asia/Jakarta via Intl.DateTimeFormat rather than Date.prototype.getHours()/
+// getMinutes(), because those read the hour/minute in the EXECUTING
+// PROCESS's local timezone, not any timezone implied by how the Date was
+// constructed. On a server not configured with TZ=Asia/Jakarta (e.g. a
+// UTC-default cloud/serverless deployment), getHours()/getMinutes() would
+// silently compute attendance status up to 7 hours wrong. Pinning via Intl
+// makes the result independent of the process's own TZ configuration.
+const JAKARTA_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Jakarta",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function minutesSinceMidnight(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes();
+  const parts = JAKARTA_TIME_FORMATTER.formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
 }
 
 function parseHHMM(value: string): number {
@@ -962,8 +983,15 @@ Expected: FAIL — `Cannot find module './clock-in'`.
 // src/lib/attendance/clock-in.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isWithinRadius } from "./geofencing";
+import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
+
+// Postgres SQLSTATE for unique_violation, surfaced by PostgREST as
+// PostgrestError.code — the `unique (employee_id, tanggal)` constraint on
+// attendances is the race-condition backstop for the duplicate pre-check.
+const PG_UNIQUE_VIOLATION = "23505";
+const DUPLICATE_CLOCK_IN_MESSAGE = "Anda sudah absen masuk hari ini.";
 
 export type ClockInInput = {
   employeeId: string;
@@ -979,10 +1007,6 @@ export type ClockInResult =
   | { ok: true; attendanceId: string; status: AttendanceStatus }
   | { ok: false; error: string };
 
-function toDateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<ClockInResult> {
   const now = input.now ?? new Date();
 
@@ -991,16 +1015,22 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     return { ok: false, error: "Persetujuan pemrosesan data lokasi/foto diperlukan sebelum absen." };
   }
 
-  const tanggal = toDateOnly(now);
+  const tanggal = toJakartaDateOnly(now);
 
-  const { data: existing } = await db
+  const { data: existing, error: existingErr } = await db
     .from("attendances")
     .select("id")
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .limit(1);
+  // Fail closed: a failed duplicate check must not fall through as "no
+  // duplicate found", which would let a second row be attempted for the day.
+  if (existingErr) {
+    console.error("clockIn: duplicate check failed", existingErr);
+    return { ok: false, error: "Gagal memeriksa absensi hari ini." };
+  }
   if (existing && existing.length > 0) {
-    return { ok: false, error: "Anda sudah absen masuk hari ini." };
+    return { ok: false, error: DUPLICATE_CLOCK_IN_MESSAGE };
   }
 
   const { data: employee, error: employeeErr } = await db
@@ -1025,7 +1055,13 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     .from("work_schedules")
     .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
     .eq("branch_id", employee.branch_id)
-    .single();
+    // work_schedules has no unique constraint on branch_id alone (a branch may
+    // have several rows for different hari_kerja patterns), so .single() would
+    // error with PGRST116 as soon as a second row exists. Taking the first row
+    // keeps this path working; picking the row matching today's hari_kerja is
+    // deliberately out of scope here.
+    .limit(1)
+    .maybeSingle();
   if (scheduleErr || !schedule) {
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }
@@ -1038,7 +1074,10 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     branch.radius_geofencing_meter,
   );
 
-  if (!withinRadius && !input.catatan) {
+  // A whitespace-only catatan is not a reason — treat it as absent.
+  const catatan = input.catatan?.trim() || null;
+
+  if (!withinRadius && !catatan) {
     return { ok: false, error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan." };
   }
 
@@ -1059,13 +1098,21 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
       foto_masuk_url: input.photoPath,
       foto_masuk_expires_at: input.photoExpiresAt,
       status,
-      catatan: input.catatan ?? null,
+      catatan,
     })
     .select()
     .single();
 
   if (insertErr || !inserted) {
-    return { ok: false, error: insertErr?.message ?? "Gagal menyimpan absensi." };
+    // Never surface raw Postgres/PostgREST text to the user: it is English,
+    // internal, and can disclose schema details. Log it, return Indonesian.
+    console.error("clockIn: insert failed", insertErr);
+    if (insertErr?.code === PG_UNIQUE_VIOLATION) {
+      // Lost the race against a concurrent clock-in; same invariant as the
+      // pre-check above, so the user sees the same message.
+      return { ok: false, error: DUPLICATE_CLOCK_IN_MESSAGE };
+    }
+    return { ok: false, error: "Gagal menyimpan absensi." };
   }
 
   return { ok: true, attendanceId: inserted.id, status };
@@ -2328,9 +2375,23 @@ export type AttendanceRecord = {
   catatan: string | null;
 };
 
+// `HistoryList` renders inside a Server Component with no `"use client"`
+// directive, so `formatTime` executes in the Node server process using
+// whatever timezone that process happens to be configured with — not
+// necessarily Asia/Jakarta. Without an explicit `timeZone`, `toLocaleTimeString`
+// reads the instant in the EXECUTING PROCESS's local timezone, not any
+// timezone implied by how the ISO string was written. On a UTC-default
+// cloud/serverless deployment, a clock-in stored as 09:00 WIB (02:00Z) would
+// render as "02.00" instead of "09.00". Pinning `timeZone: "Asia/Jakarta"`
+// makes the result independent of the process's own TZ configuration — same
+// pattern as jakarta-date.ts and status.ts.
 function formatTime(iso: string | null): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jakarta",
+  });
 }
 
 function formatDate(dateOnly: string): string {
