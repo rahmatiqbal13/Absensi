@@ -1,3 +1,46 @@
-export default function AbsenPage() {
-  return <p className="p-4">Absen — coming in Plan 2.</p>;
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentEmployee } from "@/lib/auth/session";
+import { hasActiveConsent } from "@/lib/consent/consent";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { ClockPanel, type TodaysAttendance } from "./clock-panel";
+import { submitClockIn, submitClockOut } from "./actions";
+
+export default async function AbsenPage() {
+  const db = await createServerSupabaseClient();
+  const employee = await getCurrentEmployee(db);
+  if (!employee) {
+    redirect("/login");
+  }
+
+  const consented = await hasActiveConsent(db, employee.id);
+  if (!consented) {
+    redirect("/absen/consent");
+  }
+
+  // Do NOT use `new Date().toISOString().slice(0, 10)` here — that's the UTC
+  // date, which is the previous day for any instant before 07:00 WIB and
+  // would miss the row Task 6's clockIn() wrote under the Jakarta date.
+  const today = toJakartaDateOnly(new Date());
+  const { data: attendance } = await db
+    .from("attendances")
+    .select("jam_masuk, jam_pulang, status")
+    .eq("employee_id", employee.id)
+    .eq("tanggal", today)
+    .maybeSingle();
+
+  const todaysAttendance: TodaysAttendance = attendance
+    ? { jamMasuk: attendance.jam_masuk, jamPulang: attendance.jam_pulang, status: attendance.status }
+    : null;
+
+  return (
+    <main className="p-4">
+      <h1 className="mb-4 text-xl font-semibold">Absen</h1>
+      <ClockPanel
+        todaysAttendance={todaysAttendance}
+        submitClockIn={submitClockIn}
+        submitClockOut={submitClockOut}
+      />
+    </main>
+  );
 }
