@@ -1,19 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { PRESENT_STATUSES } from "@/lib/attendance/status";
 
 export type AttendanceSummary = {
   hadir: number;
   terlambat: number;
   alpa: number;
+  // Rows whose `status` is none of the known buckets (hadir / terlambat /
+  // alpa). Kept as its own field so an unexpected value can never silently
+  // shrink the alpa figure — see the review's Minor #7.
+  other: number;
   total: number;
 };
 
-const PRESENT_STATUSES = ["tepat_waktu", "pulang_cepat", "di_luar_lokasi"];
+export type AttendanceSummaryResult =
+  | { ok: true; summary: AttendanceSummary }
+  | { ok: false; error: string };
 
 export async function getTodaySummary(
   db: SupabaseClient,
   branchId?: string,
-): Promise<AttendanceSummary> {
+): Promise<AttendanceSummaryResult> {
   const today = toJakartaDateOnly(new Date());
 
   // `attendances` has no `branch_id` column of its own — it only carries
@@ -38,7 +45,11 @@ export async function getTodaySummary(
         .eq("employees.branch_id", branchId)
     : db.from("attendances").select("status").eq("tanggal", today);
 
-  const { data: attendanceRows } = await attendanceQuery;
+  const { data: attendanceRows, error: attendanceError } = await attendanceQuery;
+  if (attendanceError) {
+    console.error("getTodaySummary: attendances query failed", attendanceError);
+    return { ok: false, error: "Gagal memuat data absensi." };
+  }
 
   let employeeQuery = db
     .from("employees")
@@ -47,13 +58,25 @@ export async function getTodaySummary(
   if (branchId) {
     employeeQuery = employeeQuery.eq("branch_id", branchId);
   }
-  const { count: total } = await employeeQuery;
+  const { count: total, error: employeeError } = await employeeQuery;
+  if (employeeError) {
+    console.error("getTodaySummary: employees count query failed", employeeError);
+    return { ok: false, error: "Gagal memuat data absensi." };
+  }
 
   const rows = (attendanceRows ?? []) as { status: string }[];
+  const totalCount = total ?? 0;
+
+  // Explicit bucketing: every row is attributed to exactly one bucket by its
+  // actual status value. `alpa` = employees with an explicit `alpa` row PLUS
+  // employees with no attendance row at all today. `other` catches any
+  // unexpected status so it cannot leak into `alpa`.
   const hadir = rows.filter((row) => PRESENT_STATUSES.includes(row.status)).length;
   const terlambat = rows.filter((row) => row.status === "terlambat").length;
-  const totalCount = total ?? 0;
-  const alpa = Math.max(totalCount - rows.length, 0);
+  const alpaRows = rows.filter((row) => row.status === "alpa").length;
+  const other = rows.length - hadir - terlambat - alpaRows;
+  const noRecord = Math.max(totalCount - rows.length, 0);
+  const alpa = alpaRows + noRecord;
 
-  return { hadir, terlambat, alpa, total: totalCount };
+  return { ok: true, summary: { hadir, terlambat, alpa, other, total: totalCount } };
 }

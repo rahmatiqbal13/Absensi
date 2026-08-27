@@ -6,7 +6,7 @@ import { getTodaySummary } from "./attendance-summary";
 // branch-scoped path in attendance-summary.ts chains two calls, the
 // unscoped path chains one) and the chain resolves via `.then()` whenever
 // it is awaited, regardless of how many `.eq()` calls preceded it.
-function makeChain(result: { data?: unknown; error: null } | { count: number; error: null }) {
+function makeChain(result: Record<string, unknown>) {
   const chain: PromiseLike<typeof result> & { eq: (...args: unknown[]) => typeof chain } = {
     eq: vi.fn(() => chain),
     then: (onFulfilled) => Promise.resolve(result).then(onFulfilled),
@@ -18,16 +18,23 @@ function makeMockDb(
   opts: {
     attendanceRows?: { status: string }[];
     employeeCount?: number;
+    attendanceError?: unknown;
+    employeeError?: unknown;
   } = {},
 ) {
-  const { attendanceRows = [], employeeCount = 10 } = opts;
+  const { attendanceRows = [], employeeCount = 10, attendanceError = null, employeeError = null } =
+    opts;
 
   const tables: Record<string, any> = {
     attendances: {
-      select: vi.fn(() => makeChain({ data: attendanceRows, error: null })),
+      select: vi.fn(() =>
+        makeChain({ data: attendanceError ? null : attendanceRows, error: attendanceError }),
+      ),
     },
     employees: {
-      select: vi.fn(() => makeChain({ count: employeeCount, error: null })),
+      select: vi.fn(() =>
+        makeChain({ count: employeeError ? null : employeeCount, error: employeeError }),
+      ),
     },
   };
 
@@ -47,20 +54,54 @@ describe("getTodaySummary", () => {
       employeeCount: 10,
     });
 
-    const summary = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any);
 
-    expect(summary).toEqual({
-      hadir: 4, // tepat_waktu x2 + pulang_cepat + di_luar_lokasi
-      terlambat: 1,
-      alpa: 5, // 10 employees - 5 rows with attendance today
-      total: 10,
+    expect(result).toEqual({
+      ok: true,
+      summary: {
+        hadir: 4, // tepat_waktu x2 + pulang_cepat + di_luar_lokasi
+        terlambat: 1,
+        alpa: 5, // 10 employees - 5 rows with attendance today
+        other: 0,
+        total: 10,
+      },
     });
   });
 
   it("returns all-alpa when nobody has clocked in today", async () => {
     const db = makeMockDb({ attendanceRows: [], employeeCount: 3 });
-    const summary = await getTodaySummary(db as any);
-    expect(summary).toEqual({ hadir: 0, terlambat: 0, alpa: 3, total: 3 });
+    const result = await getTodaySummary(db as any);
+    expect(result).toEqual({
+      ok: true,
+      summary: { hadir: 0, terlambat: 0, alpa: 3, other: 0, total: 3 },
+    });
+  });
+
+  it("counts explicit alpa rows into alpa and unknown statuses into other, never into alpa", async () => {
+    const db = makeMockDb({
+      attendanceRows: [
+        { status: "tepat_waktu" },
+        { status: "alpa" },
+        { status: "alpa" },
+        { status: "cuti_disetujui" }, // unexpected value
+      ],
+      employeeCount: 10,
+    });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({
+      ok: true,
+      summary: {
+        hadir: 1,
+        terlambat: 0,
+        // 2 explicit alpa rows + 6 employees with no row at all — the unknown
+        // "cuti_disetujui" row must NOT reduce this.
+        alpa: 8,
+        other: 1,
+        total: 10,
+      },
+    });
   });
 
   it("scopes both counts to the given branch via the employees join, not a nonexistent attendances.branch_id column", async () => {
@@ -69,9 +110,12 @@ describe("getTodaySummary", () => {
       employeeCount: 5,
     });
 
-    const summary = await getTodaySummary(db as any, "branch-1");
+    const result = await getTodaySummary(db as any, "branch-1");
 
-    expect(summary).toEqual({ hadir: 1, terlambat: 1, alpa: 3, total: 5 });
+    expect(result).toEqual({
+      ok: true,
+      summary: { hadir: 1, terlambat: 1, alpa: 3, other: 0, total: 5 },
+    });
 
     // The corrected query must select the embedded `employees` resource and
     // filter on the dotted `employees.branch_id` path — never a bare
@@ -82,5 +126,33 @@ describe("getTodaySummary", () => {
     );
     const attendanceChain = attendancesSelect.mock.results[0].value;
     expect(attendanceChain.eq).toHaveBeenCalledWith("employees.branch_id", "branch-1");
+  });
+
+  it("returns a failure result (not zeros) and logs when the attendances query errors", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = makeMockDb({ attendanceError: { message: "permission denied for table attendances" } });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
+    expect(errSpy).toHaveBeenCalledWith(
+      "getTodaySummary: attendances query failed",
+      expect.objectContaining({ message: expect.any(String) }),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("returns a failure result (not zeros) and logs when the employees count query errors", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = makeMockDb({ employeeError: { message: "permission denied for table employees" } });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
+    expect(errSpy).toHaveBeenCalledWith(
+      "getTodaySummary: employees count query failed",
+      expect.objectContaining({ message: expect.any(String) }),
+    );
+    errSpy.mockRestore();
   });
 });

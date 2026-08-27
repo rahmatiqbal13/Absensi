@@ -63,6 +63,11 @@ export function resolveClockOutStatus(params: {
   return actualMinutes < scheduledMinutes ? "pulang_cepat" : "tepat_waktu";
 }
 
+// Statuses that mean the employee showed up (attended) today, as opposed to
+// `terlambat` (late but present, counted separately) or `alpa` (absent).
+// Shared by the dashboard aggregation modules so the list is defined once.
+export const PRESENT_STATUSES: string[] = ["tepat_waktu", "pulang_cepat", "di_luar_lokasi"];
+
 const STATUS_PRIORITY: AttendanceStatus[] = [
   "di_luar_lokasi",
   "terlambat",

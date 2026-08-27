@@ -20,12 +20,16 @@ export default async function CutiPage() {
     redirect("/login");
   }
 
-  const { data } = await db
+  const { data, error } = await db
     .from("leave_requests")
     .select("id, jenis, tanggal_mulai, tanggal_selesai, status, catatan_approval")
     .eq("employee_id", employee.id)
     .order("created_at", { ascending: false })
     .limit(30);
+
+  if (error) {
+    console.error("CutiPage: leave_requests history query failed", error);
+  }
 
   const requests = data ?? [];
 
@@ -37,7 +41,9 @@ export default async function CutiPage() {
       </div>
       <div>
         <h2 className="mb-2 text-lg font-semibold text-neutral-900">Riwayat Pengajuan</h2>
-        {requests.length === 0 ? (
+        {error ? (
+          <p className="text-sm text-red-600">Gagal memuat riwayat cuti. Silakan muat ulang halaman.</p>
+        ) : requests.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center">
             <p className="text-sm text-neutral-500">Belum ada pengajuan cuti.</p>
           </div>

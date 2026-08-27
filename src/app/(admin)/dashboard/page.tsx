@@ -14,16 +14,18 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Dashboard visibility follows is_admin_role() (atasan included) — a plain
-  // authenticated read, RLS already scopes what each role can see (atasan
-  // sees only their team's rows via employees_select's atasan_id clause).
-  // Per-branch filtering (a UI to scope hr_admin/super_admin down to one
-  // branch) is out of scope for this MVP pass — everyone currently gets the
-  // full-org summary that RLS allows them to see.
+  // Dashboard reads run under is_admin_role() (migration 0009), which INCLUDES
+  // the atasan role. Both employees_select and attendances_select short-circuit
+  // on is_admin_role(), so atasan sees ORG-WIDE aggregate counts here, not
+  // team-scoped — 0009 removed the atasan_id path for these tables. This is the
+  // intended tier for this MVP (a reporting concern, trusted internal role);
+  // team-scoping would need a separate atasan_id-filtered query. Per-branch
+  // filtering (a UI to scope hr_admin/super_admin down to one branch) is also
+  // out of scope for this MVP pass.
   const branchId = undefined;
-  const summary = await getTodaySummary(db, branchId);
+  const summaryResult = await getTodaySummary(db, branchId);
   const currentYearMonth = toJakartaDateOnly(new Date()).slice(0, 7);
-  const trend = await getMonthlyTrend(db, currentYearMonth);
+  const trendResult = await getMonthlyTrend(db, currentYearMonth);
 
   return (
     <div className="space-y-4">
@@ -31,16 +33,24 @@ export default async function DashboardPage() {
         <h1 className="text-xl font-semibold text-neutral-900">Dashboard</h1>
         <p className="mt-1 text-sm text-neutral-500">Ringkasan kehadiran hari ini.</p>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Hadir" value={summary.hadir} />
-        <SummaryCard label="Terlambat" value={summary.terlambat} />
-        <SummaryCard label="Alpa" value={summary.alpa} />
-      </div>
+      {summaryResult.ok ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <SummaryCard label="Hadir" value={summaryResult.summary.hadir} />
+          <SummaryCard label="Terlambat" value={summaryResult.summary.terlambat} />
+          <SummaryCard label="Alpa" value={summaryResult.summary.alpa} />
+        </div>
+      ) : (
+        <p className="text-sm text-red-600">{summaryResult.error}</p>
+      )}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
         <p className="text-sm font-medium text-neutral-900">Tren Kehadiran Bulan Ini</p>
         <p className="mt-1 text-xs text-neutral-500">Jumlah hadir dan terlambat per hari.</p>
         <div className="mt-4">
-          <AttendanceTrendChart data={trend} />
+          {trendResult.ok ? (
+            <AttendanceTrendChart data={trendResult.points} />
+          ) : (
+            <p className="text-sm text-red-600">{trendResult.error}</p>
+          )}
         </div>
       </div>
     </div>
