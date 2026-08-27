@@ -2,10 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
 import { inviteEmployee } from "@/lib/employees/invite";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+
+async function assertHrAdmin(): Promise<{ ok: false; error: string } | null> {
+  const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me || (me.role !== "hr_admin" && me.role !== "super_admin")) {
+    return { ok: false, error: "Tidak diizinkan." };
+  }
+  return null;
+}
 
 function formRecord(formData: FormData): Record<string, FormDataEntryValue | null> {
   const rec: Record<string, FormDataEntryValue | null> = {};
@@ -16,6 +26,9 @@ function formRecord(formData: FormData): Record<string, FormDataEntryValue | nul
 export async function createEmployee(
   formData: FormData,
 ): Promise<Result<{ setPasswordUrl: string }>> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const parsed = validateEmployeeInput(formRecord(formData));
   if (!parsed.ok) return parsed;
 
@@ -56,6 +69,9 @@ const UPDATE_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export async function updateEmployee(id: string, formData: FormData): Promise<Result> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const parsed = validateEmployeeInput(formRecord(formData));
   if (!parsed.ok) return parsed;
 
@@ -93,6 +109,9 @@ export async function setEmployeeStatus(
   id: string,
   status: "aktif" | "nonaktif",
 ): Promise<Result> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const db = await createServerSupabaseClient();
   const { data: userData } = await db.auth.getUser();
   if (status === "nonaktif" && userData.user?.id === id) {

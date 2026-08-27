@@ -23,7 +23,26 @@ const validForm = {
   branchId: "11111111-1111-1111-1111-111111111111", departmentId: "", atasanId: "", designatedApproverId: "",
 };
 
-beforeEach(() => { from.mockReset(); inviteEmployee.mockReset(); getUser.mockClear(); });
+const HR_ADMIN = { id: "actor-1", nama: "HR", email: "hr@x", role: "hr_admin", branch_id: "b1", status: "aktif" };
+
+// The hr_admin gate calls getCurrentEmployee → from("employees").select().eq().single().
+// Default `from` serves that gate lookup plus a clean update; per-test overrides pass `mutation`
+// for the .update().eq() (or .insert()) chain the action under test needs.
+function mockFrom(opts: { gateRow?: unknown; mutation?: unknown } = {}) {
+  const gateRow = "gateRow" in opts ? opts.gateRow : HR_ADMIN;
+  from.mockReturnValue({
+    select: () => ({ eq: () => ({ single: async () => ({ data: gateRow, error: null }) }) }),
+    ...(opts.mutation as object ?? { update: () => ({ eq: async () => ({ error: null }) }) }),
+  });
+}
+
+beforeEach(() => {
+  from.mockReset();
+  inviteEmployee.mockReset();
+  getUser.mockClear();
+  getUser.mockResolvedValue({ data: { user: { id: "actor-1" } } });
+  mockFrom();
+});
 
 describe("createEmployee", () => {
   it("validates, invites with a service-role client, and returns the link", async () => {
@@ -47,17 +66,23 @@ describe("createEmployee", () => {
     const result = await createEmployee(fd(validForm));
     expect(result).toEqual({ ok: false, error: "Gagal menyimpan data karyawan." });
   });
+
+  it("refuses a caller who is not hr_admin and never invites", async () => {
+    mockFrom({ gateRow: { ...HR_ADMIN, role: "atasan" } });
+    const result = await createEmployee(fd(validForm));
+    expect(result).toEqual({ ok: false, error: "Tidak diizinkan." });
+    expect(inviteEmployee).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateEmployee", () => {
   it("maps the protected-field trigger error", async () => {
-    from.mockReturnValue({ update: () => ({ eq: async () => ({ error: { message: "not allowed to change protected employee fields" } }) }) });
+    mockFrom({ mutation: { update: () => ({ eq: async () => ({ error: { message: "not allowed to change protected employee fields" } }) }) } });
     const result = await updateEmployee("e1", fd(validForm));
     expect(result).toEqual({ ok: false, error: "Anda tidak berhak mengubah data terproteksi karyawan." });
   });
 
   it("succeeds on a clean update", async () => {
-    from.mockReturnValue({ update: () => ({ eq: async () => ({ error: null }) }) });
     const result = await updateEmployee("e1", fd(validForm));
     expect(result).toEqual({ ok: true });
   });
@@ -70,7 +95,6 @@ describe("setEmployeeStatus", () => {
   });
 
   it("updates status for another employee", async () => {
-    from.mockReturnValue({ update: () => ({ eq: async () => ({ error: null }) }) });
     const result = await setEmployeeStatus("e2", "nonaktif");
     expect(result).toEqual({ ok: true });
   });

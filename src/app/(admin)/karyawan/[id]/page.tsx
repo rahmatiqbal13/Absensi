@@ -30,18 +30,25 @@ export default async function KaryawanDetailPage({
   }
   if (!emp) notFound();
 
-  const [{ data: branches }, { data: departments }, { data: approvers }, { data: audit, error: auditError }] =
-    await Promise.all([
-      db.from("branches").select("id, nama").order("nama"),
-      db.from("departments").select("id, nama").order("nama"),
-      db.from("employees").select("id, nama").eq("status", "aktif").order("nama"),
-      db
-        .from("audit_logs")
-        .select("waktu, aksi, actor:employees!audit_logs_actor_id_fkey(nama)")
-        .eq("target_employee_id", id)
-        .order("waktu", { ascending: false })
-        .limit(50),
-    ]);
+  const [
+    { data: branches, error: branchesError },
+    { data: departments, error: departmentsError },
+    { data: approvers, error: approversError },
+    { data: audit, error: auditError },
+  ] = await Promise.all([
+    db.from("branches").select("id, nama").order("nama"),
+    db.from("departments").select("id, nama").order("nama"),
+    db.from("employees").select("id, nama").eq("status", "aktif").order("nama"),
+    db
+      .from("audit_logs")
+      .select("waktu, aksi, actor:employees!audit_logs_actor_id_fkey(nama)")
+      .eq("target_employee_id", id)
+      .order("waktu", { ascending: false })
+      .limit(50),
+  ]);
+  if (branchesError) console.error("KaryawanDetailPage: branches lookup failed", branchesError);
+  if (departmentsError) console.error("KaryawanDetailPage: departments lookup failed", departmentsError);
+  if (approversError) console.error("KaryawanDetailPage: approvers lookup failed", approversError);
   if (auditError) console.error("KaryawanDetailPage: audit lookup failed", auditError);
 
   return (
@@ -91,8 +98,8 @@ export default async function KaryawanDetailPage({
           <p className="text-sm text-neutral-500">Belum ada riwayat.</p>
         ) : (
           <ul className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white text-sm">
-            {audit.map((a, i) => (
-              <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+            {audit.map((a) => (
+              <li key={`${a.waktu}-${a.aksi}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
                 <span>{a.aksi}</span>
                 <span className="text-neutral-500">
                   {(a.actor as unknown as { nama: string } | null)?.nama ?? "Sistem"} ·{" "}

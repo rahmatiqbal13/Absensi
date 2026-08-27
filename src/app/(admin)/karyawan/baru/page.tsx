@@ -10,11 +10,18 @@ export default async function KaryawanBaruPage() {
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const [{ data: branches }, { data: departments }, { data: approvers }] = await Promise.all([
+  const [
+    { data: branches, error: branchesError },
+    { data: departments, error: departmentsError },
+    { data: approvers, error: approversError },
+  ] = await Promise.all([
     db.from("branches").select("id, nama").order("nama"),
     db.from("departments").select("id, nama").order("nama"),
     db.from("employees").select("id, nama").eq("status", "aktif").order("nama"),
   ]);
+  if (branchesError) console.error("KaryawanBaruPage: branches lookup failed", branchesError);
+  if (departmentsError) console.error("KaryawanBaruPage: departments lookup failed", departmentsError);
+  if (approversError) console.error("KaryawanBaruPage: approvers lookup failed", approversError);
 
   return (
     <div className="space-y-6">
