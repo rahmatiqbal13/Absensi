@@ -21,7 +21,11 @@ export default async function AuditPage({
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const { data: employees } = await db.from("employees").select("id, nama").order("nama");
+  const { data: employees, error: employeesError } = await db
+    .from("employees")
+    .select("id, nama")
+    .order("nama");
+  if (employeesError) console.error("audit: gagal memuat daftar karyawan", employeesError);
 
   let q = db
     .from("audit_logs")
@@ -30,8 +34,8 @@ export default async function AuditPage({
     )
     .order("waktu", { ascending: false })
     .limit(100);
-  if (sp.dari) q = q.gte("waktu", `${sp.dari}T00:00:00Z`);
-  if (sp.sampai) q = q.lte("waktu", `${sp.sampai}T23:59:59Z`);
+  if (sp.dari) q = q.gte("waktu", `${sp.dari}T00:00:00+07:00`);
+  if (sp.sampai) q = q.lte("waktu", `${sp.sampai}T23:59:59+07:00`);
   if (sp.target) q = q.eq("target_employee_id", sp.target);
   if (sp.aksi) q = q.eq("aksi", sp.aksi);
 
@@ -84,7 +88,7 @@ export default async function AuditPage({
                     <details>
                       <summary className="cursor-pointer text-xs text-blue-700">Lihat</summary>
                       <pre className="mt-1 max-w-md overflow-x-auto rounded bg-neutral-50 p-2 text-[11px]">
-                        {JSON.stringify(r.detail, null, 2)}
+                        {r.detail == null ? "—" : JSON.stringify(r.detail, null, 2)}
                       </pre>
                     </details>
                   </td>

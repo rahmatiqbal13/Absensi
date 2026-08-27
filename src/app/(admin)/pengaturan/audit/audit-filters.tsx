@@ -8,6 +8,7 @@ const AKSI_OPTIONS = [
   { value: "employee_updated", label: "Karyawan Diubah" },
   { value: "employee_deactivated", label: "Karyawan Dinonaktifkan" },
   { value: "employee_reactivated", label: "Karyawan Diaktifkan" },
+  { value: "employee_deleted", label: "Karyawan Dihapus" },
   { value: "leave_approved", label: "Cuti Disetujui" },
   { value: "leave_rejected", label: "Cuti Ditolak" },
 ];
