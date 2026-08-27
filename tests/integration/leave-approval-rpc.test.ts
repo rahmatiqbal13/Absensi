@@ -21,6 +21,7 @@ describe("leave approval RPC", () => {
   let karyawan: { id: string; email: string };
   let atasan: { id: string; email: string };
   let outsider: { id: string; email: string };
+  let hrAdmin: { id: string; email: string };
 
   beforeAll(async () => {
     const db = createServiceRoleSupabaseClient();
@@ -35,6 +36,7 @@ describe("leave approval RPC", () => {
       { key: "atasan", email: `atasan.leave.${suffix}@test.local`, role: "atasan" },
       { key: "karyawan", email: `karyawan.leave.${suffix}@test.local`, role: "karyawan" },
       { key: "outsider", email: `outsider.leave.${suffix}@test.local`, role: "karyawan" },
+      { key: "hrAdmin", email: `hradmin.leave.${suffix}@test.local`, role: "hr_admin" },
     ] as const;
 
     const ids: Record<string, string> = {};
@@ -64,6 +66,7 @@ describe("leave approval RPC", () => {
     atasan = { id: ids.atasan, email: seeds[0].email };
     karyawan = { id: ids.karyawan, email: seeds[1].email };
     outsider = { id: ids.outsider, email: seeds[2].email };
+    hrAdmin = { id: ids.hrAdmin, email: seeds[3].email };
   });
 
   it("lets the assigned approver approve a pending request and credits leave_balances atomically", async () => {
@@ -86,7 +89,7 @@ describe("leave approval RPC", () => {
       .single();
 
     expect(error).toBeNull();
-    expect(approved.status).toBe("approved");
+    expect((approved as { status: string } | null)?.status).toBe("approved");
 
     const { data: balance } = await db
       .from("leave_balances")
@@ -144,6 +147,185 @@ describe("leave approval RPC", () => {
 
     expect(error).not.toBeNull();
     expect(error!.message).toContain("self-approval is not allowed");
+  });
+
+  // C1 regression. Before 0014 the RPCs carried the default EXECUTE grant to
+  // PUBLIC *and* an explicit grant to `anon`, so an unauthenticated caller
+  // holding only the public anon key could approve any request whose UUID they
+  // knew: SECURITY DEFINER bypassed RLS for the internal writes, and the
+  // internal `auth.uid() is not null` guard -- written to exempt the service
+  // role -- exempted the anonymous caller for the same reason (auth.uid() is
+  // NULL for both). Postgres now denies EXECUTE to `anon` before the body runs.
+  it("blocks an UNAUTHENTICATED anon-key caller from approving any request", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: karyawan.id,
+        jenis: "sakit",
+        tanggal_mulai: "2026-11-25",
+        tanggal_selesai: "2026-11-25",
+        approver_id: atasan.id,
+      })
+      .select()
+      .single();
+
+    // No signInWithPassword: this client has no session at all.
+    const anonClient = createClient(SUPABASE_URL, ANON_KEY);
+    const { error } = await anonClient.rpc("approve_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "pwned",
+    });
+
+    expect(error).not.toBeNull();
+
+    // And the request must be untouched.
+    const { data: after } = await db
+      .from("leave_requests")
+      .select("status")
+      .eq("id", leave!.id)
+      .single();
+    expect(after!.status).toBe("pending");
+  });
+
+  it("blocks an UNAUTHENTICATED anon-key caller from rejecting any request", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: karyawan.id,
+        jenis: "sakit",
+        tanggal_mulai: "2026-11-26",
+        tanggal_selesai: "2026-11-26",
+        approver_id: atasan.id,
+      })
+      .select()
+      .single();
+
+    const anonClient = createClient(SUPABASE_URL, ANON_KEY);
+    const { error } = await anonClient.rpc("reject_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "pwned",
+    });
+
+    expect(error).not.toBeNull();
+
+    const { data: after } = await db
+      .from("leave_requests")
+      .select("status")
+      .eq("id", leave!.id)
+      .single();
+    expect(after!.status).toBe("pending");
+  });
+
+  // I2 regression. An hr_admin's own request is escalated to a designated
+  // approver, so approver_id <> employee_id and the old approver_id-based
+  // self-approval check passed; is_hr_admin_role() then exempted them from the
+  // "assigned approver" check. They could approve their own leave.
+  it("blocks an hr_admin from approving their OWN escalated request", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: hrAdmin.id,
+        jenis: "tahunan",
+        tanggal_mulai: "2026-12-01",
+        tanggal_selesai: "2026-12-02",
+        approver_id: atasan.id, // escalated elsewhere, NOT to self
+        is_self_request: true,
+      })
+      .select()
+      .single();
+
+    const hrClient = await signInAs(hrAdmin.email);
+    const { error } = await hrClient.rpc("approve_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "self approve",
+    });
+
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("self-approval is not allowed");
+  });
+
+  // I3 regression: reject had no self-approval check at all.
+  it("blocks an hr_admin from rejecting their OWN escalated request", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: hrAdmin.id,
+        jenis: "sakit",
+        tanggal_mulai: "2026-12-05",
+        tanggal_selesai: "2026-12-05",
+        approver_id: atasan.id,
+        is_self_request: true,
+      })
+      .select()
+      .single();
+
+    const hrClient = await signInAs(hrAdmin.email);
+    const { error } = await hrClient.rpc("reject_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "self reject",
+    });
+
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("self-approval is not allowed");
+  });
+
+  // I1 regression: a second approval of an already-approved request must fail
+  // rather than crediting leave_balances a second time.
+  it("does not double-credit leave_balances when a request is approved twice", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: outsider.id,
+        jenis: "tahunan",
+        tanggal_mulai: "2026-12-10",
+        tanggal_selesai: "2026-12-12",
+        approver_id: atasan.id,
+      })
+      .select()
+      .single();
+
+    const atasanClient = await signInAs(atasan.email);
+    const first = await atasanClient.rpc("approve_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "ok",
+    });
+    expect(first.error).toBeNull();
+
+    const second = await atasanClient.rpc("approve_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "ok again",
+    });
+    expect(second.error).not.toBeNull();
+    expect(second.error!.message).toContain("not pending");
+
+    const { data: balance } = await db
+      .from("leave_balances")
+      .select("saldo_terpakai")
+      .eq("employee_id", outsider.id)
+      .eq("tahun", 2026)
+      .single();
+    expect(Number(balance!.saldo_terpakai)).toBe(3);
+  });
+
+  // I4 regression: a reversed date range used to yield a negative day count
+  // that DECREASED saldo_terpakai on approval.
+  it("refuses to store a leave request whose tanggal_selesai precedes tanggal_mulai", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { error } = await db.from("leave_requests").insert({
+      employee_id: karyawan.id,
+      jenis: "tahunan",
+      tanggal_mulai: "2026-12-20",
+      tanggal_selesai: "2026-12-15",
+      approver_id: atasan.id,
+    });
+
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("leave_requests_date_order_check");
   });
 
   it("rejects requires a non-empty catatan", async () => {
