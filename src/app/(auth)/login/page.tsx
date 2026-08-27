@@ -3,9 +3,9 @@ import { login } from "./actions";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reason?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reason } = await searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
       <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
@@ -20,6 +20,11 @@ export default async function LoginPage({
         </div>
 
         <form action={login} className="space-y-4">
+          {reason === "nonaktif" && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              Akun Anda nonaktif. Hubungi HR untuk mengaktifkan kembali.
+            </p>
+          )}
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
               {error}

@@ -17,10 +17,10 @@ export async function getCurrentEmployee(
 
   const { data: employee } = await db
     .from("employees")
-    .select("id, nama, email, role, branch_id")
+    .select("id, nama, email, role, branch_id, status")
     .eq("id", userData.user.id)
     .single();
-  if (!employee) return null;
+  if (!employee || employee.status !== "aktif") return null;
 
   return {
     id: employee.id,

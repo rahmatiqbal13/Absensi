@@ -29,10 +29,18 @@ export async function proxy(request: NextRequest) {
   if (userData.user) {
     const { data: employee } = await supabase
       .from("employees")
-      .select("role")
+      .select("role, status")
       .eq("id", userData.user.id)
       .single();
-    role = employee?.role ?? null;
+    if (employee && employee.status !== "aktif") {
+      // Signed in but deactivated -> bounce to login with a reason, unless already there.
+      if (!request.nextUrl.pathname.startsWith("/login")) {
+        return NextResponse.redirect(
+          new URL("/login?reason=nonaktif", request.url),
+        );
+      }
+    }
+    role = employee && employee.status === "aktif" ? employee.role : null;
   }
 
   const decision = resolveRouteAccess(request.nextUrl.pathname, role);

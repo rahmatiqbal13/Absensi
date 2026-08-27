@@ -11,7 +11,21 @@ export async function login(formData: FormData) {
   const db = await createServerSupabaseClient();
   const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    console.error("login: signInWithPassword failed", error);
+    redirect("/login?error=Email%20atau%20kata%20sandi%20salah.");
+  }
+
+  const { data: userData } = await db.auth.getUser();
+  if (userData.user) {
+    const { data: emp } = await db
+      .from("employees")
+      .select("status")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+    if (emp && emp.status !== "aktif") {
+      await db.auth.signOut();
+      redirect("/login?reason=nonaktif");
+    }
   }
 
   const employee = await getCurrentEmployee(db);

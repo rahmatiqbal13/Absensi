@@ -32,6 +32,7 @@ describe("getCurrentEmployee", () => {
         email: "budi@test.local",
         role: "hr_admin",
         branch_id: "branch-1",
+        status: "aktif",
       },
     );
     const result = await getCurrentEmployee(db as any);
@@ -42,5 +43,23 @@ describe("getCurrentEmployee", () => {
       role: "hr_admin",
       branchId: "branch-1",
     });
+  });
+});
+
+describe("getCurrentEmployee — deactivated employees", () => {
+  it("returns null when the employee status is nonaktif", async () => {
+    const db = makeMockDb(
+      { id: "u1" },
+      { id: "u1", nama: "X", email: "x@y.z", role: "karyawan", branch_id: "b1", status: "nonaktif" },
+    );
+    expect(await getCurrentEmployee(db as any)).toBeNull();
+  });
+
+  it("returns the employee when status is aktif", async () => {
+    const db = makeMockDb(
+      { id: "u1" },
+      { id: "u1", nama: "X", email: "x@y.z", role: "karyawan", branch_id: "b1", status: "aktif" },
+    );
+    expect((await getCurrentEmployee(db as any))?.id).toBe("u1");
   });
 });
