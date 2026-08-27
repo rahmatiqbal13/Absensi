@@ -2195,10 +2195,11 @@ Expected: FAIL — `Cannot find module './actions'`.
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
 import { inviteEmployee } from "@/lib/employees/invite";
 
-type Result<T = Record<string, never>> = ({ ok: true } & T) | { ok: false; error: string };
+type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 function formRecord(formData: FormData): Record<string, FormDataEntryValue | null> {
   const rec: Record<string, FormDataEntryValue | null> = {};
@@ -2206,9 +2207,24 @@ function formRecord(formData: FormData): Record<string, FormDataEntryValue | nul
   return rec;
 }
 
+// Server Actions are public POST endpoints — the page's role gate does NOT
+// protect them. Every employee-mutation action re-checks the caller here.
+// createEmployee especially: it uses a service-role client that bypasses RLS.
+async function assertHrAdmin(): Promise<{ ok: false; error: string } | null> {
+  const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me || (me.role !== "hr_admin" && me.role !== "super_admin")) {
+    return { ok: false, error: "Tidak diizinkan." };
+  }
+  return null;
+}
+
 export async function createEmployee(
   formData: FormData,
 ): Promise<Result<{ setPasswordUrl: string }>> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const parsed = validateEmployeeInput(formRecord(formData));
   if (!parsed.ok) return parsed;
 
@@ -2239,9 +2255,13 @@ export async function createEmployee(
 
 const UPDATE_ERROR_MESSAGES: Record<string, string> = {
   "not allowed to change protected employee fields": "Anda tidak berhak mengubah data terproteksi karyawan.",
+  "not allowed to change protected fields on own employee record": "Anda tidak berhak mengubah data terproteksi karyawan.",
 };
 
 export async function updateEmployee(id: string, formData: FormData): Promise<Result> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const parsed = validateEmployeeInput(formRecord(formData));
   if (!parsed.ok) return parsed;
 
@@ -2279,6 +2299,9 @@ export async function setEmployeeStatus(
   id: string,
   status: "aktif" | "nonaktif",
 ): Promise<Result> {
+  const denied = await assertHrAdmin();
+  if (denied) return denied;
+
   const db = await createServerSupabaseClient();
   const { data: userData } = await db.auth.getUser();
   if (status === "nonaktif" && userData.user?.id === id) {
