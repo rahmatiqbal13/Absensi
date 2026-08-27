@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
@@ -30,6 +31,29 @@ export default async function PengaturanPage() {
             tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
           </p>
         )
+      )}
+
+      {(employee.role === "hr_admin" || employee.role === "super_admin") && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/pengaturan/libur"
+            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
+          >
+            <p className="text-sm font-medium text-neutral-900">Hari Libur</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Kelola hari libur nasional &amp; cabang untuk perhitungan payroll.
+            </p>
+          </Link>
+          <Link
+            href="/pengaturan/audit"
+            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
+          >
+            <p className="text-sm font-medium text-neutral-900">Log Audit</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Riwayat perubahan data karyawan &amp; persetujuan cuti.
+            </p>
+          </Link>
+        </div>
       )}
     </div>
   );

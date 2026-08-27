@@ -35,7 +35,11 @@ export default async function AuditPage({
     .order("waktu", { ascending: false })
     .limit(100);
   if (sp.dari) q = q.gte("waktu", `${sp.dari}T00:00:00+07:00`);
-  if (sp.sampai) q = q.lte("waktu", `${sp.sampai}T23:59:59+07:00`);
+  if (sp.sampai) {
+    const end = new Date(`${sp.sampai}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    q = q.lt("waktu", `${end.toISOString().slice(0, 10)}T00:00:00+07:00`);
+  }
   if (sp.target) q = q.eq("target_employee_id", sp.target);
   if (sp.aksi) q = q.eq("aksi", sp.aksi);
 
@@ -80,6 +84,9 @@ export default async function AuditPage({
                   </td>
                   <td className="px-4 py-2">
                     {(r.actor as unknown as { nama: string } | null)?.nama ?? "Sistem"}
+                    {r.is_self_action && (
+                      <span className="ml-1 text-xs text-neutral-400">(aksi sendiri)</span>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     {(r.target as unknown as { nama: string } | null)?.nama ?? "-"}
