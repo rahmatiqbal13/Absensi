@@ -137,13 +137,17 @@ effectiveWorkDays(params: {
 - `dow` dihitung dari tanggal-saja (UTC-midnight parse aman). Konvensi `hari_kerja` diverifikasi
   terhadap data cabang nyata saat task (Plan 2 sudah pakai kolom ini — samakan).
 - `accrualDays` = `fullMonthDays` yang `>= joinDate` (jika `joinDate` di bulan itu). Hari sebelum
-  join **tidak** dihitung alpa dan **tidak** dibayar.
+  join **tidak** dinilai (bukan alpa, tidak dipotong). `accrualDays` HANYA menentukan hari mana
+  yang dihitung potongan absensinya — **bukan** proration gaji pokok (lihat §4.4: keputusan
+  final = gaji bulan pertama dibayar penuh).
 
 ### 4.2 `daily-wage.ts`
 ```ts
 dailyWage(gajiPokok: number, fullMonthEffectiveDays: number): number
 // = gajiPokok / fullMonthEffectiveDays, dibulatkan 2 desimal (half-up).
-// Pembagi SELALU hari efektif sebulan penuh — joiner tengah bulan prorata lewat jumlah accrualDays yang lebih sedikit.
+// Pembagi SELALU hari efektif sebulan penuh (tarif harian yang konsisten untuk semua karyawan
+// di cabang itu, dipakai untuk menghitung potongan per hari). Bukan alat proration —
+// joiner tengah bulan tetap dibayar gaji pokok penuh (§4.4).
 // fullMonthEffectiveDays === 0 -> return 0 (hindari div-by-zero; cabang tanpa hari kerja).
 ```
 
@@ -191,10 +195,16 @@ computePayrollForBranch(input: {
 - Untuk tiap karyawan: `effectiveWorkDays` → `fullMonthDays`/`accrualDays`;
   `dailyWage(gajiPokok, fullMonthDays.length)`; untuk tiap `accrualDays` → `dayDeduction` →
   kumpulkan `rincian_harian`.
-- `hari_kerja_efektif = accrualDays.length` (yang disimpan di payslip — merefleksikan hari yang
-  diakui utk karyawan ini).
+- `hari_kerja_efektif = fullMonthDays.length` (disimpan di payslip; harus konsisten dengan
+  `gaji_harian`, karena `gaji_harian = gaji_pokok / hari_kerja_efektif`).
 - `total_potongan_absensi = Σ potongan` (sudah dibulatkan per baris).
 - `gaji_akhir = round2(gajiPokok − total_potongan_absensi)`; floor di 0 (tidak boleh negatif).
+- **KEPUTUSAN FINAL (mengganti keputusan brainstorming awal yang menyebut "prorata"):**
+  gaji bulan pertama untuk karyawan yang join tengah bulan **dibayar penuh** (`gaji_pokok`
+  utuh sebagai basis), hanya dikurangi potongan absensi untuk hari kerja pada/setelah
+  `tanggal_mulai_kerja`. Hari sebelum join tidak dinilai sama sekali. Payslip tetap
+  konsisten: `hari_kerja_efektif` (sebulan penuh) × `gaji_harian` ≈ `gaji_pokok`;
+  `rincian_harian` hanya memuat hari yang dinilai.
 - Return array siap-insert: `{ employee_id, gaji_pokok, hari_kerja_efektif, gaji_harian,
   total_potongan_absensi, gaji_akhir, rincian_harian }`.
 
@@ -319,7 +329,10 @@ orang lain) apa pun jalur yang dipakai.
   dari jadwal+toleransi), pulang_cepat, `jam_pulang null` (sisi pulang 0 + catatan),
   tepat_waktu (0).
 - `compute`: 2–3 karyawan, campur libur + cuti + alpa + terlambat; verifikasi
-  `hari_kerja_efektif`, `total_potongan_absensi`, `gaji_akhir` floor 0, bentuk `rincian_harian`.
+  `hari_kerja_efektif` (= hari efektif sebulan penuh), `total_potongan_absensi`, `gaji_akhir`
+  floor 0, bentuk `rincian_harian`. **Joiner tengah bulan yang hadir penuh → `gaji_akhir` =
+  `gaji_pokok` penuh** (bukan prorata); joiner tengah bulan yang absen semua hari pasca-join →
+  dipotong hanya untuk hari pasca-join.
 - Verifikasi timezone: `deduction`/`compute` menghitung menit sama di TZ proses berbeda
   (pola Plan 2 — set `process.env.TZ` di test).
 

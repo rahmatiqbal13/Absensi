@@ -35,7 +35,7 @@ This is **Plan 4 of a 6-plan sequence** derived from `docs/superpowers/specs/202
 - Create: `src/lib/payroll/effective-days.test.ts`
 
 **Interfaces:**
-- Produces: `effectiveWorkDays(input: { year: number; month: number; hariKerja: number[]; holidayDates: string[]; joinDate?: string | null }): { fullMonthDays: string[]; accrualDays: string[] }`. `month` is 1–12. `fullMonthDays` = every working date in the whole month (the divisor base for daily wage). `accrualDays` = the subset `>= joinDate` (days actually credited to this employee; days before hire are neither `alpa` nor paid).
+- Produces: `effectiveWorkDays(input: { year: number; month: number; hariKerja: number[]; holidayDates: string[]; joinDate?: string | null }): { fullMonthDays: string[]; accrualDays: string[] }`. `month` is 1–12. `fullMonthDays` = every working date in the whole month (the daily-wage divisor base AND `hari_kerja_efektif`). `accrualDays` = the subset `>= joinDate` — the days a mid-month joiner's attendance is **deduction-assessed** over; pre-join days are simply not assessed (not `alpa`). This does **not** prorate base pay — a mid-month joiner is paid the full month (see Task 4).
 - Consumed by: Task 4 (`computePayrollForBranch`).
 
 - [ ] **Step 1: Write the failing test**
@@ -176,7 +176,7 @@ git commit -m "feat(payroll): effective work days per month (holidays + mid-mont
 
 **Interfaces:**
 - Produces: `round2(value: number): number` — half-up rounding to 2 decimal places.
-- Produces: `dailyWage(gajiPokok: number, fullMonthEffectiveDays: number): number` — `gaji_pokok / fullMonthEffectiveDays`, `round2`-ed; returns `0` when the divisor is `<= 0`. The divisor is **always the full-month effective day count** — a mid-month joiner is prorated by having fewer `accrualDays` (Task 4), not by a smaller divisor.
+- Produces: `dailyWage(gajiPokok: number, fullMonthEffectiveDays: number): number` — `gaji_pokok / fullMonthEffectiveDays`, `round2`-ed; returns `0` when the divisor is `<= 0`. The divisor is **always the full-month effective day count** (a consistent per-day rate used to price deductions). It is not a proration lever — a mid-month joiner is still paid the full month (Task 4).
 - Consumed by: Task 3 (`round2`), Task 4 (both).
 
 - [ ] **Step 1: Write the failing tests**
@@ -666,19 +666,42 @@ describe("computePayrollForBranch", () => {
     expect(row.gaji_akhir).toBe(0);
   });
 
-  it("prorates a mid-month joiner via accrualDays, keeping the full-month divisor", () => {
+  it("pays a mid-month joiner the FULL month, assessing deductions only for post-join days", () => {
+    // Present every post-join working day -> no deductions -> full gaji_pokok.
+    const attendance = new Map<string, { status: string; jam_masuk: string | null; jam_pulang: string | null }>();
+    for (const d of ["17", "18", "19", "20", "21", "24", "25", "26", "27", "28", "31"]) {
+      attendance.set(`2026-08-${d}`, {
+        status: "tepat_waktu",
+        jam_masuk: `2026-08-${d}T02:00:00Z`,
+        jam_pulang: `2026-08-${d}T10:00:00Z`,
+      });
+    }
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
       employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
       schedule: SCHEDULE,
       holidayDates: [],
-      attendancesByEmployee: new Map(), // joiner has no attendance -> post-join days are alpa
+      attendancesByEmployee: new Map([["e1", attendance]]),
       approvedLeavesByEmployee: new Map(),
     });
-    // gaji_harian still 10_500_000 / 21 = 500_000
-    expect(row.gaji_harian).toBe(500_000);
+    expect(row.gaji_harian).toBe(500_000); // 10_500_000 / 21
+    expect(row.hari_kerja_efektif).toBe(21); // full-month effective days, consistent with gaji_harian
+    expect(row.rincian_harian).toHaveLength(11); // only the 11 post-join days are assessed
+    expect(row.total_potongan_absensi).toBe(0);
+    expect(row.gaji_akhir).toBe(10_500_000); // full month, not prorated
+  });
+
+  it("deducts a mid-month joiner only for the post-join days they miss", () => {
+    const [row] = computePayrollForBranch({
+      year: 2026, month: 8,
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
+      schedule: SCHEDULE,
+      holidayDates: [],
+      attendancesByEmployee: new Map(), // absent every post-join day
+      approvedLeavesByEmployee: new Map(),
+    });
+    expect(row.hari_kerja_efektif).toBe(21);
     // Aug 17..31 working days = 11; all alpa -> potongan 5_500_000
-    expect(row.hari_kerja_efektif).toBe(11);
     expect(row.total_potongan_absensi).toBe(5_500_000);
     expect(row.gaji_akhir).toBe(5_000_000);
   });
@@ -773,7 +796,11 @@ export function computePayrollForBranch(input: {
     return {
       employee_id: emp.id,
       gaji_pokok: emp.gajiPokok,
-      hari_kerja_efektif: accrualDays.length,
+      // Full-month effective days — must stay consistent with gaji_harian
+      // (gaji_harian = gaji_pokok / hari_kerja_efektif). A mid-month joiner is
+      // still paid the full month (only post-join days are deduction-assessed),
+      // so this is NOT accrualDays.length.
+      hari_kerja_efektif: fullMonthDays.length,
       gaji_harian: wage,
       total_potongan_absensi,
       gaji_akhir,
@@ -789,7 +816,7 @@ export function computePayrollForBranch(input: {
 npm test -- compute.test.ts
 ```
 
-Expected: PASS (4 tests).
+Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
 
