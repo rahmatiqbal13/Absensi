@@ -16,6 +16,13 @@ describe("EmployeeFilters", () => {
     expect(push).toHaveBeenCalledWith(expect.stringContaining("status=nonaktif"));
   });
 
+  it("pushes status=semua when the Semua option is selected", () => {
+    push.mockClear();
+    render(<EmployeeFilters branches={BRANCHES} defaults={{ status: "aktif", q: "" }} />);
+    fireEvent.change(screen.getByLabelText(/status/i), { target: { value: "semua" } });
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("status=semua"));
+  });
+
   it("pushes the search text on submit", () => {
     push.mockClear();
     render(<EmployeeFilters branches={BRANCHES} defaults={{ status: "aktif", q: "" }} />);

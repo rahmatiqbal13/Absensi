@@ -17,9 +17,14 @@ export default async function KaryawanPage({
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const status = sp.status ?? "aktif";
+  const rawStatus = sp.status ?? "aktif";
+  const status = rawStatus === "semua" ? null : rawStatus;
 
-  const { data: branches } = await db.from("branches").select("id, nama").order("nama");
+  const { data: branches, error: branchesError } = await db
+    .from("branches")
+    .select("id, nama")
+    .order("nama");
+  if (branchesError) console.error("Gagal memuat daftar cabang:", branchesError);
 
   let query = db
     .from("employees")
@@ -49,7 +54,7 @@ export default async function KaryawanPage({
 
       <EmployeeFilters
         branches={branches ?? []}
-        defaults={{ cabang: sp.cabang, role: sp.role, status, q: sp.q ?? "" }}
+        defaults={{ cabang: sp.cabang, role: sp.role, status: rawStatus, q: sp.q ?? "" }}
       />
 
       {error && <p className="text-sm text-red-600">Gagal memuat daftar karyawan.</p>}

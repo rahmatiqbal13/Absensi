@@ -34,7 +34,7 @@ export function EmployeeFilters({
     const params = new URLSearchParams();
     if (next.cabang) params.set("cabang", next.cabang);
     if (next.role) params.set("role", next.role);
-    if (next.status) params.set("status", next.status);
+    params.set("status", next.status || "semua");
     if (next.q) params.set("q", next.q);
     router.push(`/karyawan?${params.toString()}`);
   }
@@ -106,7 +106,7 @@ export function EmployeeFilters({
         >
           <option value="aktif">Aktif</option>
           <option value="nonaktif">Nonaktif</option>
-          <option value="">Semua</option>
+          <option value="semua">Semua</option>
         </select>
       </div>
       <button
