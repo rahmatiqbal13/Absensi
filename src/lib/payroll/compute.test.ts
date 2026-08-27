@@ -67,19 +67,42 @@ describe("computePayrollForBranch", () => {
     expect(row.gaji_akhir).toBe(0);
   });
 
-  it("prorates a mid-month joiner via accrualDays, keeping the full-month divisor", () => {
+  it("pays a mid-month joiner the FULL month when they attend every post-join day", () => {
+    // Present every post-join working day -> no deductions -> full gaji_pokok.
+    const attendance = new Map<string, { status: string; jam_masuk: string | null; jam_pulang: string | null }>();
+    for (const d of ["17", "18", "19", "20", "21", "24", "25", "26", "27", "28", "31"]) {
+      attendance.set(`2026-08-${d}`, {
+        status: "tepat_waktu",
+        jam_masuk: `2026-08-${d}T02:00:00Z`,
+        jam_pulang: `2026-08-${d}T10:00:00Z`,
+      });
+    }
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
       employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
       schedule: SCHEDULE,
       holidayDates: [],
-      attendancesByEmployee: new Map(), // joiner has no attendance -> post-join days are alpa
+      attendancesByEmployee: new Map([["e1", attendance]]),
       approvedLeavesByEmployee: new Map(),
     });
-    // gaji_harian still 10_500_000 / 21 = 500_000
-    expect(row.gaji_harian).toBe(500_000);
+    expect(row.gaji_harian).toBe(500_000); // 10_500_000 / 21
+    expect(row.hari_kerja_efektif).toBe(21); // full-month effective days, consistent with gaji_harian
+    expect(row.rincian_harian).toHaveLength(11); // only the 11 post-join days are assessed
+    expect(row.total_potongan_absensi).toBe(0);
+    expect(row.gaji_akhir).toBe(10_500_000); // full month, not prorated
+  });
+
+  it("deducts a mid-month joiner only for the post-join days they miss", () => {
+    const [row] = computePayrollForBranch({
+      year: 2026, month: 8,
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
+      schedule: SCHEDULE,
+      holidayDates: [],
+      attendancesByEmployee: new Map(), // absent every post-join day
+      approvedLeavesByEmployee: new Map(),
+    });
+    expect(row.hari_kerja_efektif).toBe(21);
     // Aug 17..31 working days = 11; all alpa -> potongan 5_500_000
-    expect(row.hari_kerja_efektif).toBe(11);
     expect(row.total_potongan_absensi).toBe(5_500_000);
     expect(row.gaji_akhir).toBe(5_000_000);
   });

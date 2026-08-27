@@ -74,7 +74,11 @@ export function computePayrollForBranch(input: {
     return {
       employee_id: emp.id,
       gaji_pokok: emp.gajiPokok,
-      hari_kerja_efektif: accrualDays.length,
+      // Full-month effective days — must stay consistent with gaji_harian
+      // (gaji_harian = gaji_pokok / hari_kerja_efektif). A mid-month joiner is
+      // still paid the full month (only post-join days are deduction-assessed),
+      // so this is NOT accrualDays.length.
+      hari_kerja_efektif: fullMonthDays.length,
       gaji_harian: wage,
       total_potongan_absensi,
       gaji_akhir,
