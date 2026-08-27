@@ -3,8 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { monthLabel } from "@/lib/format/month";
 import { PayslipDocument } from "@/components/payslip-document";
 
-// @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime so a
-// future accidental edge switch fails loudly at build, not at request time.
+// @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
+// Node explicitly so this can never be moved onto the Edge runtime.
 export const runtime = "nodejs";
 
 export async function GET(
