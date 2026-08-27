@@ -11,13 +11,37 @@ export default async function PersetujuanCutiPage() {
     redirect("/login");
   }
 
-  const { data } = await db
+  let query = db
     .from("leave_requests")
     .select(
       "id, jenis, tanggal_mulai, tanggal_selesai, alasan, employees!leave_requests_employee_id_fkey(nama)",
     )
     .eq("status", "pending")
     .order("created_at", { ascending: true });
+
+  const canSeeAllRequests = employee.role === "hr_admin" || employee.role === "super_admin";
+  if (!canSeeAllRequests) {
+    query = query.eq("approver_id", employee.id);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Failed to load pending leave requests:", error);
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold text-neutral-900">Persetujuan Cuti</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan.
+          </p>
+        </div>
+        <p className="text-sm text-red-600">
+          Gagal memuat daftar pengajuan cuti. Silakan muat ulang halaman.
+        </p>
+      </div>
+    );
+  }
 
   const rows = (data ?? []) as unknown as Array<{
     id: string;
