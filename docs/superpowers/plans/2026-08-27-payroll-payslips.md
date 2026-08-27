@@ -2018,17 +2018,25 @@ export function PayslipTable({
   const [confirming, setConfirming] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  async function run(action: () => Promise<ActionResult>) {
+  async function run(action: () => Promise<ActionResult>): Promise<boolean> {
     setError(null);
     setMessage(null);
     setBusy(true);
-    const result = await action();
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await action();
+      if (!result.ok) {
+        setError(result.error);
+        return false;
+      }
+      setMessage(result.message ?? "Berhasil.");
+      return true;
+    } catch (err) {
+      console.error("payslip-table action failed", err);
+      setError("Terjadi kesalahan. Coba lagi.");
+      return false;
+    } finally {
+      setBusy(false);
     }
-    setMessage(result.message ?? "Berhasil.");
   }
 
   return (
@@ -2039,7 +2047,7 @@ export function PayslipTable({
             type="button"
             disabled={busy}
             onClick={() => run(onGenerate)}
-            className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="min-h-11 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {rows.length ? "Regenerate" : "Generate"}
           </button>
@@ -2048,7 +2056,7 @@ export function PayslipTable({
               type="button"
               disabled={busy}
               onClick={() => setConfirming(true)}
-              className="min-h-10 rounded border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 disabled:opacity-60"
+              className="min-h-11 rounded border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 disabled:opacity-60"
             >
               Finalisasi
             </button>
@@ -2059,7 +2067,7 @@ export function PayslipTable({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => run(onFinalize).then(() => setConfirming(false))}
+                onClick={async () => { if (await run(onFinalize)) setConfirming(false); }}
                 className="rounded bg-red-600 px-3 py-1.5 font-medium text-white"
               >
                 Ya, finalisasi
