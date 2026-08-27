@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   {
     href: "/karyawan",
     label: "Karyawan",
+    hrAdminOnly: true,
     icon: (
       <>
         <circle cx="9" cy="8" r="3" />

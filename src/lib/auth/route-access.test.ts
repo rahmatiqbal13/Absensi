@@ -66,3 +66,16 @@ describe("resolveRouteAccess — hr-admin-only paths", () => {
     expect(resolveRouteAccess("/persetujuan-cuti", "atasan")).toBe("allow");
   });
 });
+
+describe("resolveRouteAccess — /karyawan is hr-admin only", () => {
+  it("allows hr_admin and super_admin", () => {
+    expect(resolveRouteAccess("/karyawan", "hr_admin")).toBe("allow");
+    expect(resolveRouteAccess("/karyawan/abc", "super_admin")).toBe("allow");
+  });
+  it("redirects an atasan to the admin home", () => {
+    expect(resolveRouteAccess("/karyawan", "atasan")).toBe("redirect-admin-home");
+  });
+  it("redirects a karyawan to the employee home", () => {
+    expect(resolveRouteAccess("/karyawan", "karyawan")).toBe("redirect-employee-home");
+  });
+});
