@@ -34,6 +34,19 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/slip-gaji",
+    label: "Slip Gaji",
+    icon: (
+      <>
+        <path
+          d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+          strokeLinejoin="round"
+        />
+        <path d="M14 3v5h5M9 13h6M9 17h4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  {
     href: "/profil",
     label: "Profil",
     icon: (
