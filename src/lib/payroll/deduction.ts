@@ -86,6 +86,15 @@ export function dayDeduction(params: {
     potonganPulang = workMinutes > 0 ? (dailyWage * entry.menit_pulang_cepat) / workMinutes : 0;
   }
 
+  if (workMinutes <= 0) {
+    // A schedule row with jamPulang <= jamMasuk yields no positive work window,
+    // so both proportional deductions silently become 0. Flag it on the payslip
+    // rather than hiding a bad schedule as a clean day.
+    entry.catatan = entry.catatan
+      ? `${entry.catatan}; jadwal kerja tidak valid`
+      : "jadwal kerja tidak valid";
+  }
+
   entry.potongan = round2(round2(potonganMasuk) + round2(potonganPulang));
   return entry;
 }

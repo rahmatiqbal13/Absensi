@@ -129,6 +129,7 @@ export function PayslipTable({
                       <button
                         type="button"
                         aria-label={`Rincian ${row.nama}`}
+                        aria-expanded={expanded === row.id}
                         onClick={() => setExpanded(expanded === row.id ? null : row.id)}
                         className="text-xs text-blue-700 hover:underline"
                       >

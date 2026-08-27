@@ -16,26 +16,35 @@ export default async function SlipGajiPage() {
     .from("payslips")
     .select("id, gaji_akhir, payroll_periods!inner(bulan, tahun, status)")
     .eq("employee_id", employee.id)
-    .eq("payroll_periods.status", "final")
-    .order("created_at", { ascending: false });
+    .eq("payroll_periods.status", "final");
 
   if (error) {
     console.error("slip-gaji: payslips query failed", error);
   }
+
+  // Sort by period, newest first. `created_at` is unusable here: generate_payroll
+  // deletes + reinserts payslip rows on every regenerate, so a regenerated older
+  // period would jump to the top. PostgREST `referencedTable` ordering only sorts
+  // the embedded rows, not the parent, so sort the (small) result set in JS.
+  const rows = [...(data ?? [])].sort((a, b) => {
+    const pa = a.payroll_periods as unknown as { bulan: number; tahun: number };
+    const pb = b.payroll_periods as unknown as { bulan: number; tahun: number };
+    return pb.tahun - pa.tahun || pb.bulan - pa.bulan;
+  });
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-4 pt-8">
       <h1 className="text-2xl font-semibold text-neutral-900">Slip Gaji</h1>
 
       {error && <p className="text-sm text-red-600">Gagal memuat slip gaji.</p>}
-      {!error && (!data || data.length === 0) && (
+      {!error && rows.length === 0 && (
         <p className="text-sm text-neutral-500">
           Belum ada slip gaji yang difinalisasi.
         </p>
       )}
 
       <ul className="divide-y divide-neutral-200">
-        {(data ?? []).map((s) => {
+        {rows.map((s) => {
           const p = s.payroll_periods as unknown as { bulan: number; tahun: number };
           return (
             <li key={s.id} className="flex items-center justify-between py-3">

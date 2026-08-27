@@ -88,6 +88,17 @@ describe("dayDeduction", () => {
     expect(r.potongan).toBe(10_000); // only the late side
   });
 
+  it("inverted schedule -> zero deduction, flagged as invalid", () => {
+    const r = dayDeduction({
+      ...base,
+      schedule: { jamMasuk: "17:00", jamPulang: "09:00", toleransiMenit: 15 },
+      attendanceRow: { status: "terlambat", jam_masuk: "2026-08-14T12:00:00Z", jam_pulang: "2026-08-14T13:00:00Z" },
+      leave: { covered: false },
+    });
+    expect(r.potongan).toBe(0);
+    expect(r.catatan).toContain("jadwal kerja tidak valid");
+  });
+
   it("on time both ends -> zero", () => {
     const r = dayDeduction({
       ...base,

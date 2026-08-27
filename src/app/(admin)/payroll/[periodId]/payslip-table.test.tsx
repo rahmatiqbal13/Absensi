@@ -61,4 +61,12 @@ describe("PayslipTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /rincian budi/i }));
     expect(screen.getByText("2026-08-03")).toBeInTheDocument();
   });
+
+  it("reflects toggle state via aria-expanded", () => {
+    render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    const toggle = screen.getByRole("button", { name: /rincian budi/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
 });

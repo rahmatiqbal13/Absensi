@@ -3,6 +3,10 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { monthLabel } from "@/lib/format/month";
 import { PayslipDocument } from "@/components/payslip-document";
 
+// @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime so a
+// future accidental edge switch fails loudly at build, not at request time.
+export const runtime = "nodejs";
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ payslipId: string }> },
@@ -41,20 +45,27 @@ export async function GET(
 
   const slip = data as unknown as PayslipQueryRow;
   const period = slip.payroll_periods;
-  const buffer = await renderToBuffer(
-    <PayslipDocument
-      data={{
-        nama: (slip.employees as { nama: string } | null)?.nama ?? "-",
-        branchNama: period?.branches?.nama ?? "-",
-        periodeLabel: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
-        gajiPokok: Number(slip.gaji_pokok),
-        hariKerjaEfektif: slip.hari_kerja_efektif,
-        gajiHarian: Number(slip.gaji_harian),
-        totalPotongan: Number(slip.total_potongan_absensi),
-        gajiAkhir: Number(slip.gaji_akhir),
-      }}
-    />,
-  );
+
+  let buffer: Buffer;
+  try {
+    buffer = await renderToBuffer(
+      <PayslipDocument
+        data={{
+          nama: (slip.employees as { nama: string } | null)?.nama ?? "-",
+          branchNama: period?.branches?.nama ?? "-",
+          periodeLabel: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
+          gajiPokok: Number(slip.gaji_pokok),
+          hariKerjaEfektif: slip.hari_kerja_efektif,
+          gajiHarian: Number(slip.gaji_harian),
+          totalPotongan: Number(slip.total_potongan_absensi),
+          gajiAkhir: Number(slip.gaji_akhir),
+        }}
+      />,
+    );
+  } catch (err) {
+    console.error("payslip pdf render failed", err);
+    return new Response("Gagal membuat slip gaji.", { status: 500 });
+  }
 
   return new Response(new Uint8Array(buffer), {
     headers: {
