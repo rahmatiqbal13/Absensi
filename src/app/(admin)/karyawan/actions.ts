@@ -5,8 +5,24 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
 import { inviteEmployee } from "@/lib/employees/invite";
+import { countActiveSuperAdmins } from "@/lib/employees/super-admin-count";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+
+// Known `inviteEmployee` error strings mapped to fixed UI copy. Anything not
+// listed here is treated as unexpected and collapsed to a generic message so a
+// raw DB error string can never reach the user.
+const INVITE_ERROR_MESSAGES: Record<string, string> = {
+  "designatedApproverId is required for hr_admin and super_admin roles":
+    "Approver pengganti wajib untuk role HR Admin / Super Admin.",
+  "Gagal membuat akun karyawan.": "Gagal membuat akun karyawan.",
+  "Gagal menyimpan data karyawan.": "Gagal menyimpan data karyawan.",
+};
+
+const LAST_SUPER_ADMIN_DEACTIVATE =
+  "Tidak dapat menonaktifkan Super Admin terakhir — sistem butuh minimal 2.";
+const LAST_SUPER_ADMIN_DEMOTE =
+  "Tidak dapat menurunkan peran Super Admin terakhir — sistem butuh minimal 2.";
 
 async function assertHrAdmin(): Promise<{ ok: false; error: string } | null> {
   const db = await createServerSupabaseClient();
@@ -49,13 +65,8 @@ export async function createEmployee(
     createServiceRoleSupabaseClient(),
   );
   if (!result.ok) {
-    return {
-      ok: false,
-      error:
-        result.error === "designatedApproverId is required for hr_admin and super_admin roles"
-          ? "Approver pengganti wajib untuk role HR Admin / Super Admin."
-          : result.error,
-    };
+    console.error("createEmployee: invite failed", result.error);
+    return { ok: false, error: INVITE_ERROR_MESSAGES[result.error] ?? "Gagal membuat karyawan." };
   }
   revalidatePath("/karyawan");
   return { ok: true, setPasswordUrl: result.setPasswordUrl };
@@ -76,11 +87,26 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
   if (!parsed.ok) return parsed;
 
   const db = await createServerSupabaseClient();
+
+  const { data: target } = await db
+    .from("employees")
+    .select("role")
+    .eq("id", id)
+    .single();
+  if (
+    target?.role === "super_admin" &&
+    parsed.value.role !== "super_admin"
+  ) {
+    const count = await countActiveSuperAdmins(db);
+    if (count !== null && count <= 2) {
+      return { ok: false, error: LAST_SUPER_ADMIN_DEMOTE };
+    }
+  }
+
   const { error } = await db
     .from("employees")
     .update({
       nama: parsed.value.nama,
-      email: parsed.value.email,
       jabatan: parsed.value.jabatan,
       status_kontrak: parsed.value.statusKontrak,
       tanggal_mulai_kerja: parsed.value.tanggalMulaiKerja,
@@ -117,6 +143,21 @@ export async function setEmployeeStatus(
   if (status === "nonaktif" && userData.user?.id === id) {
     return { ok: false, error: "Anda tidak dapat menonaktifkan akun Anda sendiri." };
   }
+
+  if (status === "nonaktif") {
+    const { data: target } = await db
+      .from("employees")
+      .select("role")
+      .eq("id", id)
+      .single();
+    if (target?.role === "super_admin") {
+      const count = await countActiveSuperAdmins(db);
+      if (count !== null && count <= 2) {
+        return { ok: false, error: LAST_SUPER_ADMIN_DEACTIVATE };
+      }
+    }
+  }
+
   const { error } = await db.from("employees").update({ status }).eq("id", id);
   if (error) {
     console.error("setEmployeeStatus: update failed", error);

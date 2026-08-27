@@ -65,6 +65,7 @@ export function EditEmployeeForm({
           departments={departments}
           approverOptions={approverOptions}
           defaults={defaults}
+          emailReadOnly
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         {msg && <p className="text-sm text-green-600">{msg}</p>}

@@ -9,6 +9,10 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 const inviteEmployee = vi.fn();
 vi.mock("@/lib/employees/invite", () => ({ inviteEmployee: (...a: unknown[]) => inviteEmployee(...a) }));
+const countActiveSuperAdmins = vi.fn(async (..._a: unknown[]): Promise<number | null> => 5);
+vi.mock("@/lib/employees/super-admin-count", () => ({
+  countActiveSuperAdmins: (...a: unknown[]) => countActiveSuperAdmins(...a),
+}));
 
 import { createEmployee, updateEmployee, setEmployeeStatus } from "./actions";
 
@@ -26,12 +30,22 @@ const validForm = {
 const HR_ADMIN = { id: "actor-1", nama: "HR", email: "hr@x", role: "hr_admin", branch_id: "b1", status: "aktif" };
 
 // The hr_admin gate calls getCurrentEmployee → from("employees").select().eq().single().
-// Default `from` serves that gate lookup plus a clean update; per-test overrides pass `mutation`
-// for the .update().eq() (or .insert()) chain the action under test needs.
-function mockFrom(opts: { gateRow?: unknown; mutation?: unknown } = {}) {
+// updateEmployee / setEmployeeStatus then do a second employees.select().eq().single() to read
+// the target's current role. `single()` returns gateRow on the first call, targetRow after.
+// Per-test overrides pass `mutation` for the .update().eq() (or .insert()) chain.
+function mockFrom(opts: { gateRow?: unknown; targetRow?: unknown; mutation?: unknown } = {}) {
   const gateRow = "gateRow" in opts ? opts.gateRow : HR_ADMIN;
+  const targetRow = "targetRow" in opts ? opts.targetRow : gateRow;
+  let calls = 0;
   from.mockReturnValue({
-    select: () => ({ eq: () => ({ single: async () => ({ data: gateRow, error: null }) }) }),
+    select: () => ({
+      eq: () => ({
+        single: async () => {
+          calls += 1;
+          return { data: calls === 1 ? gateRow : targetRow, error: null };
+        },
+      }),
+    }),
     ...(opts.mutation as object ?? { update: () => ({ eq: async () => ({ error: null }) }) }),
   });
 }
@@ -41,6 +55,8 @@ beforeEach(() => {
   inviteEmployee.mockReset();
   getUser.mockClear();
   getUser.mockResolvedValue({ data: { user: { id: "actor-1" } } });
+  countActiveSuperAdmins.mockClear();
+  countActiveSuperAdmins.mockResolvedValue(5);
   mockFrom();
 });
 
@@ -86,6 +102,23 @@ describe("updateEmployee", () => {
     const result = await updateEmployee("e1", fd(validForm));
     expect(result).toEqual({ ok: true });
   });
+
+  it("refuses to demote the last super_admin when only 2 remain", async () => {
+    countActiveSuperAdmins.mockResolvedValue(2);
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    const result = await updateEmployee("e1", fd({ ...validForm, role: "karyawan" }));
+    expect(result).toEqual({
+      ok: false,
+      error: "Tidak dapat menurunkan peran Super Admin terakhir — sistem butuh minimal 2.",
+    });
+  });
+
+  it("allows demoting a super_admin while others remain", async () => {
+    countActiveSuperAdmins.mockResolvedValue(4);
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    const result = await updateEmployee("e1", fd({ ...validForm, role: "karyawan" }));
+    expect(result).toEqual({ ok: true });
+  });
 });
 
 describe("setEmployeeStatus", () => {
@@ -95,6 +128,23 @@ describe("setEmployeeStatus", () => {
   });
 
   it("updates status for another employee", async () => {
+    const result = await setEmployeeStatus("e2", "nonaktif");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("refuses to deactivate the last super_admin when only 2 remain", async () => {
+    countActiveSuperAdmins.mockResolvedValue(2);
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    const result = await setEmployeeStatus("e2", "nonaktif");
+    expect(result).toEqual({
+      ok: false,
+      error: "Tidak dapat menonaktifkan Super Admin terakhir — sistem butuh minimal 2.",
+    });
+  });
+
+  it("allows deactivating a super_admin while others remain", async () => {
+    countActiveSuperAdmins.mockResolvedValue(4);
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await setEmployeeStatus("e2", "nonaktif");
     expect(result).toEqual({ ok: true });
   });

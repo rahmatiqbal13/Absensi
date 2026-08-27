@@ -16,6 +16,18 @@ describe("EmployeeFormFields", () => {
     }
   });
 
+  it("renders the email input read-only when emailReadOnly is set, keeping its value", () => {
+    render(<EmployeeFormFields {...props} emailReadOnly defaults={{ email: "budi@x.co" }} />);
+    const email = screen.getByLabelText(/email/i);
+    expect(email).toHaveAttribute("readonly");
+    expect(email).toHaveValue("budi@x.co");
+  });
+
+  it("leaves the email input editable by default", () => {
+    render(<EmployeeFormFields {...props} />);
+    expect(screen.getByLabelText(/email/i)).not.toHaveAttribute("readonly");
+  });
+
   it("prefills from defaults", () => {
     render(<EmployeeFormFields {...props} defaults={{ nama: "Budi", gajiPokok: "8000000", branchId: "b1" }} />);
     expect(screen.getByLabelText(/nama/i)).toHaveValue("Budi");

@@ -20,11 +20,13 @@ export function EmployeeFormFields({
   departments,
   approverOptions,
   defaults = {},
+  emailReadOnly = false,
 }: {
   branches: { id: string; nama: string }[];
   departments: { id: string; nama: string }[];
   approverOptions: { id: string; nama: string }[];
   defaults?: Partial<EmployeeFieldValues>;
+  emailReadOnly?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -34,7 +36,15 @@ export function EmployeeFormFields({
       </label>
       <label className="flex flex-col gap-1 text-sm text-neutral-700">
         Email
-        <input name="email" type="email" defaultValue={defaults.email} required className={inputCls} />
+        <input
+          name="email"
+          type="email"
+          defaultValue={defaults.email}
+          required
+          readOnly={emailReadOnly}
+          aria-readonly={emailReadOnly || undefined}
+          className={emailReadOnly ? `${inputCls} bg-neutral-100 text-neutral-500` : inputCls}
+        />
       </label>
       <label className="flex flex-col gap-1 text-sm text-neutral-700">
         Jabatan
