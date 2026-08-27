@@ -85,7 +85,9 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
       .maybeSingle(),
     db
       .from("holidays")
-      .select("tanggal, branch_id")
+      .select("tanggal")
+      // national (branch_id null) OR this branch only — design doc §5
+      .or(`branch_id.is.null,branch_id.eq.${period.branch_id}`)
       .gte("tanggal", start)
       .lte("tanggal", end),
   ]);
@@ -177,7 +179,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     schedule: {
       jamMasuk: scheduleRes.data.jam_masuk,
       jamPulang: scheduleRes.data.jam_pulang,
-      toleransiMenit: scheduleRes.data.toleransi_terlambat_menit,
+      toleransiMenit: Number(scheduleRes.data.toleransi_terlambat_menit),
       hariKerja: scheduleRes.data.hari_kerja,
     },
     holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal),
@@ -194,7 +196,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
   }
 
   revalidatePath(`/payroll/${periodId}`);
-  return { ok: true, message: `${count ?? rows.length} slip gaji dibuat.` };
+  return { ok: true, message: `${Number(count) || rows.length} slip gaji dibuat.` };
 }
 
 export async function finalizePayroll(periodId: string): Promise<ActionResult> {
