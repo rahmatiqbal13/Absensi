@@ -1321,7 +1321,11 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
       .maybeSingle(),
     db
       .from("holidays")
-      .select("tanggal, branch_id")
+      .select("tanggal")
+      // A holiday applies to this branch if it is national (branch_id null)
+      // OR explicitly for this branch. A holiday for a DIFFERENT branch must
+      // not suppress a working day here (design doc §5).
+      .or(`branch_id.is.null,branch_id.eq.${period.branch_id}`)
       .gte("tanggal", start)
       .lte("tanggal", end),
   ]);
@@ -1416,7 +1420,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
       toleransiMenit: scheduleRes.data.toleransi_terlambat_menit,
       hariKerja: scheduleRes.data.hari_kerja,
     },
-    holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal),
+    holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal), // already branch-scoped by the .or() filter above
     attendancesByEmployee,
     approvedLeavesByEmployee,
   });
