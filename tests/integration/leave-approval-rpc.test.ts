@@ -312,6 +312,58 @@ describe("leave approval RPC", () => {
     expect(Number(balance!.saldo_terpakai)).toBe(3);
   });
 
+  // Plan 3 I2 regression: approval must re-check the leave balance. A pending
+  // `tahunan` request that would push saldo_terpakai past saldo_awal is
+  // refused at approval time, the request stays pending, and saldo_terpakai is
+  // untouched.
+  it("refuses to approve a tahunan request that would overdraw the leave balance", async () => {
+    const db = createServiceRoleSupabaseClient();
+
+    // Seed a balance row near its limit for a year not used by other tests.
+    await db.from("leave_balances").insert({
+      employee_id: karyawan.id,
+      tahun: 2028,
+      saldo_awal: 12,
+      saldo_terpakai: 11,
+    });
+
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: karyawan.id,
+        jenis: "tahunan",
+        tanggal_mulai: "2028-01-06",
+        tanggal_selesai: "2028-01-08", // 3 days; 11 + 3 = 14 > 12
+        approver_id: atasan.id,
+      })
+      .select()
+      .single();
+
+    const atasanClient = await signInAs(atasan.email);
+    const { error } = await atasanClient.rpc("approve_leave_request", {
+      p_request_id: leave!.id,
+      p_catatan: "ok",
+    });
+
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("insufficient leave balance");
+
+    const { data: after } = await db
+      .from("leave_requests")
+      .select("status")
+      .eq("id", leave!.id)
+      .single();
+    expect(after!.status).toBe("pending");
+
+    const { data: balance } = await db
+      .from("leave_balances")
+      .select("saldo_terpakai")
+      .eq("employee_id", karyawan.id)
+      .eq("tahun", 2028)
+      .single();
+    expect(Number(balance!.saldo_terpakai)).toBe(11);
+  });
+
   // I4 regression: a reversed date range used to yield a negative day count
   // that DECREASED saldo_terpakai on approval.
   it("refuses to store a leave request whose tanggal_selesai precedes tanggal_mulai", async () => {

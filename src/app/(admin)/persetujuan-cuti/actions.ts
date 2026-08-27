@@ -12,6 +12,8 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   "leave request is not pending": "Pengajuan ini sudah diproses sebelumnya.",
   "leave request not found": "Pengajuan cuti tidak ditemukan.",
   "catatan_approval is required to reject a leave request": "Catatan wajib diisi untuk menolak pengajuan.",
+  "insufficient leave balance to approve this request":
+    "Saldo cuti karyawan tidak mencukupi untuk menyetujui pengajuan ini.",
 };
 
 function mapRpcError(message: string | undefined): string {
