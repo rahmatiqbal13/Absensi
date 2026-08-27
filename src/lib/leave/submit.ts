@@ -31,12 +31,17 @@ export async function submitLeaveRequest(
 
   if (requiresBalanceCheck(input.jenis)) {
     const year = Number(input.tanggalMulai.slice(0, 4));
-    const { data: balance } = await db
+    const { data: balance, error: balanceErr } = await db
       .from("leave_balances")
       .select("saldo_sisa")
       .eq("employee_id", input.employeeId)
       .eq("tahun", year)
       .maybeSingle();
+
+    if (balanceErr) {
+      console.error("submitLeaveRequest: leave_balances lookup failed", balanceErr);
+      return { ok: false, error: "Gagal memeriksa saldo cuti." };
+    }
 
     const saldoSisa = balance?.saldo_sisa ?? 0;
     if (!hasSufficientBalance(saldoSisa, days)) {
