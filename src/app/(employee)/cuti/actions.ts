@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { submitLeaveRequest, type SubmitLeaveResult } from "@/lib/leave/submit";
@@ -34,5 +35,10 @@ export async function submitLeave(formData: FormData): Promise<{ ok: true } | { 
   if (!result.ok) {
     return { ok: false, error: result.error };
   }
+
+  // The "Riwayat Pengajuan" list on this same page is a server-rendered read;
+  // without this the client-driven submit leaves it showing stale data (the
+  // just-submitted request missing) until a manual reload.
+  revalidatePath("/cuti");
   return { ok: true };
 }
