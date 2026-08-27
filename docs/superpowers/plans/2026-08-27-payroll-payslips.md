@@ -1469,10 +1469,13 @@ git commit -m "feat(payroll): server actions (create period, generate, finalize)
 - Create: `src/components/payroll-status-badge.test.tsx`
 - Create: `src/lib/format/rupiah.ts`
 - Create: `src/lib/format/rupiah.test.ts`
+- Create: `src/lib/format/month.ts`
+- Create: `src/lib/format/month.test.ts`
 
 **Interfaces:**
 - Produces: `<PayrollStatusBadge status={"draft" | "final"} />` — icon + color + Indonesian label, same accessibility shape as `LeaveStatusBadge`.
 - Produces: `formatRupiah(value: number): string` — `Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })`.
+- Produces: `MONTH_NAMES_ID: readonly string[]` (12 entries, index 0 = "Januari") and `monthLabel(bulan: number): string` (`bulan` 1–12). Used everywhere a `bulan` integer is shown, so it is defined once here.
 - Consumed by: Tasks 8, 9, 11, 12.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1491,6 +1494,25 @@ describe("formatRupiah", () => {
   });
   it("rounds fractional input", () => {
     expect(formatRupiah(454_545.45)).toContain("454.545");
+  });
+});
+```
+
+```typescript
+// src/lib/format/month.test.ts
+import { describe, it, expect } from "vitest";
+import { monthLabel, MONTH_NAMES_ID } from "./month";
+
+describe("monthLabel", () => {
+  it("maps 1..12 to Indonesian month names", () => {
+    expect(monthLabel(1)).toBe("Januari");
+    expect(monthLabel(8)).toBe("Agustus");
+    expect(monthLabel(12)).toBe("Desember");
+    expect(MONTH_NAMES_ID).toHaveLength(12);
+  });
+  it("returns a dash for out-of-range input", () => {
+    expect(monthLabel(0)).toBe("-");
+    expect(monthLabel(13)).toBe("-");
   });
 });
 ```
@@ -1524,7 +1546,7 @@ describe("PayrollStatusBadge", () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-npm test -- rupiah.test.ts payroll-status-badge.test.tsx
+npm test -- rupiah.test.ts month.test.ts payroll-status-badge.test.tsx
 ```
 
 Expected: FAIL — modules not found.
@@ -1541,6 +1563,19 @@ const RUPIAH = new Intl.NumberFormat("id-ID", {
 
 export function formatRupiah(value: number): string {
   return RUPIAH.format(value);
+}
+```
+
+```typescript
+// src/lib/format/month.ts
+export const MONTH_NAMES_ID = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+] as const;
+
+// `bulan` is 1-12 (as stored in payroll_periods.bulan). Out-of-range returns "-".
+export function monthLabel(bulan: number): string {
+  return MONTH_NAMES_ID[bulan - 1] ?? "-";
 }
 ```
 
@@ -1603,16 +1638,16 @@ export function PayrollStatusBadge({ status }: { status: PayrollStatus }) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-npm test -- rupiah.test.ts payroll-status-badge.test.tsx
+npm test -- rupiah.test.ts month.test.ts payroll-status-badge.test.tsx
 ```
 
-Expected: PASS (5 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/format/rupiah.ts src/lib/format/rupiah.test.ts src/components/payroll-status-badge.tsx src/components/payroll-status-badge.test.tsx
-git commit -m "feat(payroll): status badge and rupiah formatter"
+git add src/lib/format/rupiah.ts src/lib/format/rupiah.test.ts src/lib/format/month.ts src/lib/format/month.test.ts src/components/payroll-status-badge.tsx src/components/payroll-status-badge.test.tsx
+git commit -m "feat(payroll): status badge, rupiah + month formatters"
 ```
 
 ---
@@ -1684,12 +1719,8 @@ Expected: FAIL — `Cannot find module './create-period-form'`.
 "use client";
 
 import { useState } from "react";
+import { MONTH_NAMES_ID } from "@/lib/format/month";
 import type { ActionResult } from "./actions";
-
-const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
 
 export function CreatePeriodForm({
   branches,
@@ -1729,7 +1760,7 @@ export function CreatePeriodForm({
       <div className="flex flex-col gap-1">
         <label htmlFor="bulan" className="text-sm text-neutral-700">Bulan</label>
         <select id="bulan" name="bulan" defaultValue={String(now.getMonth() + 1)} className="rounded border border-neutral-300 px-3 py-2 text-sm">
-          {MONTHS.map((label, i) => (
+          {MONTH_NAMES_ID.map((label, i) => (
             <option key={label} value={i + 1}>{label}</option>
           ))}
         </select>
@@ -1770,13 +1801,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PayrollStatusBadge, type PayrollStatus } from "@/components/payroll-status-badge";
 import { formatRupiah } from "@/lib/format/rupiah";
+import { monthLabel } from "@/lib/format/month";
 import { CreatePeriodForm } from "./create-period-form";
 import { createPayrollPeriod } from "./actions";
-
-const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
 
 export default async function PayrollPage() {
   const db = await createServerSupabaseClient();
@@ -1838,7 +1865,7 @@ export default async function PayrollPage() {
             return (
               <li key={p.id} className="flex items-center justify-between gap-4 p-4">
                 <Link href={`/payroll/${p.id}`} className="flex-1 text-sm font-medium text-blue-700 hover:underline">
-                  {(p.branches as { nama: string } | null)?.nama ?? "-"} — {MONTHS[p.bulan - 1]} {p.tahun}
+                  {(p.branches as { nama: string } | null)?.nama ?? "-"} — {monthLabel(p.bulan)} {p.tahun}
                 </Link>
                 <span className="text-sm text-neutral-500">{count} slip · {formatRupiah(total)}</span>
                 <PayrollStatusBadge status={p.status as PayrollStatus} />
@@ -2128,13 +2155,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PayrollStatusBadge, type PayrollStatus } from "@/components/payroll-status-badge";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
+import { monthLabel } from "@/lib/format/month";
 import { PayslipTable, type PayslipView } from "./payslip-table";
 import { generatePayroll, finalizePayroll } from "../actions";
-
-const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
 
 export default async function PayrollPeriodPage({
   params,
@@ -2189,7 +2212,7 @@ export default async function PayrollPeriodPage({
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-xl font-semibold text-neutral-900">
-            {(period.branches as { nama: string } | null)?.nama ?? "-"} — {MONTHS[period.bulan - 1]} {period.tahun}
+            {(period.branches as { nama: string } | null)?.nama ?? "-"} — {monthLabel(period.bulan)} {period.tahun}
           </h1>
           <p className="mt-1 text-sm text-neutral-500">Slip gaji periode ini.</p>
         </div>
@@ -2452,12 +2475,8 @@ export function PayslipDocument({ data }: { data: PayslipDocData }) {
 // src/app/(employee)/slip-gaji/[payslipId]/pdf/route.tsx
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { monthLabel } from "@/lib/format/month";
 import { PayslipDocument } from "@/components/payslip-document";
-
-const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
 
 export async function GET(
   _request: Request,
@@ -2489,7 +2508,7 @@ export async function GET(
       data={{
         nama: (slip.employees as { nama: string } | null)?.nama ?? "-",
         branchNama: period?.branches?.nama ?? "-",
-        periodeLabel: period ? `${MONTHS[period.bulan - 1]} ${period.tahun}` : "-",
+        periodeLabel: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
         gajiPokok: Number(slip.gaji_pokok),
         hariKerjaEfektif: slip.hari_kerja_efektif,
         gajiHarian: Number(slip.gaji_harian),
@@ -2614,11 +2633,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { formatRupiah } from "@/lib/format/rupiah";
-
-const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
+import { monthLabel } from "@/lib/format/month";
 
 export default async function SlipGajiPage() {
   const db = await createServerSupabaseClient();
@@ -2651,7 +2666,7 @@ export default async function SlipGajiPage() {
             <li key={s.id} className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium text-neutral-900">
-                  {MONTHS[p.bulan - 1]} {p.tahun}
+                  {monthLabel(p.bulan)} {p.tahun}
                 </p>
                 <p className="text-sm text-neutral-500">{formatRupiah(Number(s.gaji_akhir))}</p>
               </div>
