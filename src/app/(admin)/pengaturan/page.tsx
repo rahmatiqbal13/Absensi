@@ -18,12 +18,18 @@ export default async function PengaturanPage() {
         <h1 className="text-xl font-semibold text-neutral-900">Pengaturan</h1>
         <p className="mt-1 text-sm text-neutral-500">Konfigurasi dan status sistem.</p>
       </div>
-      {superAdminCount < 2 && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2
-          Super Admin diperlukan agar mekanisme persetujuan cuti berjenjang untuk HR/Super Admin
-          tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
+      {superAdminCount === null ? (
+        <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+          Tidak dapat memeriksa jumlah Super Admin aktif saat ini. Silakan muat ulang halaman.
         </p>
+      ) : (
+        superAdminCount < 2 && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2
+            Super Admin diperlukan agar mekanisme persetujuan cuti berjenjang untuk HR/Super Admin
+            tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
+          </p>
+        )
       )}
     </div>
   );

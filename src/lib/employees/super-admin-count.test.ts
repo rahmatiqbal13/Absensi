@@ -16,7 +16,8 @@ describe("countActiveSuperAdmins", () => {
     expect(count).toBe(2);
   });
 
-  it("returns 0 when the count query fails", async () => {
+  it("returns null (unknown, not zero) and logs when the count query fails", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
@@ -27,6 +28,11 @@ describe("countActiveSuperAdmins", () => {
       }),
     };
     const count = await countActiveSuperAdmins(db as any);
-    expect(count).toBe(0);
+    expect(count).toBeNull();
+    expect(errSpy).toHaveBeenCalledWith(
+      "countActiveSuperAdmins: query failed",
+      expect.objectContaining({ message: "boom" }),
+    );
+    errSpy.mockRestore();
   });
 });
