@@ -33,9 +33,19 @@ export default async function AbsenPage() {
     ? { jamMasuk: attendance.jam_masuk, jamPulang: attendance.jam_pulang, status: attendance.status }
     : null;
 
+  const formattedToday = new Date(`${today}T00:00:00`).toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
-    <main className="p-4">
-      <h1 className="mb-4 text-xl font-semibold">Absen</h1>
+    <main className="mx-auto max-w-md p-4 pt-8">
+      <div className="mb-6">
+        <p className="text-sm text-neutral-500">{formattedToday}</p>
+        <h1 className="text-2xl font-semibold text-neutral-900">Halo, {employee.nama}</h1>
+      </div>
       <ClockPanel
         todaysAttendance={todaysAttendance}
         submitClockIn={submitClockIn}

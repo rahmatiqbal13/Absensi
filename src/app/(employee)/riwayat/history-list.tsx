@@ -39,21 +39,32 @@ function formatDate(dateOnly: string): string {
 
 export function HistoryList({ records }: { records: AttendanceRecord[] }) {
   if (records.length === 0) {
-    return <p className="p-4 text-sm text-neutral-500">Belum ada riwayat absensi.</p>;
+    return (
+      <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center">
+        <p className="text-sm text-neutral-500">Belum ada riwayat absensi.</p>
+      </div>
+    );
   }
 
   return (
-    <ul className="divide-y">
+    <ul className="flex flex-col gap-2">
       {records.map((record) => (
-        <li key={record.tanggal} className="flex flex-col gap-1 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">{formatDate(record.tanggal)}</span>
+        <li
+          key={record.tanggal}
+          className="flex flex-col gap-1.5 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-neutral-900">{formatDate(record.tanggal)}</span>
             <AttendanceStatusBadge status={record.status} />
           </div>
-          <span className="text-sm text-neutral-600">
+          <span className="text-sm text-neutral-500">
             {formatTime(record.jamMasuk)} – {formatTime(record.jamPulang)}
           </span>
-          {record.catatan && <span className="text-sm text-neutral-500">{record.catatan}</span>}
+          {record.catatan && (
+            <span className="rounded-lg bg-neutral-50 px-2.5 py-1.5 text-sm text-neutral-600">
+              {record.catatan}
+            </span>
+          )}
         </li>
       ))}
     </ul>

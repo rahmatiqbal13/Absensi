@@ -1,11 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --color-brand: #2563eb; /* vibrant, high-saturation accent (spec §7.1/§8) */
-  --color-neutral-50: #fafafa;
-  --color-neutral-900: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  /* Vibrant, high-saturation accent (spec §7.1/§8) — outdoor daylight use,
+     never pastel. Blue-600 equivalent, kept in sync with the RLS seed data
+     and Tailwind's own blue-600 so utility classes and tokens agree. */
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-soft: #eff6ff;
+
+  /* Neutral scale: cool gray, not a flat black/white pair, so cards read as
+     "surface" against the page rather than one undifferentiated slab. */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-500: #64748b;
+  --color-neutral-700: #334155;
+  --color-neutral-900: #0f172a;
+
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-success: #16a34a;
+
+  --radius-card: 1rem;
+  --radius-control: 0.625rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
 }
 
 @theme inline {
@@ -18,5 +40,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
