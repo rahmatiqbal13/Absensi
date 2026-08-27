@@ -26,6 +26,7 @@ describe("RLS & anti-fraud triggers", () => {
   let karyawanB: { id: string; email: string };
   let karyawanC: { id: string; email: string };
   let atasanD: { id: string; email: string };
+  let hrAdminE: { id: string; email: string };
   const password = "TestPassword123!";
   const suffix = Date.now();
 
@@ -60,6 +61,7 @@ describe("RLS & anti-fraud triggers", () => {
       ["B", `karyawan.b+${suffix}@test.local`, "karyawan"],
       ["C", `karyawan.c+${suffix}@test.local`, "karyawan"],
       ["D", `atasan.d+${suffix}@test.local`, "atasan"],
+      ["E", `hr.e+${suffix}@test.local`, "hr_admin"],
     ] as const) {
       const { data: authUser } = await db.auth.admin.createUser({
         email,
@@ -83,7 +85,8 @@ describe("RLS & anti-fraud triggers", () => {
       if (key === "A") karyawanA = { id: employee!.id, email };
       else if (key === "B") karyawanB = { id: employee!.id, email };
       else if (key === "C") karyawanC = { id: employee!.id, email };
-      else atasanD = { id: employee!.id, email };
+      else if (key === "D") atasanD = { id: employee!.id, email };
+      else hrAdminE = { id: employee!.id, email };
     }
   }, 60_000);
 
@@ -298,6 +301,54 @@ describe("RLS & anti-fraud triggers", () => {
     expect(error).not.toBeNull();
     expect(error!.message).toContain("self-approval is not allowed");
   });
+
+  // 0014 (I2) regression, exercised at the trigger's DIRECT-WRITE path rather
+  // than through approve_leave_request(). Unlike the test above, approver_id
+  // here is a DIFFERENT employee (a designated_approver_id-style escalation),
+  // so the trigger's FIRST self-approval disjunct
+  // (`new.approver_id = new.employee_id`) does NOT fire. hr_admin's
+  // is_admin_role() already satisfies leave_requests_update's RLS
+  // (`approver_id = auth.uid() or is_admin_role()`), so this direct UPDATE
+  // reaches the trigger at all -- for a non-admin the same write would be
+  // filtered out by RLS before the trigger ever ran (see the karyawan/atasan
+  // "not the assigned approver" tests below). The only thing left to stop the
+  // hr_admin here is the trigger's `auth.uid() = new.employee_id` disjunct
+  // that 0014 added; the RPC-level equivalent of this check lives in
+  // tests/integration/leave-approval-rpc.test.ts and cannot reach this clause
+  // at all, since approve_leave_request() raises its own
+  // "self-approval is not allowed" before the UPDATE it issues would ever hit
+  // this trigger.
+  it("blocks an hr_admin from self-approving their OWN escalated request via a DIRECT table update (0014 trigger disjunct)", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db
+      .from("leave_requests")
+      .insert({
+        employee_id: hrAdminE.id,
+        jenis: "tahunan",
+        tanggal_mulai: "2026-10-15",
+        tanggal_selesai: "2026-10-16",
+        approver_id: karyawanB.id, // designated approver -- NOT hrAdminE itself
+        is_self_request: true,
+      })
+      .select()
+      .single();
+    expect(leave!.approver_id).not.toBe(leave!.employee_id);
+
+    const clientE = await signInAs(hrAdminE.email, password);
+    const { error } = await clientE
+      .from("leave_requests")
+      .update({ status: "approved" }) // direct write; approve_leave_request() RPC is never called
+      .eq("id", leave.id);
+    expect(error, "expected the hr_admin's direct self-approval to be rejected").not.toBeNull();
+    expect(error!.message).toContain("self-approval is not allowed");
+
+    const { data: after } = await db
+      .from("leave_requests")
+      .select("status")
+      .eq("id", leave.id)
+      .single();
+    expect(after!.status).toBe("pending");
+  }, 30_000);
 
   // --- leave_requests: "only the assigned approver may act" -----------------
 
