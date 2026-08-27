@@ -47,6 +47,15 @@ describe("PayslipTable", () => {
     await waitFor(() => expect(onFinalize).toHaveBeenCalled());
   });
 
+  it("recovers when an action rejects (unbusies and shows a generic error)", async () => {
+    const onGenerate = vi.fn().mockRejectedValue(new Error("boom"));
+    render(<PayslipTable rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
+    const generate = screen.getByRole("button", { name: /generate/i });
+    fireEvent.click(generate);
+    expect(await screen.findByText(/terjadi kesalahan\. coba lagi\./i)).toBeInTheDocument();
+    await waitFor(() => expect(generate).not.toBeDisabled());
+  });
+
   it("expands a row to show rincian_harian", () => {
     render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /rincian budi/i }));
