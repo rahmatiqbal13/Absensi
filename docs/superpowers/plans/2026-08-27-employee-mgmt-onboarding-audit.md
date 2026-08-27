@@ -1745,7 +1745,7 @@ export function EmployeeFilters({
     const params = new URLSearchParams();
     if (next.cabang) params.set("cabang", next.cabang);
     if (next.role) params.set("role", next.role);
-    if (next.status) params.set("status", next.status);
+    params.set("status", next.status || "semua"); // "semua" sentinel = show all; empty never survives the round-trip
     if (next.q) params.set("q", next.q);
     router.push(`/karyawan?${params.toString()}`);
   }
@@ -1782,7 +1782,7 @@ export function EmployeeFilters({
           className="rounded border border-neutral-300 px-3 py-2 text-sm">
           <option value="aktif">Aktif</option>
           <option value="nonaktif">Nonaktif</option>
-          <option value="">Semua</option>
+          <option value="semua">Semua</option>
         </select>
       </div>
       <button type="submit" className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white">Cari</button>
@@ -1822,9 +1822,11 @@ export default async function KaryawanPage({
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const status = sp.status ?? "aktif";
+  const rawStatus = sp.status ?? "aktif";          // what the <select> shows
+  const status = rawStatus === "semua" ? null : rawStatus; // null = no status filter (show all)
 
-  const { data: branches } = await db.from("branches").select("id, nama").order("nama");
+  const { data: branches, error: branchErr } = await db.from("branches").select("id, nama").order("nama");
+  if (branchErr) console.error("karyawan list: branches query failed", branchErr);
 
   let query = db
     .from("employees")
@@ -1851,7 +1853,7 @@ export default async function KaryawanPage({
 
       <EmployeeFilters
         branches={branches ?? []}
-        defaults={{ cabang: sp.cabang, role: sp.role, status, q: sp.q ?? "" }}
+        defaults={{ cabang: sp.cabang, role: sp.role, status: rawStatus, q: sp.q ?? "" }}
       />
 
       {error && <p className="text-sm text-red-600">Gagal memuat daftar karyawan.</p>}
