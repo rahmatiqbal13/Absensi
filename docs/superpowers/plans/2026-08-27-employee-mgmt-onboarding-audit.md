@@ -16,13 +16,13 @@ This is **Plan 5 of a 6-plan sequence** derived from `docs/superpowers/specs/202
 - **Never return raw Postgres/PostgREST error text to the user.** Every Server Action / library function that touches the DB must `console.error` the raw error and return a fixed Indonesian message. Map pattern: `src/app/(admin)/persetujuan-cuti/actions.ts` (`RPC_ERROR_MESSAGES` + `mapRpcError`).
 - **`/karyawan` mutations use the user-scoped client** (`createServerSupabaseClient()`) so RLS + triggers see the real `auth.uid()`. **`inviteEmployee` is the sole service-role path** (`createServiceRoleSupabaseClient()`) — it needs `auth.admin.*`, and there is no `employees_insert` RLS policy for clients (RLS bypass here is deliberate).
 - **New `SECURITY DEFINER` functions/triggers**: `language plpgsql`, `set search_path = public`.
-- **Migrations that `create or replace` an existing RPC** (`0019`): copy the entire body of the last version verbatim (from `supabase/migrations/0016_leave_approval_balance_guard.sql`), add only the new lines, then re-run `revoke execute ... from public, anon;` and `grant execute ... to authenticated, service_role;` for that function **in the same migration** — `create or replace` does not reset the ACL but re-asserting is the established pattern, and `anon` must be named explicitly (see the C1 comment block in `0014_fix_leave_approval_rpc_security.sql`).
+- **Migrations that `create or replace` an existing RPC** (`0020`): copy the entire body of the last version verbatim (from `supabase/migrations/0016_leave_approval_balance_guard.sql`), add only the new lines, then re-run `revoke execute ... from public, anon;` and `grant execute ... to authenticated, service_role;` for that function **in the same migration** — `create or replace` does not reset the ACL but re-asserting is the established pattern, and `anon` must be named explicitly (see the C1 comment block in `0014_fix_leave_approval_rpc_security.sql`).
 - **`employees` protected fields** (the trigger's list, and the fields a non-hr-admin edit form must treat as read-only): `role`, `gaji_pokok`, `branch_id`, `atasan_id`, `designated_approver_id`, `status_kontrak`, `status`, `tanggal_mulai_kerja`, `email`.
 - Date-only values may parse as UTC midnight; **never** `date.toISOString().slice(...)`, bare `.getHours()`/`.getMinutes()`, or `toLocaleString`/`toLocaleDateString`/`toLocaleTimeString` without an explicit `timeZone: "Asia/Jakarta"` — for any timestamp display use the `Intl.DateTimeFormat({ timeZone: "Asia/Jakarta" })` pattern in `src/lib/attendance/jakarta-date.ts`.
 - `Role` type: import from `@/lib/auth/route-access` — never redefine.
 - Icons: inline stroke-based SVG, never emoji. Badges follow `src/components/leave-status-badge.tsx` (`<svg role="img" aria-hidden="true" …>` + `<span>` label, distinct `bg-*`/`text-*` per value). Admin pages follow `src/app/(admin)/dashboard/page.tsx` / `persetujuan-cuti/page.tsx` / `payroll/page.tsx` conventions (result-union rendering `{x.ok ? … : <p className="text-sm text-red-600">{x.error}</p>}`, `getCurrentEmployee` + `redirect("/login")`, in-page role gate `if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard")`).
 - To-one PostgREST embeds (`branches(nama)`, `actor:employees!fk(nama)`) are mis-inferred as arrays by the generated types — use the `as unknown as { … } | null` double-cast, consistent with Plan 4.
-- Supabase is a linked **cloud** project. Migrations apply via `npx supabase db push`, **never** `supabase db reset` / `truncate` / `delete from` on live data (a scoped `delete` inside a one-shot seed script for a single year's rows is fine). Export the token first: `export SUPABASE_ACCESS_TOKEN=$(grep '^SUPABASE_ACCESS_TOKEN=' .env.local | cut -d= -f2-)`. Last migration: `0017_payroll_generate_finalize_rpc.sql`. This plan: `0018`, `0019`.
+- Supabase is a linked **cloud** project. Migrations apply via `npx supabase db push`, **never** `supabase db reset` / `truncate` / `delete from` on live data (a scoped `delete` inside a one-shot seed script for a single year's rows is fine). Export the token first: `export SUPABASE_ACCESS_TOKEN=$(grep '^SUPABASE_ACCESS_TOKEN=' .env.local | cut -d= -f2-)`. Last migration: `0017_payroll_generate_finalize_rpc.sql`. This plan: `0018` (Task 1), `0019` (Task 1 fix — service-role exemption), `0020` (Task 3).
 - `Role` values: `karyawan | atasan | hr_admin | super_admin`. `is_hr_admin_role()` (SQL, migration `0010`) = `('hr_admin','super_admin')`. `is_admin_role()` = the above plus `atasan`.
 
 ---
@@ -379,10 +379,12 @@ git commit -m "feat: idempotent 2026 national-holiday seed"
 
 ---
 
-## Task 3: Migration 0019 — audit leave approve/reject
+## Task 3: Migration 0020 — audit leave approve/reject
+
+> Note: migration `0019` was consumed by a Task 1 follow-up fix (exempt service-role from the protected-field guard). This task's migration is **`0020`**.
 
 **Files:**
-- Create: `supabase/migrations/0019_audit_leave_approval.sql`
+- Create: `supabase/migrations/0020_audit_leave_approval.sql`
 - Modify: `tests/integration/leave-approval-rpc.test.ts` (add 2 audit assertions)
 
 **Interfaces:**
@@ -402,7 +404,7 @@ These are the live versions (`approve` last touched in `0016`, `reject` in `0014
 - [ ] **Step 2: Write the migration**
 
 ```sql
--- supabase/migrations/0019_audit_leave_approval.sql
+-- supabase/migrations/0020_audit_leave_approval.sql
 --
 -- Plan 5, spec §8: leave approve/reject must land in audit_logs. This
 -- create-or-replace reproduces the live bodies (approve: 0016, reject: 0014)
@@ -602,7 +604,7 @@ Expected: PASS (all prior tests + 2 audit assertions).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0019_audit_leave_approval.sql tests/integration/leave-approval-rpc.test.ts
+git add supabase/migrations/0020_audit_leave_approval.sql tests/integration/leave-approval-rpc.test.ts
 git commit -m "feat(db): audit_logs entry on leave approve/reject"
 ```
 
