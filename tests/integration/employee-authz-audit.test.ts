@@ -113,4 +113,11 @@ describe("employee authz + audit triggers (0018)", () => {
       .insert({ tanggal: "2026-12-31", nama: `sneaky ${suffix}` });
     expect(error).not.toBeNull();
   });
+
+  it("lets a service-role connection change a protected field (seed path)", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { error } = await db.from("employees")
+      .update({ designated_approver_id: hrAdmin.id }).eq("id", atasan.id);
+    expect(error).toBeNull();
+  });
 });
