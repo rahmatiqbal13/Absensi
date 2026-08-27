@@ -11,6 +11,10 @@ describe("resolveRouteAccess", () => {
     expect(resolveRouteAccess("/login", null)).toBe("allow");
   });
 
+  it("allows the public /set-password route without a role", () => {
+    expect(resolveRouteAccess("/set-password", null)).toBe("allow");
+  });
+
   it("allows any authenticated role on employee routes", () => {
     for (const role of ["karyawan", "atasan", "hr_admin", "super_admin"] as const) {
       expect(resolveRouteAccess("/absen", role)).toBe("allow");
