@@ -98,6 +98,16 @@ describe("leave approval RPC", () => {
       .eq("tahun", 2026)
       .single();
     expect(Number(balance!.saldo_terpakai)).toBe(3);
+
+    const { data: auditRows } = await db
+      .from("audit_logs")
+      .select("aksi, target_employee_id, is_self_action")
+      .eq("aksi", "leave_approved")
+      .eq("target_employee_id", karyawan.id)
+      .order("waktu", { ascending: false })
+      .limit(1);
+    expect(auditRows![0].aksi).toBe("leave_approved");
+    expect(auditRows![0].is_self_action).toBe(false);
   });
 
   it("blocks a non-assigned employee from approving the request", async () => {
@@ -402,5 +412,21 @@ describe("leave approval RPC", () => {
 
     expect(error).not.toBeNull();
     expect(error!.message).toContain("catatan_approval is required");
+  });
+
+  it("writes a leave_rejected audit row on reject", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { data: leave } = await db.from("leave_requests").insert({
+      employee_id: karyawan.id, jenis: "sakit",
+      tanggal_mulai: "2026-11-25", tanggal_selesai: "2026-11-25", approver_id: atasan.id,
+    }).select().single();
+
+    const atasanClient = await signInAs(atasan.email);
+    await atasanClient.rpc("reject_leave_request", { p_request_id: leave!.id, p_catatan: "Tidak lengkap" });
+
+    const { data: rows } = await db.from("audit_logs")
+      .select("aksi").eq("aksi", "leave_rejected").eq("target_employee_id", karyawan.id)
+      .order("waktu", { ascending: false }).limit(1);
+    expect(rows![0].aksi).toBe("leave_rejected");
   });
 });
