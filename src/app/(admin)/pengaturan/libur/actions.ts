@@ -30,10 +30,13 @@ export async function deleteHoliday(id: string): Promise<Result> {
   const db = await createServerSupabaseClient();
   const me = await getCurrentEmployee(db);
   if (!me) return { ok: false, error: "Tidak diizinkan." };
-  const { error } = await db.from("holidays").delete().eq("id", id);
+  const { data, error } = await db.from("holidays").delete().eq("id", id).select("id");
   if (error) {
     console.error("deleteHoliday: delete failed", error);
     return { ok: false, error: "Gagal menghapus libur." };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Gagal menghapus libur atau Anda tidak berhak." };
   }
   revalidatePath("/pengaturan/libur");
   return { ok: true };

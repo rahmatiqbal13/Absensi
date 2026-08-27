@@ -28,7 +28,8 @@ export default async function LiburPage({
 
   async function remove(id: string) {
     "use server";
-    await deleteHoliday(id);
+    const res = await deleteHoliday(id);
+    if (!res.ok) console.error("LiburPage: deleteHoliday failed", res.error);
   }
 
   return (

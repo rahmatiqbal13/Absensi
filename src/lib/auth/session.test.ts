@@ -46,6 +46,28 @@ describe("getCurrentEmployee", () => {
   });
 });
 
+describe("getCurrentEmployee — query error", () => {
+  it("console.errors the query error and returns null", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } }, error: null }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: { message: "boom" } }),
+          }),
+        }),
+      }),
+    };
+    expect(await getCurrentEmployee(db as any)).toBeNull();
+    expect(spy).toHaveBeenCalledWith(
+      "getCurrentEmployee: employees query failed",
+      expect.objectContaining({ message: "boom" }),
+    );
+    spy.mockRestore();
+  });
+});
+
 describe("getCurrentEmployee — deactivated employees", () => {
   it("returns null when the employee status is nonaktif", async () => {
     const db = makeMockDb(

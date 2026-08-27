@@ -15,11 +15,14 @@ export async function getCurrentEmployee(
   const { data: userData } = await db.auth.getUser();
   if (!userData.user) return null;
 
-  const { data: employee } = await db
+  const { data: employee, error } = await db
     .from("employees")
     .select("id, nama, email, role, branch_id, status")
     .eq("id", userData.user.id)
     .single();
+  if (error) {
+    console.error("getCurrentEmployee: employees query failed", error);
+  }
   if (!employee || employee.status !== "aktif") return null;
 
   return {
