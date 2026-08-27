@@ -1,97 +1,88 @@
 import { describe, it, expect, vi } from "vitest";
 import { inviteEmployee } from "./invite";
 
-function makeMockDb(overrides: Partial<any> = {}) {
-  return {
-    auth: {
-      admin: {
-        createUser: vi.fn().mockResolvedValue({
-          data: { user: { id: "new-user-id" } },
+const APP_URL = "https://app.example.test";
+process.env.NEXT_PUBLIC_APP_URL = APP_URL;
+
+const baseInput = {
+  nama: "Sari",
+  email: "sari@contoh.co.id",
+  jabatan: "Staff",
+  statusKontrak: "tetap",
+  tanggalMulaiKerja: "2026-02-01",
+  gajiPokok: 8_000_000,
+  role: "karyawan" as const,
+  branchId: "11111111-1111-1111-1111-111111111111",
+  departmentId: null,
+  atasanId: null,
+  designatedApproverId: null,
+};
+
+function makeDb(opts: { linkError?: string; insertError?: string; deleteError?: string } = {}) {
+  const generateLink = vi.fn(async () =>
+    opts.linkError
+      ? { data: { user: null, properties: null }, error: { message: opts.linkError } }
+      : {
+          data: {
+            user: { id: "auth-user-1" },
+            properties: { action_link: `${APP_URL}/set-password#access_token=xyz` },
+          },
           error: null,
-        }),
-        deleteUser: vi.fn().mockResolvedValue({ error: null }),
-      },
-    },
-    from: vi.fn().mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: { id: "new-user-id" },
-            error: null,
-          }),
-        }),
-      }),
-    }),
-    ...overrides,
+        },
+  );
+  const deleteUser = vi.fn(async () =>
+    opts.deleteError ? { data: null, error: { message: opts.deleteError } } : { data: {}, error: null },
+  );
+  const single = vi.fn(async () =>
+    opts.insertError
+      ? { data: null, error: { message: opts.insertError } }
+      : { data: { id: "auth-user-1" }, error: null },
+  );
+  const insert = vi.fn(() => ({ select: () => ({ single }) }));
+  return {
+    _generateLink: generateLink,
+    _deleteUser: deleteUser,
+    _insert: insert,
+    auth: { admin: { generateLink, deleteUser } },
+    from: vi.fn(() => ({ insert })),
   };
 }
 
-const baseInput = {
-  nama: "Budi",
-  email: "budi@test.local",
-  branchId: "branch-1",
-  jabatan: "Staff",
-  statusKontrak: "tetap",
-  tanggalMulaiKerja: "2026-01-01",
-  gajiPokok: 5_000_000,
-  role: "karyawan" as const,
-};
-
 describe("inviteEmployee", () => {
-  it("creates an auth user and an employees row, returning the new id", async () => {
-    const db = makeMockDb();
+  it("creates the auth user + employees row and returns a set-password link", async () => {
+    const db = makeDb();
     const result = await inviteEmployee(baseInput, db as any);
-    expect(result).toEqual({ ok: true, employeeId: "new-user-id" });
-    expect(db.auth.admin.createUser).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "budi@test.local" }),
-    );
-  });
-
-  it("rejects hr_admin/super_admin invites without a designatedApproverId", async () => {
-    const db = makeMockDb();
-    const result = await inviteEmployee(
-      { ...baseInput, role: "hr_admin" },
-      db as any,
-    );
     expect(result).toEqual({
-      ok: false,
-      error: "designatedApproverId is required for hr_admin and super_admin roles",
+      ok: true,
+      employeeId: "auth-user-1",
+      setPasswordUrl: `${APP_URL}/set-password#access_token=xyz`,
     });
-    expect(db.auth.admin.createUser).not.toHaveBeenCalled();
+    expect(db._generateLink).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "invite", email: "sari@contoh.co.id" }),
+    );
+    expect(db._insert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "auth-user-1", email: "sari@contoh.co.id", role: "karyawan" }),
+    );
   });
 
-  it("rolls back the auth user if the employees insert fails", async () => {
-    const db = makeMockDb({
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: "duplicate email" },
-            }),
-          }),
-        }),
-      }),
-    });
-    const result = await inviteEmployee(baseInput, db as any);
-    expect(result).toEqual({ ok: false, error: "duplicate email" });
-    expect(db.auth.admin.deleteUser).toHaveBeenCalledWith("new-user-id");
+  it("rejects hr_admin without a designated approver before touching auth", async () => {
+    const db = makeDb();
+    const result = await inviteEmployee({ ...baseInput, role: "hr_admin" }, db as any);
+    expect(result).toEqual({ ok: false, error: "designatedApproverId is required for hr_admin and super_admin roles" });
+    expect(db._generateLink).not.toHaveBeenCalled();
   });
 
-  it("returns early if auth user creation fails, without attempting employees insert", async () => {
-    const db = makeMockDb({
-      auth: {
-        admin: {
-          createUser: vi.fn().mockResolvedValue({
-            data: { user: null },
-            error: { message: "auth service error" },
-          }),
-          deleteUser: vi.fn().mockResolvedValue({ error: null }),
-        },
-      },
-    });
+  it("returns a fixed error and does not insert when generateLink fails", async () => {
+    const db = makeDb({ linkError: "boom" });
     const result = await inviteEmployee(baseInput, db as any);
-    expect(result).toEqual({ ok: false, error: "auth service error" });
-    expect(db.from).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: "Gagal membuat akun karyawan." });
+    expect(db._insert).not.toHaveBeenCalled();
+  });
+
+  it("rolls back the auth user when the employees insert fails", async () => {
+    const db = makeDb({ insertError: "duplicate key" });
+    const result = await inviteEmployee(baseInput, db as any);
+    expect(result).toEqual({ ok: false, error: "Gagal menyimpan data karyawan." });
+    expect(db._deleteUser).toHaveBeenCalledWith("auth-user-1");
   });
 });
