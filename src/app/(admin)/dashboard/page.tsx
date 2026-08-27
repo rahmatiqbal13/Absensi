@@ -14,10 +14,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Dashboard reads run under is_admin_role() (migration 0009), which INCLUDES
-  // the atasan role. Both employees_select and attendances_select short-circuit
-  // on is_admin_role(), so atasan sees ORG-WIDE aggregate counts here, not
-  // team-scoped — 0009 removed the atasan_id path for these tables. This is the
+  // Dashboard reads run under is_admin_role(), which migration 0009 widened to
+  // INCLUDE the atasan role. employees_select and attendances_select still carry
+  // their atasan_id = auth.uid() clause, but is_admin_role() is now a leading
+  // disjunct that short-circuits true for atasan, so that clause never narrows —
+  // atasan sees ORG-WIDE aggregate counts here, not team-scoped. That is the
   // intended tier for this MVP (a reporting concern, trusted internal role);
   // team-scoping would need a separate atasan_id-filtered query. Per-branch
   // filtering (a UI to scope hr_admin/super_admin down to one branch) is also
