@@ -19,5 +19,5 @@ export default async function Layout({ children }: { children: React.ReactNode }
   if (decision === "redirect-login") redirect("/login");
   if (decision === "redirect-employee-home") redirect("/absen");
 
-  return <AdminShell>{children}</AdminShell>;
+  return <AdminShell role={employee?.role ?? null}>{children}</AdminShell>;
 }

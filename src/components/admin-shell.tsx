@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { type Role } from "@/lib/auth/route-access";
 
 const NAV_ITEMS = [
   {
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   {
     href: "/payroll",
     label: "Payroll",
+    hrAdminOnly: true,
     icon: (
       <>
         <rect x="3" y="6" width="18" height="12" rx="2" />
@@ -74,8 +76,20 @@ const NAV_ITEMS = [
   },
 ];
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  role,
+  children,
+}: {
+  role: Role | null;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      !("hrAdminOnly" in item && item.hrAdminOnly) ||
+      role === "hr_admin" ||
+      role === "super_admin",
+  );
 
   return (
     <div className="flex min-h-screen bg-neutral-50">
@@ -87,7 +101,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <span className="text-sm font-semibold text-neutral-900">Absensi HR</span>
         </div>
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {items.map((item) => {
             const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
               <Link

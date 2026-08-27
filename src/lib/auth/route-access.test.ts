@@ -41,3 +41,24 @@ describe("resolveRouteAccess", () => {
     expect(resolveRouteAccess("/login-audit", null)).toBe("redirect-login");
   });
 });
+
+describe("resolveRouteAccess — hr-admin-only paths", () => {
+  it("lets hr_admin and super_admin into /payroll", () => {
+    expect(resolveRouteAccess("/payroll", "hr_admin")).toBe("allow");
+    expect(resolveRouteAccess("/payroll/abc", "super_admin")).toBe("allow");
+  });
+
+  it("redirects an atasan away from /payroll to the admin home", () => {
+    expect(resolveRouteAccess("/payroll", "atasan")).toBe("redirect-admin-home");
+    expect(resolveRouteAccess("/payroll/abc", "atasan")).toBe("redirect-admin-home");
+  });
+
+  it("still redirects a karyawan to the employee home for /payroll", () => {
+    expect(resolveRouteAccess("/payroll", "karyawan")).toBe("redirect-employee-home");
+  });
+
+  it("does not affect other admin paths for atasan", () => {
+    expect(resolveRouteAccess("/dashboard", "atasan")).toBe("allow");
+    expect(resolveRouteAccess("/persetujuan-cuti", "atasan")).toBe("allow");
+  });
+});

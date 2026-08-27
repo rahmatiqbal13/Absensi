@@ -1,5 +1,9 @@
 export type Role = "karyawan" | "atasan" | "hr_admin" | "super_admin";
-export type RouteAccessResult = "allow" | "redirect-login" | "redirect-employee-home";
+export type RouteAccessResult =
+  | "allow"
+  | "redirect-login"
+  | "redirect-employee-home"
+  | "redirect-admin-home";
 
 const ADMIN_PATH_PREFIXES = [
   "/dashboard",
@@ -9,6 +13,9 @@ const ADMIN_PATH_PREFIXES = [
   "/pengaturan",
   "/payroll",
 ];
+// Admin paths that additionally exclude the `atasan` role — HR-admin business,
+// not team-lead reporting (spec §1: /payroll is hr_admin/super_admin only).
+const HR_ADMIN_PATH_PREFIXES = ["/payroll"];
 const PUBLIC_PATHS = ["/login"];
 
 export function resolveRouteAccess(pathname: string, role: Role | null): RouteAccessResult {
@@ -17,6 +24,9 @@ export function resolveRouteAccess(pathname: string, role: Role | null): RouteAc
 
   const isAdminPath = ADMIN_PATH_PREFIXES.some((p) => pathname.startsWith(p));
   if (isAdminPath && role === "karyawan") return "redirect-employee-home";
+
+  const isHrAdminPath = HR_ADMIN_PATH_PREFIXES.some((p) => pathname.startsWith(p));
+  if (isHrAdminPath && role === "atasan") return "redirect-admin-home";
 
   return "allow";
 }

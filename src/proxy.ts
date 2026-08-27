@@ -42,6 +42,9 @@ export async function proxy(request: NextRequest) {
   if (decision === "redirect-employee-home") {
     return NextResponse.redirect(new URL("/absen", request.url));
   }
+  if (decision === "redirect-admin-home") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
   return response;
 }
 
