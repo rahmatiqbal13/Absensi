@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentEmployee } from "@/lib/auth/session";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -27,6 +28,8 @@ function mapRpcError(message: string | undefined): string {
 
 export async function approveLeave(requestId: string, catatan: string | null): Promise<ActionResult> {
   const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me) return { ok: false, error: "Tidak diizinkan." };
   const { error } = await db.rpc("approve_leave_request", {
     p_request_id: requestId,
     p_catatan: catatan,
@@ -40,6 +43,8 @@ export async function approveLeave(requestId: string, catatan: string | null): P
 
 export async function rejectLeave(requestId: string, catatan: string): Promise<ActionResult> {
   const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me) return { ok: false, error: "Tidak diizinkan." };
   const { error } = await db.rpc("reject_leave_request", {
     p_request_id: requestId,
     p_catatan: catatan,
