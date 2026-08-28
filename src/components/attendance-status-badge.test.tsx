@@ -4,9 +4,9 @@ import { AttendanceStatusBadge } from "./attendance-status-badge";
 
 describe("AttendanceStatusBadge", () => {
   it("renders the Indonesian label and an icon for tepat_waktu", () => {
-    render(<AttendanceStatusBadge status="tepat_waktu" />);
+    const { container } = render(<AttendanceStatusBadge status="tepat_waktu" />);
     expect(screen.getByText("Tepat Waktu")).toBeInTheDocument();
-    expect(screen.getByRole("img", { hidden: true })).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("renders the Indonesian label for terlambat", () => {

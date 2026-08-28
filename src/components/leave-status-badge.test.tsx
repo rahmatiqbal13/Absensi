@@ -4,9 +4,9 @@ import { LeaveStatusBadge } from "./leave-status-badge";
 
 describe("LeaveStatusBadge", () => {
   it("renders the Indonesian label and an icon for pending", () => {
-    render(<LeaveStatusBadge status="pending" />);
+    const { container } = render(<LeaveStatusBadge status="pending" />);
     expect(screen.getByText("Menunggu")).toBeInTheDocument();
-    expect(screen.getByRole("img", { hidden: true })).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("renders the Indonesian label for approved", () => {

@@ -4,9 +4,9 @@ import { PayrollStatusBadge } from "./payroll-status-badge";
 
 describe("PayrollStatusBadge", () => {
   it("renders the Indonesian label and an icon for draft", () => {
-    render(<PayrollStatusBadge status="draft" />);
+    const { container } = render(<PayrollStatusBadge status="draft" />);
     expect(screen.getByText("Draft")).toBeInTheDocument();
-    expect(screen.getByRole("img", { hidden: true })).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
   it("renders the Indonesian label for final", () => {
     render(<PayrollStatusBadge status="final" />);
