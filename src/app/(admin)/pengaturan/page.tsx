@@ -35,6 +35,17 @@ export default async function PengaturanPage() {
 
       {(employee.role === "hr_admin" || employee.role === "super_admin") && (
         <div className="grid gap-3 sm:grid-cols-2">
+          {employee.role === "super_admin" && (
+            <Link
+              href="/pengaturan/instansi"
+              className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
+            >
+              <p className="text-sm font-medium text-neutral-900">Instansi</p>
+              <p className="mt-1 text-xs text-neutral-500">
+                Nama, logo, kontak, dan warna aksen aplikasi.
+              </p>
+            </Link>
+          )}
           <Link
             href="/pengaturan/libur"
             className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
