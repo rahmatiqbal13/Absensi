@@ -49,6 +49,17 @@ export async function getAppSettingsUncached(): Promise<AppSettings> {
       warnaAksen: (data.warna_aksen as string).toUpperCase(),
     };
   } catch (err) {
+    // Let Next's "this route must be dynamic" signal propagate — it is thrown
+    // by cookies() during the static-prerender pass, not a real failure.
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      typeof (err as { digest?: unknown }).digest === "string" &&
+      (err as { digest: string }).digest.startsWith("DYNAMIC_SERVER_USAGE")
+    ) {
+      throw err;
+    }
     console.error("getAppSettings: unexpected", err);
     return APP_SETTINGS_DEFAULTS;
   }
