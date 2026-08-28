@@ -4,35 +4,34 @@
 -- deleted, not just flagged. The purge-expired-photos Edge Function does the
 -- work; this schedules it nightly at 02:00 WIB (19:00 UTC).
 --
--- The function URL and service key are project-specific. Preferred: store the
--- service key in Supabase Vault and reference it. If pg_cron / pg_net turn out
--- to be unavailable or awkward on this project, DELETE the cron.schedule call
--- below, keep only the `create extension` lines, and schedule the function
--- from the Supabase dashboard instead (Edge Functions -> the function ->
--- Schedules, cron `0 19 * * *`). Document whichever path was taken in the
--- task report.
-
--- REMOVE THIS BLOCK after substituting <PROJECT_REF> and <SERVICE_KEY_EXPR> below.
-do $$ begin
-  raise exception 'Migration 0025: replace <PROJECT_REF> and <SERVICE_KEY_EXPR>, then delete this guard block.';
-end $$;
+-- The shared secret is NOT in this file. It is synced to Vault from the
+-- environment by `supabase db push` (see [db.vault].purge_shared_secret in
+-- config.toml) and read back here by name. The Edge Function checks the same
+-- value from its own secret (PURGE_SHARED_SECRET).
+--
+-- Fallback: if pg_cron / pg_net are unavailable on this project, this migration
+-- fails at `create extension`. In that case reduce it to a no-op and schedule
+-- the function from the Supabase dashboard instead (Edge Functions -> the
+-- function -> Schedules, cron `0 19 * * *`, with an Authorization: Bearer
+-- <service-role key> header).
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- IMPLEMENTER: (1) delete the raise-exception guard block at the top of this
--- file. (2) replace <PROJECT_REF> with the real project ref (from
--- NEXT_PUBLIC_SUPABASE_URL) and <SERVICE_KEY_EXPR> with either a Vault lookup
--- (`(select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')`)
--- or, if Vault is not set up, the literal key. Verify the call once by hand
--- (`select ...net.http_post(...)`) before relying on the schedule.
+-- cron.schedule upserts by job name, so re-running this migration is safe.
 select cron.schedule(
   'purge-expired-photos',
   '0 19 * * *',
   $$
   select net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/purge-expired-photos',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || <SERVICE_KEY_EXPR>)
+    url := 'https://usvkufbzvxlwacbomram.supabase.co/functions/v1/purge-expired-photos',
+    headers := jsonb_build_object(
+      'Authorization',
+      'Bearer ' || (
+        select decrypted_secret from vault.decrypted_secrets
+        where name = 'purge_shared_secret'
+      )
+    )
   )
   $$
 );

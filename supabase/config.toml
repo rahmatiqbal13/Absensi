@@ -53,8 +53,13 @@ default_pool_size = 20
 # Maximum number of client connections allowed.
 max_client_conn = 100
 
-# [db.vault]
-# secret_key = "env(SECRET_VALUE)"
+[db.vault]
+# Synced to the remote Vault on `supabase db push` (before migrations run).
+# Migration 0025's pg_cron job reads this to authenticate its call to the
+# purge-expired-photos Edge Function. The value comes from the environment at
+# push time — never written to git. The Edge Function reads the same value from
+# its own secret (`supabase secrets set PURGE_SHARED_SECRET=...`).
+purge_shared_secret = "env(PURGE_SHARED_SECRET)"
 
 [db.migrations]
 # If disabled, migrations will be skipped during a db push or reset.

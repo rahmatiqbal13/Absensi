@@ -10,12 +10,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const BUCKET = "attendance-photos";
 
 Deno.serve(async (req) => {
+  // Auth is a dedicated shared secret (set via `supabase secrets set`), NOT the
+  // service-role key: a project with both a legacy service_role JWT and a new
+  // sb_secret_* key has an ambiguous SUPABASE_SERVICE_ROLE_KEY, so an exact
+  // Bearer match against it is unreliable. The cron in migration 0025 sends the
+  // same secret from Vault.
   const auth = req.headers.get("Authorization");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (auth !== `Bearer ${serviceKey}`) {
+  const sharedSecret = Deno.env.get("PURGE_SHARED_SECRET");
+  if (!sharedSecret || auth !== `Bearer ${sharedSecret}`) {
     return new Response("forbidden", { status: 403 });
   }
 
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {
     auth: { persistSession: false },
   });

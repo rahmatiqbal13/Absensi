@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { createServiceRoleSupabaseClient } from "../../src/lib/supabase/server";
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL; // https://<ref>.supabase.co/functions/v1
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SHARED_SECRET = process.env.PURGE_SHARED_SECRET; // matches the function's PURGE_SHARED_SECRET
 const suffix = Date.now();
 
 // Partial-failure contract (verified by reading index.ts, not exercised here —
@@ -13,7 +13,7 @@ const suffix = Date.now();
 // removed (`remove()` data length), not the batch size. If either DB null-out
 // errors, the function returns 500.
 
-describe.skipIf(!FUNCTIONS_URL)("purge-expired-photos", () => {
+describe.skipIf(!FUNCTIONS_URL || !SHARED_SECRET)("purge-expired-photos", () => {
   let branchId: string;
   let employeeId: string;
 
@@ -44,7 +44,7 @@ describe.skipIf(!FUNCTIONS_URL)("purge-expired-photos", () => {
 
     const res = await fetch(`${FUNCTIONS_URL}/purge-expired-photos`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${SERVICE_KEY}` },
+      headers: { Authorization: `Bearer ${SHARED_SECRET}` },
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -60,8 +60,16 @@ describe.skipIf(!FUNCTIONS_URL)("purge-expired-photos", () => {
     expect(listExpired?.some((f) => f.name === `pulang-${suffix}.jpg`)).toBe(true);
   });
 
-  it("rejects a call without the service key", async () => {
+  it("rejects a call without the shared secret", async () => {
     const res = await fetch(`${FUNCTIONS_URL}/purge-expired-photos`, { method: "POST" });
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects a call with a wrong bearer token", async () => {
+    const res = await fetch(`${FUNCTIONS_URL}/purge-expired-photos`, {
+      method: "POST",
+      headers: { Authorization: "Bearer not-the-secret" },
+    });
     expect(res.status).toBe(403);
   });
 });
