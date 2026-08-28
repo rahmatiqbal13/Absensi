@@ -53,6 +53,24 @@ export default async function PengaturanPage() {
               Riwayat perubahan data karyawan &amp; persetujuan cuti.
             </p>
           </Link>
+          <Link
+            href="/pengaturan/departemen"
+            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
+          >
+            <p className="text-sm font-medium text-neutral-900">Departemen</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Kelompokkan karyawan per departemen di tiap cabang.
+            </p>
+          </Link>
+          <Link
+            href="/pengaturan/jadwal"
+            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
+          >
+            <p className="text-sm font-medium text-neutral-900">Jadwal Kerja</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Jam kerja, hari kerja, dan toleransi keterlambatan per cabang.
+            </p>
+          </Link>
         </div>
       )}
     </div>
