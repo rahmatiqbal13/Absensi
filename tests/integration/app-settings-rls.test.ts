@@ -96,6 +96,16 @@ describe("app_settings RLS (0026)", () => {
     expect(data).not.toBeNull();
   });
 
+  it("hides updated_by / updated_at from an anon client but keeps branding readable", async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY);
+    const branding = await anon.from("app_settings").select("nama_instansi, warna_aksen").eq("id", 1).single();
+    expect(branding.error).toBeNull();
+    expect(branding.data).not.toBeNull();
+
+    const audit = await anon.from("app_settings").select("updated_by").eq("id", 1);
+    expect(audit.error).not.toBeNull(); // permission denied for column
+  });
+
   it("blocks an hr_admin from uploading to the branding bucket", async () => {
     const client = await signInAs(hrEmail);
     const { error } = await client.storage.from("branding")

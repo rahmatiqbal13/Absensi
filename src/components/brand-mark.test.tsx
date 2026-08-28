@@ -6,7 +6,6 @@ const settings = {
   logoUrl: null as string | null, alamat: null, telepon: null, email: null, warnaAksen: "#2563EB",
 };
 vi.mock("@/lib/branding/get-app-settings", () => ({ getAppSettings: async () => settings }));
-vi.mock("next/image", () => ({ default: (p: Record<string, unknown>) => <img {...p} /> }));
 
 import { BrandMark } from "./brand-mark";
 

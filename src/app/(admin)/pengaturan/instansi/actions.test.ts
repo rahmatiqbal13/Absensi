@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const state: { role: string } = { role: "super_admin" };
-const updateResult = { error: null as unknown };
+const updateResult: { data: unknown; error: unknown } = { data: [{ id: 1 }], error: null };
 const upsertSpy = vi.fn((_v?: unknown) => Promise.resolve(updateResult));
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: async () => ({
-    from: () => ({ update: (v: unknown) => { upsertSpy(v); return { eq: () => Promise.resolve(updateResult) }; } }),
+    from: () => ({
+      update: (v: unknown) => {
+        upsertSpy(v);
+        return { eq: () => ({ select: () => Promise.resolve(updateResult) }) };
+      },
+      select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+    }),
     storage: {
       from: () => ({
         upload: () => Promise.resolve({ data: { path: "logo-1.png" }, error: null }),
@@ -22,6 +28,7 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { saveAppSettings, uploadLogo } from "./actions";
+import { revalidatePath } from "next/cache";
 
 function fd(entries: Record<string, string | File>) {
   const f = new FormData();
@@ -29,7 +36,13 @@ function fd(entries: Record<string, string | File>) {
   return f;
 }
 
-beforeEach(() => { state.role = "super_admin"; upsertSpy.mockClear(); });
+beforeEach(() => {
+  state.role = "super_admin";
+  upsertSpy.mockClear();
+  updateResult.data = [{ id: 1 }];
+  updateResult.error = null;
+  vi.mocked(revalidatePath).mockClear();
+});
 
 describe("saveAppSettings", () => {
   it("refuses a non-super_admin before writing", async () => {
@@ -53,6 +66,13 @@ describe("saveAppSettings", () => {
     const r = await saveAppSettings(fd({ nama_instansi: "PT Contoh", nama_singkat: "Contoh", warna_aksen: "#2563eb" }));
     expect(r).toEqual({ ok: true });
     expect(upsertSpy).toHaveBeenCalledWith(expect.objectContaining({ warna_aksen: "#2563EB", nama_instansi: "PT Contoh" }));
+  });
+
+  it("reports failure and does not revalidate on an RLS-filtered no-op", async () => {
+    updateResult.data = [];
+    const r = await saveAppSettings(fd({ nama_instansi: "PT Contoh", nama_singkat: "Contoh", warna_aksen: "#2563EB" }));
+    expect(r).toEqual({ ok: false, error: expect.stringContaining("tidak berhak") });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 

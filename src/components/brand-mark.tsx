@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +21,10 @@ export async function BrandMark({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {logoUrl ? (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={logoUrl}
           alt={namaInstansi}
-          width={48}
-          height={48}
           className={cn(s.box, "rounded-lg object-contain")}
         />
       ) : (

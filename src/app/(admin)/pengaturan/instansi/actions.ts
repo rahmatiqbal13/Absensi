@@ -39,7 +39,7 @@ export async function saveAppSettings(formData: FormData): Promise<Result> {
     return { ok: false, error: "Format email tidak valid." };
   }
 
-  const { error } = await db
+  const { data, error } = await db
     .from("app_settings")
     .update({
       nama_instansi: namaInstansi,
@@ -52,10 +52,14 @@ export async function saveAppSettings(formData: FormData): Promise<Result> {
       updated_at: new Date().toISOString(),
       updated_by: me!.id,
     })
-    .eq("id", 1);
+    .eq("id", 1)
+    .select("id");
   if (error) {
     console.error("saveAppSettings: update failed", error);
     return { ok: false, error: "Gagal menyimpan pengaturan instansi." };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Gagal menyimpan — Anda tidak berhak atau data tidak ditemukan." };
   }
   revalidatePath("/", "layout");
   return { ok: true };
@@ -88,10 +92,17 @@ export async function uploadLogo(formData: FormData): Promise<Result> {
   const { data: current } = await db.from("app_settings").select("logo_url").eq("id", 1).maybeSingle();
   const oldPath = current?.logo_url;
 
-  const { error: updErr } = await db.from("app_settings").update({ logo_url: path }).eq("id", 1);
+  const { data: updRows, error: updErr } = await db
+    .from("app_settings")
+    .update({ logo_url: path })
+    .eq("id", 1)
+    .select("id");
   if (updErr) {
     console.error("uploadLogo: settings update failed", updErr);
     return { ok: false, error: "Gagal menyimpan logo." };
+  }
+  if (!updRows || updRows.length === 0) {
+    return { ok: false, error: "Gagal menyimpan — Anda tidak berhak atau data tidak ditemukan." };
   }
   if (oldPath && oldPath !== path) {
     const { error: rmErr } = await db.storage.from("branding").remove([oldPath]);
@@ -108,10 +119,17 @@ export async function removeLogo(): Promise<Result> {
   const { data: current } = await db.from("app_settings").select("logo_url").eq("id", 1).maybeSingle();
   const oldPath = current?.logo_url;
 
-  const { error } = await db.from("app_settings").update({ logo_url: null }).eq("id", 1);
+  const { data: rmRows, error } = await db
+    .from("app_settings")
+    .update({ logo_url: null })
+    .eq("id", 1)
+    .select("id");
   if (error) {
     console.error("removeLogo: update failed", error);
     return { ok: false, error: "Gagal menghapus logo." };
+  }
+  if (!rmRows || rmRows.length === 0) {
+    return { ok: false, error: "Gagal menghapus — Anda tidak berhak atau data tidak ditemukan." };
   }
   if (oldPath) {
     const { error: rmErr } = await db.storage.from("branding").remove([oldPath]);
