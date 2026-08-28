@@ -95,4 +95,21 @@ describe("app_settings RLS (0026)", () => {
     expect(error).toBeNull();
     expect(data).not.toBeNull();
   });
+
+  it("blocks an hr_admin from uploading to the branding bucket", async () => {
+    const client = await signInAs(hrEmail);
+    const { error } = await client.storage.from("branding")
+      .upload(`test-${suffix}.png`, new Blob(["x"], { type: "image/png" }));
+    expect(error).not.toBeNull();
+  });
+
+  it("lets a super_admin upload to and delete from the branding bucket", async () => {
+    const client = await signInAs(superEmail);
+    const path = `test-super-${suffix}.png`;
+    const up = await client.storage.from("branding")
+      .upload(path, new Blob(["x"], { type: "image/png" }), { upsert: true });
+    expect(up.error).toBeNull();
+    const del = await client.storage.from("branding").remove([path]);
+    expect(del.error).toBeNull();
+  });
 });
