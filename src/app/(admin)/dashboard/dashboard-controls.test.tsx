@@ -27,6 +27,14 @@ describe("DashboardControls", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("does not render the 'Diperbarui' label during the initial render, then stamps it client-side", () => {
+    render(<DashboardControls branches={BRANCHES} selectedBranch="" />);
+    // The stamp lands in a useEffect, which act() flushes on render; advancing
+    // 0ms is a no-op tick to be explicit that no timer is involved.
+    act(() => { vi.advanceTimersByTime(0); });
+    expect(screen.getByText(/Diperbarui/)).toBeTruthy();
+  });
+
   it("auto-refreshes every 30 seconds and stops on unmount", () => {
     const { unmount } = render(<DashboardControls branches={BRANCHES} selectedBranch="" />);
     act(() => { vi.advanceTimersByTime(30_000); });

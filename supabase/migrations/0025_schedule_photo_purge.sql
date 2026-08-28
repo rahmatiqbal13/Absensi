@@ -12,10 +12,16 @@
 -- Schedules, cron `0 19 * * *`). Document whichever path was taken in the
 -- task report.
 
+-- REMOVE THIS BLOCK after substituting <PROJECT_REF> and <SERVICE_KEY_EXPR> below.
+do $$ begin
+  raise exception 'Migration 0025: replace <PROJECT_REF> and <SERVICE_KEY_EXPR>, then delete this guard block.';
+end $$;
+
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- IMPLEMENTER: replace <PROJECT_REF> with the real project ref (from
+-- IMPLEMENTER: (1) delete the raise-exception guard block at the top of this
+-- file. (2) replace <PROJECT_REF> with the real project ref (from
 -- NEXT_PUBLIC_SUPABASE_URL) and <SERVICE_KEY_EXPR> with either a Vault lookup
 -- (`(select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')`)
 -- or, if Vault is not set up, the literal key. Verify the call once by hand

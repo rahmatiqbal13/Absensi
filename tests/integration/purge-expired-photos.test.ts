@@ -6,6 +6,13 @@ const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL; // https://<ref>.supab
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const suffix = Date.now();
 
+// Partial-failure contract (verified by reading index.ts, not exercised here —
+// it needs Storage mocking): when a storage `remove()` fails for a path, the
+// row that owns it is NOT nulled, so it still matches the `.or()` filter and is
+// retried on the next run. `deletedPhotos` counts objects Storage actually
+// removed (`remove()` data length), not the batch size. If either DB null-out
+// errors, the function returns 500.
+
 describe.skipIf(!FUNCTIONS_URL)("purge-expired-photos", () => {
   let branchId: string;
   let employeeId: string;

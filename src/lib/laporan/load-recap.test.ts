@@ -11,13 +11,21 @@ function q(result: unknown) {
   return b;
 }
 
-const FILTERS = { branchId: "b1", from: "2026-08-03", to: "2026-08-07" };
+const FILTERS = { branchId: "11111111-1111-1111-1111-111111111111", from: "2026-08-03", to: "2026-08-07" };
 
 function makeDb(tables: Record<string, unknown>) {
   return { from: vi.fn((t: string) => tables[t]) } as never;
 }
 
 describe("loadRecap", () => {
+  it("rejects a non-UUID branchId without touching the db", async () => {
+    const from = vi.fn();
+    const db = { from } as never;
+    const result = await loadRecap(db, { ...FILTERS, branchId: "not-a-uuid" });
+    expect(result).toEqual({ ok: false, error: "Cabang tidak valid." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
   it("returns an error if the branch is not found", async () => {
     const db = makeDb({ branches: q({ data: null, error: null }) });
     const result = await loadRecap(db, FILTERS);

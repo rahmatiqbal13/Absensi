@@ -24,6 +24,13 @@ export async function loadRecap(
 ): Promise<LoadRecapResult> {
   const { branchId, departmentId, from, to } = filters;
 
+  if (!/^[0-9a-f-]{36}$/i.test(branchId)) {
+    return { ok: false, error: "Cabang tidak valid." };
+  }
+  if (departmentId && !/^[0-9a-f-]{36}$/i.test(departmentId)) {
+    return { ok: false, error: "Departemen tidak valid." };
+  }
+
   const { data: branch, error: branchErr } = await db
     .from("branches").select("nama").eq("id", branchId).maybeSingle();
   if (branchErr) {

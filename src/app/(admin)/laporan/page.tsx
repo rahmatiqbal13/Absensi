@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { loadRecap } from "@/lib/laporan/load-recap";
+import { validateRecapRange } from "@/lib/laporan/validate-range";
 import { LaporanFilters } from "./laporan-filters";
 
 export default async function LaporanPage({
@@ -25,10 +26,11 @@ export default async function LaporanPage({
   if (branchErr) console.error("laporan: branches query failed", branchErr);
   const branchList = branches ?? [];
 
-  const { data: departments } = await db
+  const { data: departments, error: deptErr } = await db
     .from("departments")
     .select("id, nama, branch_id")
     .order("nama");
+  if (deptErr) console.error("laporan: departments query failed", deptErr);
   const deptList = (departments ?? []).map((d) => ({
     id: d.id,
     nama: d.nama,
@@ -43,29 +45,36 @@ export default async function LaporanPage({
     sp.cabang && branchIds.has(sp.cabang) ? sp.cabang : branchList[0]?.id ?? "";
 
   // `dept` is applied via `.eq()` (not string interpolation) but a Set check
-  // against the loaded list is still cleaner.
-  const deptIds = new Set(deptList.map((d) => d.id));
+  // against the loaded list is still cleaner. Only accept a dept that belongs
+  // to the selected branch.
+  const deptIds = new Set(
+    deptList.filter((d) => d.branchId === defaultCabang).map((d) => d.id),
+  );
   const dept = sp.dept && deptIds.has(sp.dept) ? sp.dept : "";
 
   const today = toJakartaDateOnly(new Date());
   const dari = sp.dari || `${today.slice(0, 7)}-01`;
   const sampai = sp.sampai || today;
 
+  const range = validateRecapRange(dari, sampai);
+
   const queryString = new URLSearchParams({
     cabang: defaultCabang,
     ...(dept ? { dept } : {}),
-    dari,
-    sampai,
+    dari: range.ok ? range.from : dari,
+    sampai: range.ok ? range.to : sampai,
   }).toString();
 
-  const recap = defaultCabang
-    ? await loadRecap(db, {
-        branchId: defaultCabang,
-        departmentId: dept || null,
-        from: dari,
-        to: sampai,
-      })
-    : ({ ok: false, error: "Belum ada cabang." } as const);
+  const recap = !range.ok
+    ? ({ ok: false, error: range.error } as const)
+    : defaultCabang
+      ? await loadRecap(db, {
+          branchId: defaultCabang,
+          departmentId: dept || null,
+          from: range.from,
+          to: range.to,
+        })
+      : ({ ok: false, error: "Belum ada cabang." } as const);
 
   return (
     <div className="space-y-6">

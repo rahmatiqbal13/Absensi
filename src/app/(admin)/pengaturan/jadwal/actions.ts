@@ -20,7 +20,7 @@ export async function saveSchedule(branchId: string, formData: FormData): Promis
     jamPulang: formData.get("jamPulang"),
     hariKerja: formData.getAll("hariKerja"),
     toleransiMenit: formData.get("toleransiMenit"),
-  } as unknown as Parameters<typeof validateScheduleInput>[0]);
+  });
   if (!parsed.ok) return parsed;
 
   const { error } = await db.from("work_schedules").upsert(

@@ -7,10 +7,10 @@ export type ScheduleInput = {
   toleransiMenit: number;
 };
 
-const HHMM = /^\d{2}:\d{2}$/;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function validateScheduleInput(
-  raw: Record<string, FormDataEntryValue | null> & { hariKerja?: unknown },
+  raw: Record<string, FormDataEntryValue | FormDataEntryValue[] | null | undefined>,
 ): { ok: true; value: ScheduleInput } | { ok: false; error: string } {
   const jamMasuk = String(raw.jamMasuk ?? "").trim();
   const jamPulang = String(raw.jamPulang ?? "").trim();
@@ -24,7 +24,7 @@ export function validateScheduleInput(
 
   const rawDays = raw.hariKerja;
   const dayList = Array.isArray(rawDays) ? rawDays : rawDays == null || rawDays === "" ? [] : [rawDays];
-  const hariKerja = dayList.map((d) => Number(d));
+  const hariKerja = [...new Set(dayList.map((d) => Number(d)))];
   if (hariKerja.length === 0) {
     return { ok: false, error: "Pilih minimal satu hari kerja." };
   }

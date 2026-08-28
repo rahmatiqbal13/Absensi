@@ -37,6 +37,21 @@ export async function deleteDepartment(id: string): Promise<Result> {
   const { db, denied } = await assertHrAdmin();
   if (denied) return denied;
 
+  const { count, error: countErr } = await db
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("department_id", id);
+  if (countErr) {
+    console.error("deleteDepartment: member count failed", countErr);
+    return { ok: false, error: "Gagal menghapus departemen." };
+  }
+  if (count && count > 0) {
+    return {
+      ok: false,
+      error: `Departemen masih dipakai ${count} karyawan. Pindahkan mereka dulu.`,
+    };
+  }
+
   const { data, error } = await db.from("departments").delete().eq("id", id).select("id");
   if (error) {
     console.error("deleteDepartment: delete failed", error);

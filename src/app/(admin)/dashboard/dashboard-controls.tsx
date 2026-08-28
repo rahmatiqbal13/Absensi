@@ -12,17 +12,17 @@ export function DashboardControls({
   selectedBranch: string;
 }) {
   const router = useRouter();
-  const [updatedAt, setUpdatedAt] = useState<string>(() => TIME_FMT.format(new Date()));
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), 30_000);
+    const stamp = () => setUpdatedAt(TIME_FMT.format(new Date()));
+    stamp(); // initial stamp, client-only
+    const id = setInterval(() => {
+      router.refresh();
+      stamp();
+    }, 30_000);
     return () => clearInterval(id);
   }, [router]);
-
-  // Re-stamp the label whenever this component re-renders after a refresh.
-  useEffect(() => {
-    setUpdatedAt(TIME_FMT.format(new Date()));
-  });
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -45,7 +45,9 @@ export function DashboardControls({
       >
         Muat ulang
       </button>
-      <span className="text-xs text-neutral-400">Diperbarui {updatedAt}</span>
+      {updatedAt && (
+        <span className="text-xs text-neutral-400">Diperbarui {updatedAt}</span>
+      )}
     </div>
   );
 }
