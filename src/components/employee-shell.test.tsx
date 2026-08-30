@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/absen" }));
-vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>tema</button> }));
 
 import { EmployeeShell } from "./employee-shell";
 
@@ -32,10 +31,9 @@ describe("EmployeeShell", () => {
     expect(screen.getByRole("link", { name: "Cuti" }).className).toMatch(/min-h-1[1-4]/);
   });
 
-  it("renders the header brand + theme toggle, the content, and the footer", () => {
+  it("renders the header brand, the content, and the footer", () => {
     renderShell(<div>konten halaman</div>);
     expect(screen.getByText("Brand")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "tema" })).toBeInTheDocument();
     expect(screen.getByText("konten halaman")).toBeInTheDocument();
     expect(screen.getByText("footer")).toBeInTheDocument();
   });

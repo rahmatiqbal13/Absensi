@@ -3,7 +3,6 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
-vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>tema</button> }));
 vi.mock("@/app/(auth)/actions");
 
 import { AdminShell } from "./admin-shell";

@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,7 +58,7 @@ function AdminNav({
       role === "super_admin",
   );
   return (
-    <nav className="flex flex-col gap-1 p-2">
+    <nav aria-label="Navigasi utama" className="flex flex-col gap-1 p-2">
       {items.map(({ href, label, Icon }) => {
         const active = pathname === href || pathname?.startsWith(`${href}/`);
         return (
@@ -94,7 +93,11 @@ function UserMenu({ employee }: { employee: CurrentEmployee }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-10 gap-2 px-2">
+        <Button
+          variant="ghost"
+          className="h-10 gap-2 px-2"
+          aria-label={`Menu pengguna: ${employee.nama}`}
+        >
           <Avatar className="h-7 w-7">
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
@@ -130,20 +133,20 @@ export function AdminShell({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex md:sticky md:top-0 md:h-screen md:overflow-y-auto">
         <div className="p-4">{brand}</div>
         <AdminNav role={employee.role} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden" aria-label="Buka menu">
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="w-64 p-0 data-[side=left]:w-64">
               <SheetHeader className="p-4">
                 <SheetTitle className="sr-only">Menu navigasi</SheetTitle>
                 {brand}
@@ -152,7 +155,6 @@ export function AdminShell({
             </SheetContent>
           </Sheet>
           <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
             <UserMenu employee={employee} />
           </div>
         </header>

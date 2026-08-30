@@ -16,15 +16,17 @@ export default async function LandingPage() {
   const { tagline } = await getAppSettings();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-foreground">
-      <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-        <BrandMark size="lg" />
-        {tagline && <p className="text-sm text-muted-foreground">{tagline}</p>}
-        <Button asChild className="w-full">
-          <Link href="/login">Masuk</Link>
-        </Button>
-      </div>
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <main className="flex flex-1 flex-col items-center justify-center p-6">
+        <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
+          <BrandMark size="lg" />
+          {tagline && <p className="text-sm text-muted-foreground">{tagline}</p>}
+          <Button asChild className="w-full">
+            <Link href="/login">Masuk</Link>
+          </Button>
+        </div>
+      </main>
       <AppFooter />
-    </main>
+    </div>
   );
 }

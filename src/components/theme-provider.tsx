@@ -5,9 +5,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <NextThemesProvider
       attribute="class"
-      // SP2 made both shells + entry pages dark-aware, so system theme is safe.
-      defaultTheme="system"
-      enableSystem
+      // Chrome (shells + entry pages) is dark-aware, but ~23 not-yet-redesigned
+      // admin/employee PAGE BODIES still use hardcoded text-neutral-900 / bg-white
+      // with no dark: variants — they'd be unreadable in .dark. SP5's final task
+      // migrates the bodies, inverts the legacy --color-neutral-* ramp under .dark,
+      // then flips this to defaultTheme="system" + enableSystem + drops forcedTheme.
+      defaultTheme="light"
+      forcedTheme="light"
+      enableSystem={false}
       disableTransitionOnChange
     >
       {children}

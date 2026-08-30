@@ -36,4 +36,18 @@ describe("SetPasswordForm", () => {
     expect(onSubmit).toHaveBeenCalledWith("password123");
     expect(await screen.findByText(/berhasil/i)).toBeInTheDocument();
   });
+
+  it("shows the server error when onSubmit reports failure", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: "Link kedaluwarsa. Minta yang baru." });
+    render(<SetPasswordForm onSubmit={onSubmit} />);
+    await user.type(screen.getByLabelText("Kata Sandi"), "password123");
+    await user.type(screen.getByLabelText("Konfirmasi Kata Sandi"), "password123");
+    await user.click(screen.getByRole("button", { name: /simpan/i }));
+    expect(
+      await screen.findByText("Link kedaluwarsa. Minta yang baru."),
+    ).toBeInTheDocument();
+  });
 });
