@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +27,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -83,7 +84,13 @@ function AdminNav({
   );
 }
 
-function UserMenu({ employee }: { employee: CurrentEmployee }) {
+function UserMenu({
+  employee,
+  avatarUrl,
+}: {
+  employee: CurrentEmployee;
+  avatarUrl?: string;
+}) {
   const initials =
     employee.nama
       .split(/\s+/)
@@ -99,6 +106,7 @@ function UserMenu({ employee }: { employee: CurrentEmployee }) {
           aria-label={`Menu pengguna: ${employee.nama}`}
         >
           <Avatar className="h-7 w-7">
+            {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
           <span className="hidden text-sm sm:inline">{employee.nama}</span>
@@ -120,11 +128,13 @@ function UserMenu({ employee }: { employee: CurrentEmployee }) {
 
 export function AdminShell({
   employee,
+  avatarUrl,
   brand,
   footer,
   children,
 }: {
   employee: CurrentEmployee;
+  avatarUrl?: string;
   brand: React.ReactNode;
   footer: React.ReactNode;
   children: React.ReactNode;
@@ -149,13 +159,14 @@ export function AdminShell({
             <SheetContent side="left" className="w-64 p-0 data-[side=left]:w-64">
               <SheetHeader className="p-4">
                 <SheetTitle className="sr-only">Menu navigasi</SheetTitle>
+                <SheetDescription className="sr-only">Menu navigasi admin</SheetDescription>
                 {brand}
               </SheetHeader>
               <AdminNav role={employee.role} onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
           <div className="ml-auto flex items-center gap-2">
-            <UserMenu employee={employee} />
+            <UserMenu employee={employee} avatarUrl={avatarUrl} />
           </div>
         </header>
 

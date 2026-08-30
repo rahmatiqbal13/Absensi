@@ -4,6 +4,13 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
 vi.mock("@/app/(auth)/actions");
+vi.mock("@/components/ui/avatar", () => ({
+  Avatar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  // Force a non-empty alt so jsdom exposes the node with role "img"
+  // (the real component renders a decorative alt=""). Test-only.
+  AvatarImage: (p: Record<string, unknown>) => <img {...p} alt="Foto profil" />,
+  AvatarFallback: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+}));
 
 import { AdminShell } from "./admin-shell";
 import * as actionsModule from "@/app/(auth)/actions";
@@ -59,6 +66,21 @@ describe("AdminShell", () => {
     expect(item).toBeInTheDocument();
     await user.click(item);
     expect(signOutMock).toHaveBeenCalledOnce();
+  });
+
+  it("shows the profile photo in the topbar when avatarUrl is set", () => {
+    render(
+      <AdminShell employee={emp("hr_admin")} avatarUrl="https://s/pic" brand={<div>Brand</div>} footer={<footer>footer</footer>}>
+        <div>content</div>
+      </AdminShell>,
+    );
+    expect(screen.getByRole("img")).toHaveAttribute("src", "https://s/pic");
+  });
+
+  it("shows the initials fallback when avatarUrl is absent", () => {
+    renderShell("hr_admin");
+    expect(screen.getByText("BS")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("opens the mobile nav sheet", async () => {

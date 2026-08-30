@@ -4,6 +4,7 @@ import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { signProfilePhotoUrl } from "@/lib/profile/photo";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
@@ -21,9 +22,12 @@ export default async function Layout({ children }: { children: React.ReactNode }
   if (decision === "redirect-login" || !employee) redirect("/login");
   if (decision === "redirect-employee-home") redirect("/absen");
 
+  const avatarUrl = await signProfilePhotoUrl(db, employee.fotoPath);
+
   return (
     <AdminShell
       employee={employee}
+      avatarUrl={avatarUrl ?? undefined}
       brand={<BrandMark size="md" />}
       footer={<AppFooter />}
     >
