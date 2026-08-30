@@ -83,7 +83,6 @@ export function InstansiForm({
             id="warna_aksen"
             label="Warna Aksen"
             error={hexInvalid ? "Format warna harus #RRGGBB." : undefined}
-            hint={warning ?? undefined}
             className="flex-1"
           >
             <Input
@@ -101,6 +100,11 @@ export function InstansiForm({
             className="mb-1 h-9 w-9 shrink-0 rounded border border-input"
           />
         </div>
+        {warning && (
+          <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+            {warning}
+          </p>
+        )}
         <Button type="submit" disabled={busy || hexInvalid}>
           Simpan
         </Button>
