@@ -27,4 +27,21 @@ describe("Field", () => {
     render(<Field id="z" label="Z" required><input id="z" /></Field>);
     expect(screen.getByText("Z").textContent).toContain("*");
   });
+
+  it("renders a non-element child without crashing", () => {
+    render(<Field id="s" label="S">just text</Field>);
+    expect(screen.getByText("just text")).toBeInTheDocument();
+    expect(screen.getByText("S")).toBeInTheDocument();
+  });
+
+  it("merges the child's own aria-describedby with the generated hint id", () => {
+    render(
+      <Field id="m" label="M" hint="a hint">
+        <input id="m" aria-describedby="external-help" />
+      </Field>,
+    );
+    const input = screen.getByLabelText("M");
+    expect(input.getAttribute("aria-describedby")).toContain("external-help");
+    expect(input.getAttribute("aria-describedby")).toContain("m-hint");
+  });
 });
