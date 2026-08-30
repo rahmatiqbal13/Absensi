@@ -7,6 +7,7 @@ export type CurrentEmployee = {
   email: string;
   role: Role;
   branchId: string;
+  fotoPath: string | null;
 };
 
 export async function getCurrentEmployee(
@@ -17,7 +18,7 @@ export async function getCurrentEmployee(
 
   const { data: employee, error } = await db
     .from("employees")
-    .select("id, nama, email, role, branch_id, status")
+    .select("id, nama, email, role, branch_id, status, foto_profil_url")
     .eq("id", userData.user.id)
     .single();
   if (error) {
@@ -31,5 +32,6 @@ export async function getCurrentEmployee(
     email: employee.email,
     role: employee.role,
     branchId: employee.branch_id,
+    fotoPath: employee.foto_profil_url ?? null,
   };
 }

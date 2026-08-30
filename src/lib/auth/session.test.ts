@@ -33,6 +33,7 @@ describe("getCurrentEmployee", () => {
         role: "hr_admin",
         branch_id: "branch-1",
         status: "aktif",
+        foto_profil_url: "user-1/avatar.jpg",
       },
     );
     const result = await getCurrentEmployee(db as any);
@@ -42,7 +43,16 @@ describe("getCurrentEmployee", () => {
       email: "budi@test.local",
       role: "hr_admin",
       branchId: "branch-1",
+      fotoPath: "user-1/avatar.jpg",
     });
+  });
+
+  it("maps a missing foto_profil_url to fotoPath null", async () => {
+    const db = makeMockDb(
+      { id: "u1" },
+      { id: "u1", nama: "X", email: "x@y.z", role: "karyawan", branch_id: "b1", status: "aktif" },
+    );
+    expect((await getCurrentEmployee(db as any))?.fotoPath).toBeNull();
   });
 });
 
