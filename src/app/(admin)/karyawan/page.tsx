@@ -5,6 +5,8 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { RoleBadge } from "@/components/role-badge";
 import type { Role } from "@/lib/auth/route-access";
 import { EmployeeFilters } from "./employee-filters";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { signProfilePhotoUrls } from "@/lib/profile/photo";
 
 export default async function KaryawanPage({
   searchParams,
@@ -28,7 +30,7 @@ export default async function KaryawanPage({
 
   let query = db
     .from("employees")
-    .select("id, nama, jabatan, role, status, branches(nama)")
+    .select("id, nama, jabatan, role, status, foto_profil_url, branches(nama)")
     .order("nama");
   if (sp.cabang) query = query.eq("branch_id", sp.cabang);
   if (sp.role) query = query.eq("role", sp.role);
@@ -36,6 +38,10 @@ export default async function KaryawanPage({
   if (sp.q) query = query.ilike("nama", `%${sp.q}%`);
 
   const { data: rows, error } = await query;
+
+  const photoUrls = rows
+    ? await signProfilePhotoUrls(db, rows.map((r) => (r.foto_profil_url as string | null) ?? null))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -75,15 +81,20 @@ export default async function KaryawanPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {rows.map((r) => (
+              {rows.map((r, i) => (
                 <tr key={r.id}>
                   <td className="px-4 py-2">
-                    <Link
-                      href={`/karyawan/${r.id}`}
-                      className="font-medium text-blue-700 hover:underline"
-                    >
-                      {r.nama}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        {photoUrls[i] ? <AvatarImage src={photoUrls[i] ?? undefined} alt="" /> : null}
+                        <AvatarFallback className="text-[0.65rem]">
+                          {(r.nama.split(/\s+/).slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("")) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Link href={`/karyawan/${r.id}`} className="font-medium text-blue-700 hover:underline">
+                        {r.nama}
+                      </Link>
+                    </div>
                   </td>
                   <td className="px-4 py-2">{r.jabatan}</td>
                   <td className="px-4 py-2">
