@@ -13,12 +13,11 @@ const renderShell = (children: React.ReactNode = <div>content</div>) =>
   );
 
 describe("EmployeeShell", () => {
-  it("renders exactly the four bottom-nav items", () => {
+  it("renders the five bottom-nav items", () => {
     renderShell();
-    for (const name of ["Absen", "Cuti", "Riwayat", "Slip Gaji"]) {
+    for (const name of ["Absen", "Cuti", "Riwayat", "Slip Gaji", "Profil"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
-    expect(screen.queryByRole("link", { name: "Profil" })).not.toBeInTheDocument();
   });
 
   it("marks the active item with the primary colour", () => {

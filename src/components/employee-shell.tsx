@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Clock, FileText, ListChecks } from "lucide-react";
+import { CalendarDays, Clock, FileText, ListChecks, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/cuti", label: "Cuti", Icon: CalendarDays },
   { href: "/riwayat", label: "Riwayat", Icon: ListChecks },
   { href: "/slip-gaji", label: "Slip Gaji", Icon: FileText },
+  { href: "/profil", label: "Profil", Icon: User },
 ] as const;
 
 export function EmployeeShell({
