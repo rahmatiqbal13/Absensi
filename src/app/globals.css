@@ -133,12 +133,10 @@ body {
   }
 }
 
-/* --- Legacy tokens (pre-shadcn). Kept until every page migrates to shadcn
-   utilities in sub-projects 2-4, then deleted. Do not add new usages. --- */
+/* --- Legacy neutral scale. Still referenced by admin/employee page BODIES not
+   yet redesigned (SP4/SP5). Delete each var when its last `*-color-neutral-*`
+   usage in src/ is gone. Do not add new usages. --- */
 :root {
-  --color-brand: #2563eb;
-  --color-brand-hover: #1d4ed8;
-  --color-brand-soft: #eff6ff;
   --color-neutral-50: #f8fafc;
   --color-neutral-100: #f1f5f9;
   --color-neutral-200: #e2e8f0;
@@ -146,15 +144,4 @@ body {
   --color-neutral-500: #64748b;
   --color-neutral-700: #334155;
   --color-neutral-900: #0f172a;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fef2f2;
-  --color-success: #16a34a;
-  --radius-card: 1rem;
-  --radius-control: 0.625rem;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
-}
-@theme inline {
-  --color-brand: var(--color-brand);
-  --color-brand-hover: var(--color-brand-hover);
-  --color-brand-soft: var(--color-brand-soft);
 }
