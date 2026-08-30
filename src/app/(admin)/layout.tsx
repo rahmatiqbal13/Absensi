@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { AppFooter } from "@/components/app-footer";
+import { BrandMark } from "@/components/brand-mark";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -16,8 +18,16 @@ export default async function Layout({ children }: { children: React.ReactNode }
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
   const decision = resolveRouteAccess("/dashboard", employee?.role ?? null);
-  if (decision === "redirect-login") redirect("/login");
+  if (decision === "redirect-login" || !employee) redirect("/login");
   if (decision === "redirect-employee-home") redirect("/absen");
 
-  return <AdminShell role={employee?.role ?? null}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      employee={employee}
+      brand={<BrandMark size="md" />}
+      footer={<AppFooter />}
+    >
+      {children}
+    </AdminShell>
+  );
 }

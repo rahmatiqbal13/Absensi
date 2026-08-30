@@ -1,139 +1,156 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type Role } from "@/lib/auth/route-access";
+import {
+  BarChart3,
+  CalendarCheck,
+  LayoutDashboard,
+  Menu,
+  Settings,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { RoleBadge } from "@/components/role-badge";
+import { SignOutButton } from "@/components/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import type { CurrentEmployee } from "@/lib/auth/session";
+import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: <rect x="3" y="3" width="7" height="9" rx="1.5" />,
-    icon2: (
-      <>
-        <rect x="14" y="3" width="7" height="5" rx="1.5" />
-        <rect x="14" y="12" width="7" height="9" rx="1.5" />
-        <rect x="3" y="16" width="7" height="5" rx="1.5" />
-      </>
-    ),
-  },
-  {
-    href: "/karyawan",
-    label: "Karyawan",
-    hrAdminOnly: true,
-    icon: (
-      <>
-        <circle cx="9" cy="8" r="3" />
-        <path d="M3 20c1.2-3 3.2-4.5 6-4.5s4.8 1.5 6 4.5" strokeLinecap="round" />
-        <circle cx="17.5" cy="9" r="2.2" />
-        <path d="M15.5 15.2c1.6.4 2.8 1.6 3.7 3.8" strokeLinecap="round" />
-      </>
-    ),
-  },
-  {
-    href: "/persetujuan-cuti",
-    label: "Cuti",
-    icon: (
-      <>
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
-      </>
-    ),
-  },
-  {
-    href: "/laporan",
-    label: "Laporan",
-    icon: (
-      <path
-        d="M4 20V10M11 20V4M18 20v-7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    ),
-  },
-  {
-    href: "/payroll",
-    label: "Payroll",
-    hrAdminOnly: true,
-    icon: (
-      <>
-        <rect x="3" y="6" width="18" height="12" rx="2" />
-        <circle cx="12" cy="12" r="2.5" />
-      </>
-    ),
-  },
-  {
-    href: "/pengaturan",
-    label: "Pengaturan",
-    icon: (
-      <>
-        <circle cx="12" cy="12" r="3" />
-        <path
-          d="M19.4 13.5c.1-.5.1-1 0-1.5l1.7-1.3-1.5-2.6-2 .6a7 7 0 0 0-1.3-.8L16 5.5h-3l-.3 2.4c-.5.2-.9.5-1.3.8l-2-.6-1.5 2.6 1.7 1.3c-.1.5-.1 1 0 1.5l-1.7 1.3 1.5 2.6 2-.6c.4.3.8.6 1.3.8l.3 2.4h3l.3-2.4c.5-.2.9-.5 1.3-.8l2 .6 1.5-2.6z"
-          strokeLinejoin="round"
-        />
-      </>
-    ),
-  },
-];
+const NAV = [
+  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/karyawan", label: "Karyawan", Icon: Users, hrAdminOnly: true },
+  { href: "/persetujuan-cuti", label: "Cuti", Icon: CalendarCheck },
+  { href: "/laporan", label: "Laporan", Icon: BarChart3 },
+  { href: "/payroll", label: "Payroll", Icon: Wallet, hrAdminOnly: true },
+  { href: "/pengaturan", label: "Pengaturan", Icon: Settings },
+] as const;
 
-export function AdminShell({
+function AdminNav({
   role,
-  children,
+  onNavigate,
 }: {
-  role: Role | null;
-  children: React.ReactNode;
+  role: CurrentEmployee["role"];
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter(
-    (item) =>
-      !("hrAdminOnly" in item && item.hrAdminOnly) ||
+  const items = NAV.filter(
+    (i) =>
+      !("hrAdminOnly" in i && i.hrAdminOnly) ||
       role === "hr_admin" ||
       role === "super_admin",
   );
+  return (
+    <nav className="flex flex-col gap-1 p-2">
+      {items.map(({ href, label, Icon }) => {
+        const active = pathname === href || pathname?.startsWith(`${href}/`);
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+              active
+                ? "bg-primary/10 font-medium text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function UserMenu({ employee }: { employee: CurrentEmployee }) {
+  const initials =
+    employee.nama
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "?";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-10 gap-2 px-2">
+          <Avatar className="h-7 w-7">
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+          <span className="hidden text-sm sm:inline">{employee.nama}</span>
+          <RoleBadge role={employee.role} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal text-muted-foreground">
+          {employee.email}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="p-0">
+          <SignOutButton className="w-full" />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function AdminShell({
+  employee,
+  brand,
+  footer,
+  children,
+}: {
+  employee: CurrentEmployee;
+  brand: React.ReactNode;
+  footer: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-neutral-50">
-      <aside className="flex w-60 flex-col border-r border-neutral-200 bg-white px-4 py-6">
-        <div className="mb-6 flex items-center gap-2 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
-            A
-          </div>
-          <span className="text-sm font-semibold text-neutral-900">Absensi HR</span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {items.map((item) => {
-            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-                }`}
-              >
-                <svg
-                  aria-hidden="true"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={active ? 2.25 : 2}
-                  className="shrink-0"
-                >
-                  {item.icon}
-                  {"icon2" in item ? item.icon2 : null}
-                </svg>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+    <div className="flex min-h-screen bg-background text-foreground">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
+        <div className="p-4">{brand}</div>
+        <AdminNav role={employee.role} />
       </aside>
-      <main className="flex-1 p-6">{children}</main>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden" aria-label="Buka menu">
+                <Menu className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="p-4">{brand}</SheetTitle>
+              <AdminNav role={employee.role} onNavigate={() => setOpen(false)} />
+            </SheetContent>
+          </Sheet>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <UserMenu employee={employee} />
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-6">{children}</main>
+        {footer}
+      </div>
     </div>
   );
 }

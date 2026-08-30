@@ -1,28 +1,70 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
+vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>tema</button> }));
+vi.mock("@/components/sign-out-button", () => ({
+  SignOutButton: () => <button>Keluar</button>,
+}));
+
 import { AdminShell } from "./admin-shell";
 
+const emp = (role: "atasan" | "hr_admin" | "super_admin") => ({
+  id: "u1",
+  nama: "Budi Santoso",
+  email: "budi@x.id",
+  role,
+  branchId: "b1",
+});
+
+const renderShell = (
+  role: "atasan" | "hr_admin" | "super_admin",
+  children: React.ReactNode = <div>content</div>,
+) =>
+  render(
+    <AdminShell employee={emp(role)} brand={<div>Brand</div>} footer={<footer>footer</footer>}>
+      {children}
+    </AdminShell>,
+  );
+
 describe("AdminShell", () => {
-  it("renders sidebar nav links with accessible names", () => {
-    render(<AdminShell role="hr_admin"><div>content</div></AdminShell>);
-    for (const name of ["Dashboard", "Karyawan", "Cuti", "Laporan", "Pengaturan", "Payroll"]) {
-      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+  it("renders the primary nav for super_admin", () => {
+    renderShell("super_admin");
+    for (const name of ["Dashboard", "Karyawan", "Cuti", "Laporan", "Payroll", "Pengaturan"]) {
+      expect(screen.getAllByRole("link", { name }).length).toBeGreaterThan(0);
     }
   });
 
-  it("renders the page content", () => {
-    render(<AdminShell role="hr_admin"><div>konten admin</div></AdminShell>);
-    expect(screen.getByText("konten admin")).toBeInTheDocument();
-  });
-
-  it("hides the Payroll nav item from a non-hr-admin role", () => {
-    render(<AdminShell role="atasan"><div>content</div></AdminShell>);
+  it("hides Payroll + Karyawan from atasan", () => {
+    renderShell("atasan");
     expect(screen.queryByRole("link", { name: "Payroll" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Karyawan" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Dashboard" }).length).toBeGreaterThan(0);
   });
 
-  it("shows the Payroll nav item to super_admin", () => {
-    render(<AdminShell role="super_admin"><div>content</div></AdminShell>);
-    expect(screen.getByRole("link", { name: "Payroll" })).toBeInTheDocument();
+  it("renders page content and the footer", () => {
+    renderShell("hr_admin", <div>konten admin</div>);
+    expect(screen.getByText("konten admin")).toBeInTheDocument();
+    expect(screen.getByText("footer")).toBeInTheDocument();
+  });
+
+  it("shows the user name + role and a working Keluar item", async () => {
+    const user = userEvent.setup();
+    renderShell("hr_admin");
+    await user.click(screen.getByRole("button", { name: /budi santoso/i }));
+    expect(await screen.findByRole("menuitem", { name: /keluar/i })).toBeInTheDocument();
+  });
+
+  it("opens the mobile nav sheet", async () => {
+    const user = userEvent.setup();
+    renderShell("hr_admin");
+    await user.click(screen.getByRole("button", { name: /buka menu/i }));
+    // the sheet is a modal dialog — Radix aria-hides the rest of the app, so the
+    // desktop <aside> nav drops out of the a11y tree. Assert the second copy of
+    // the nav is inside the opened dialog.
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(within(drawer).getByRole("link", { name: "Payroll" })).toBeInTheDocument();
   });
 });
