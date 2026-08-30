@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.stubGlobal("URL", {
@@ -25,6 +25,10 @@ const base = {
 };
 
 describe("ProfilForm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders the phone field prefilled and the photo controls with initials fallback", () => {
     render(<ProfilForm {...base} />);
     expect(screen.getByLabelText(/nomor telepon/i)).toHaveValue("081234567");
@@ -84,5 +88,8 @@ describe("ProfilForm", () => {
     render(<ProfilForm {...base} photoUrl="https://s/x" removePhoto={removePhoto} />);
     await user.click(screen.getByRole("button", { name: /hapus foto/i }));
     expect(removePhoto).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Foto profil dihapus."),
+    );
   });
 });

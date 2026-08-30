@@ -119,6 +119,10 @@ function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
+          <Link href="/profil">Profil</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
           <SignOutButton />
         </DropdownMenuItem>
       </DropdownMenuContent>

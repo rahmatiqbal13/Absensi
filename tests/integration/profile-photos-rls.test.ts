@@ -1,3 +1,8 @@
+// @vitest-environment node
+// Real Supabase Storage integration: needs native (undici) Blob/FormData/fetch so
+// an uploaded blob's `image/jpeg` type survives into the multipart part. Under the
+// default jsdom environment the type is dropped and the 0030 `allowed_mime_types`
+// guard rejects every upload as `text/plain;charset=UTF-8`.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { createServiceRoleSupabaseClient } from "../../src/lib/supabase/server";
@@ -17,7 +22,7 @@ async function signInAs(email: string) {
 
 const png = () => new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/jpeg" });
 
-describe("profile-photos RLS (0029)", () => {
+describe("profile-photos RLS (0029 + 0030)", () => {
   let branchId: string;
   const ids: Record<string, string> = {};
   const emails: Record<string, string> = {};
@@ -27,7 +32,7 @@ describe("profile-photos RLS (0029)", () => {
     const { data: b } = await db.from("branches")
       .insert({ nama: `Cabang Foto ${suffix}`, lat: -6.2, long: 106.8 }).select().single();
     branchId = b!.id;
-    for (const [key, role] of [["a", "karyawan"], ["b", "karyawan"], ["hr", "hr_admin"]] as const) {
+    for (const [key, role] of [["a", "karyawan"], ["b", "karyawan"], ["hr", "hr_admin"], ["atasan", "atasan"]] as const) {
       const email = `${key}.foto.${suffix}@test.local`;
       const { data: u } = await db.auth.admin.createUser({ email, password, email_confirm: true });
       ids[key] = u!.user!.id;
@@ -42,7 +47,7 @@ describe("profile-photos RLS (0029)", () => {
   afterAll(async () => {
     const db = createServiceRoleSupabaseClient();
     await db.storage.from(BUCKET).remove([
-      `${ids.a}/avatar.jpg`, `${ids.b}/avatar.jpg`,
+      `${ids.a}/avatar.jpg`, `${ids.b}/avatar.jpg`, `${ids.a}/junk.bin`,
     ]);
   });
 
@@ -64,11 +69,26 @@ describe("profile-photos RLS (0029)", () => {
     expect(error).not.toBeNull();
   });
 
+  it("blocks a karyawan from uploading a non-avatar object name under their own prefix", async () => {
+    const client = await signInAs(emails.a);
+    const { error } = await client.storage.from(BUCKET)
+      .upload(`${ids.a}/junk.bin`, png(), { contentType: "image/jpeg", upsert: true });
+    expect(error).not.toBeNull();
+  });
+
   it("blocks a karyawan from reading another employee's avatar", async () => {
     const db = createServiceRoleSupabaseClient();
     await db.storage.from(BUCKET).upload(`${ids.b}/avatar.jpg`, png(), { contentType: "image/jpeg", upsert: true });
     const client = await signInAs(emails.a);
-    const { data, error } = await client.storage.from(BUCKET).createSignedUrl(`${ids.b}/avatar.jpg`, 60);
+    const { data } = await client.storage.from(BUCKET).createSignedUrl(`${ids.b}/avatar.jpg`, 60);
+    expect(data?.signedUrl ?? null).toBeNull();
+  });
+
+  it("blocks an atasan from signing another employee's avatar", async () => {
+    const db = createServiceRoleSupabaseClient();
+    await db.storage.from(BUCKET).upload(`${ids.a}/avatar.jpg`, png(), { contentType: "image/jpeg", upsert: true });
+    const client = await signInAs(emails.atasan);
+    const { data, error } = await client.storage.from(BUCKET).createSignedUrl(`${ids.a}/avatar.jpg`, 60);
     expect(error ?? data === null).toBeTruthy();
   });
 

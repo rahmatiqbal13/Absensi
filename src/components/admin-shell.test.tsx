@@ -68,6 +68,13 @@ describe("AdminShell", () => {
     expect(signOutMock).toHaveBeenCalledOnce();
   });
 
+  it("links to /profil from the user menu", async () => {
+    const user = userEvent.setup();
+    renderShell("hr_admin");
+    await user.click(screen.getByRole("button", { name: /menu pengguna/i }));
+    expect(screen.getByRole("menuitem", { name: "Profil" })).toHaveAttribute("href", "/profil");
+  });
+
   it("shows the profile photo in the topbar when avatarUrl is set", () => {
     render(
       <AdminShell employee={emp("hr_admin")} avatarUrl="https://s/pic" brand={<div>Brand</div>} footer={<footer>footer</footer>}>

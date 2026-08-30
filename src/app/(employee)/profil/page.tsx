@@ -21,7 +21,17 @@ export default async function ProfilPage() {
     .select("nama, jabatan, no_telp, foto_profil_url, tanggal_mulai_kerja, role, branches(nama), departments(nama)")
     .eq("id", me.id)
     .single();
-  if (error) console.error("profil: query failed", error);
+
+  if (error || !row) {
+    console.error("profil: query failed", error);
+    return (
+      <div className="mx-auto w-full max-w-lg p-4">
+        <p className="text-sm text-destructive">
+          Gagal memuat data profil. Coba muat ulang halaman.
+        </p>
+      </div>
+    );
+  }
 
   const photoUrl = await signProfilePhotoUrl(db, row?.foto_profil_url ?? null);
   const branchNama = (row?.branches as unknown as { nama: string } | null)?.nama ?? "-";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/field";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,13 +39,20 @@ export function ProfilForm({
   const [pendingPhone, startPhone] = useTransition();
   const [pendingPhoto, startPhoto] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
+  const [hasPending, setHasPending] = useState(false);
   const pendingBlob = useRef<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function savePhone() {
+  useEffect(() => {
+    return () => {
+      if (preview && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  function savePhone(value: string) {
     startPhone(async () => {
       const fd = new FormData();
-      fd.set("no_telp", phone);
+      fd.set("no_telp", value);
       const r = await updatePhone(fd);
       if (r.ok) toast.success("Nomor telepon tersimpan.");
       else toast.error(r.error);
@@ -60,16 +67,17 @@ export function ProfilForm({
       const blob = await resizeToSquareJpeg(file);
       pendingBlob.current = blob;
       const url =
-        typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : "";
+        typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : null;
       setPreview(url);
+      setHasPending(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memproses foto.");
     }
   }
 
   function cancelPreview() {
-    if (preview && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(preview);
     setPreview(null);
+    setHasPending(false);
     pendingBlob.current = null;
   }
 
@@ -115,7 +123,7 @@ export function ProfilForm({
             className="hidden"
             onChange={onFile}
           />
-          {!preview && (
+          {!hasPending && (
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
                 Ganti Foto
@@ -133,7 +141,7 @@ export function ProfilForm({
               )}
             </div>
           )}
-          {preview && (
+          {hasPending && (
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" disabled={pendingPhoto} onClick={confirmUpload}>
                 {pendingPhoto ? "Mengunggah…" : "Unggah"}
@@ -148,10 +156,7 @@ export function ProfilForm({
       </div>
 
       <form
-        action={(fd) => {
-          setPhone(String(fd.get("no_telp") ?? ""));
-          savePhone();
-        }}
+        action={(fd) => savePhone(String(fd.get("no_telp") ?? ""))}
         className="flex flex-wrap items-end gap-3"
       >
         <Field id="no_telp" label="Nomor Telepon" className="flex-1">

@@ -46,7 +46,7 @@ export function EmployeeShell({
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium",
+                "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 whitespace-nowrap py-2 text-xs font-medium",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >

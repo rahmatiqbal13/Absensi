@@ -64,7 +64,7 @@ describe("updatePhone", () => {
   it("reports failure and does not revalidate on an RLS no-op", async () => {
     updateResult.data = [];
     const r = await updatePhone(fd({ no_telp: "081234567" }));
-    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, error: "Gagal menyimpan — coba muat ulang." });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -79,17 +79,25 @@ describe("uploadPhoto", () => {
     });
   });
   it("rejects an oversized blob", async () => {
-    const big = new Blob([new Uint8Array(210 * 1024)], { type: "image/jpeg" });
+    const big = new Blob([new Uint8Array(600 * 1024)], { type: "image/jpeg" });
     expect(await uploadPhoto(fd({ photo: big }))).toEqual({ ok: false, error: "Foto terlalu besar." });
   });
   it("uploads, sets the column, and revalidates the layout", async () => {
     const r = await uploadPhoto(fd({ photo: new Blob(["x"], { type: "image/jpeg" }) }));
     expect(r).toEqual({ ok: true });
     expect(uploadSpy).toHaveBeenCalledWith(
-      "u1/avatar.jpg", expect.any(Blob), { contentType: "image/jpeg", upsert: true },
+      "u1/avatar.jpg", expect.any(Blob), { contentType: "image/jpeg", upsert: true, cacheControl: "60" },
     );
     expect(updateSpy).toHaveBeenCalledWith({ foto_profil_url: "u1/avatar.jpg" });
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+  it("uploadPhoto refuses when there is no session", async () => {
+    state.me = null;
+    expect(await uploadPhoto(fd({ photo: new Blob(["x"], { type: "image/jpeg" }) }))).toEqual({
+      ok: false, error: "Tidak diizinkan.",
+    });
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -100,5 +108,11 @@ describe("removePhoto", () => {
     expect(removeSpy).toHaveBeenCalledWith(["u1/avatar.jpg"]);
     expect(updateSpy).toHaveBeenCalledWith({ foto_profil_url: null });
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+  it("removePhoto refuses when there is no session", async () => {
+    state.me = null;
+    expect(await removePhoto()).toEqual({ ok: false, error: "Tidak diizinkan." });
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 });

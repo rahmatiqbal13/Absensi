@@ -20,7 +20,7 @@ export async function resizeToSquareJpeg(
   }
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(file);
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     throw new Error("Berkas gambar tidak dapat dibaca.");
   }
@@ -31,6 +31,7 @@ export async function resizeToSquareJpeg(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Tidak dapat memproses gambar.");
   ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, dim, dim);
+  bitmap.close();
   const blob: Blob | null = await new Promise((resolve) =>
     canvas.toBlob((b) => resolve(b), "image/jpeg", quality),
   );

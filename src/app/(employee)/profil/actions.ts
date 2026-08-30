@@ -8,7 +8,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 type Result = { ok: true } | { ok: false; error: string };
 
 const PHONE_RE = /^[0-9+\-\s]{8,20}$/;
-const MAX_PHOTO_BYTES = 200 * 1024;
+const MAX_PHOTO_BYTES = 512 * 1024;
 
 async function gate() {
   const db = await createServerSupabaseClient();
@@ -61,7 +61,7 @@ export async function uploadPhoto(formData: FormData): Promise<Result> {
   const path = profilePhotoPath(me!.id);
   const { error: upErr } = await db.storage
     .from(PROFILE_PHOTO_BUCKET)
-    .upload(path, photo, { contentType: "image/jpeg", upsert: true });
+    .upload(path, photo, { contentType: "image/jpeg", upsert: true, cacheControl: "60" });
   if (upErr) {
     console.error("uploadPhoto: upload failed", upErr);
     return { ok: false, error: "Gagal mengunggah foto." };
@@ -84,11 +84,6 @@ export async function removePhoto(): Promise<Result> {
   const { db, me, denied } = await gate();
   if (denied) return denied;
 
-  const { error: rmErr } = await db.storage
-    .from(PROFILE_PHOTO_BUCKET)
-    .remove([profilePhotoPath(me!.id)]);
-  if (rmErr) console.error("removePhoto: storage remove failed", rmErr);
-
   const { data, error } = await db
     .from("employees")
     .update({ foto_profil_url: null })
@@ -98,6 +93,12 @@ export async function removePhoto(): Promise<Result> {
     if (error) console.error("removePhoto: update failed", error);
     return { ok: false, error: "Gagal menghapus foto." };
   }
+
+  const { error: rmErr } = await db.storage
+    .from(PROFILE_PHOTO_BUCKET)
+    .remove([profilePhotoPath(me!.id)]);
+  if (rmErr) console.error("removePhoto: storage remove failed", rmErr);
+
   revalidatePath("/", "layout");
   return { ok: true };
 }
