@@ -36,4 +36,13 @@ describe("AttendanceStatusBadge", () => {
     // Text label must always be present alongside color (accessibility requirement).
     expect(onTime.querySelector("span")?.textContent).toBeTruthy();
   });
+
+  it("gives all five statuses a distinct variant colour", () => {
+    const statuses = ["tepat_waktu", "terlambat", "pulang_cepat", "alpa", "di_luar_lokasi"] as const;
+    const classNames = statuses.map((s) => {
+      const { container } = render(<AttendanceStatusBadge status={s} />);
+      return (container.firstChild as HTMLElement).className;
+    });
+    expect(new Set(classNames).size).toBe(statuses.length);
+  });
 });
