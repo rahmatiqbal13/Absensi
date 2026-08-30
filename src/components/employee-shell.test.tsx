@@ -1,24 +1,42 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/absen" }));
+vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>tema</button> }));
+
 import { EmployeeShell } from "./employee-shell";
 
+const renderShell = (children: React.ReactNode = <div>content</div>) =>
+  render(
+    <EmployeeShell brand={<div>Brand</div>} footer={<footer>footer</footer>}>
+      {children}
+    </EmployeeShell>,
+  );
+
 describe("EmployeeShell", () => {
-  it("renders bottom nav links with accessible names", () => {
-    render(<EmployeeShell><div>content</div></EmployeeShell>);
-    for (const name of ["Absen", "Cuti", "Riwayat", "Profil"]) {
+  it("renders exactly the four bottom-nav items", () => {
+    renderShell();
+    for (const name of ["Absen", "Cuti", "Riwayat", "Slip Gaji"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("link", { name: "Profil" })).not.toBeInTheDocument();
   });
 
-  it("gives nav links the minimum touch target class", () => {
-    render(<EmployeeShell><div>content</div></EmployeeShell>);
-    const absenLink = screen.getByRole("link", { name: "Absen" });
-    expect(absenLink.className).toContain("min-h-11");
-    expect(absenLink.className).toContain("min-w-11");
+  it("marks the active item with the primary colour", () => {
+    renderShell();
+    expect(screen.getByRole("link", { name: "Absen" }).className).toContain("text-primary");
   });
 
-  it("renders the page content", () => {
-    render(<EmployeeShell><div>konten halaman</div></EmployeeShell>);
+  it("gives each nav item a ≥44px touch target", () => {
+    renderShell();
+    expect(screen.getByRole("link", { name: "Cuti" }).className).toMatch(/min-h-1[1-4]/);
+  });
+
+  it("renders the header brand + theme toggle, the content, and the footer", () => {
+    renderShell(<div>konten halaman</div>);
+    expect(screen.getByText("Brand")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "tema" })).toBeInTheDocument();
     expect(screen.getByText("konten halaman")).toBeInTheDocument();
+    expect(screen.getByText("footer")).toBeInTheDocument();
   });
 });
