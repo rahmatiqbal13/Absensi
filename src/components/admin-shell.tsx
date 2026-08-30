@@ -25,7 +25,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { CurrentEmployee } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 
@@ -101,8 +107,8 @@ function UserMenu({ employee }: { employee: CurrentEmployee }) {
           {employee.email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="p-0">
-          <SignOutButton className="w-full" />
+        <DropdownMenuItem asChild>
+          <SignOutButton />
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -138,11 +144,14 @@ export function AdminShell({
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
-              <SheetTitle className="p-4">{brand}</SheetTitle>
+              <SheetHeader className="p-4">
+                <SheetTitle className="sr-only">Menu navigasi</SheetTitle>
+                {brand}
+              </SheetHeader>
               <AdminNav role={employee.role} onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
             <UserMenu employee={employee} />
           </div>

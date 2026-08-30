@@ -4,11 +4,10 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
 vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>tema</button> }));
-vi.mock("@/components/sign-out-button", () => ({
-  SignOutButton: () => <button>Keluar</button>,
-}));
+vi.mock("@/app/(auth)/actions");
 
 import { AdminShell } from "./admin-shell";
+import * as actionsModule from "@/app/(auth)/actions";
 
 const emp = (role: "atasan" | "hr_admin" | "super_admin") => ({
   id: "u1",
@@ -50,10 +49,16 @@ describe("AdminShell", () => {
   });
 
   it("shows the user name + role and a working Keluar item", async () => {
+    const signOutMock = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(actionsModule.signOut).mockImplementation(signOutMock);
+
     const user = userEvent.setup();
     renderShell("hr_admin");
     await user.click(screen.getByRole("button", { name: /budi santoso/i }));
-    expect(await screen.findByRole("menuitem", { name: /keluar/i })).toBeInTheDocument();
+    const item = await screen.findByRole("menuitem", { name: /keluar/i });
+    expect(item).toBeInTheDocument();
+    await user.click(item);
+    expect(signOutMock).toHaveBeenCalledOnce();
   });
 
   it("opens the mobile nav sheet", async () => {

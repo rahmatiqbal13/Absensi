@@ -1,24 +1,32 @@
 "use client";
 
-import { useTransition } from "react";
+import { forwardRef, useTransition } from "react";
 import { LogOut } from "lucide-react";
 import { signOut } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
-export function SignOutButton({ className }: { className?: string }) {
+export const SignOutButton = forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button">
+>(function SignOutButton({ className, onClick, ...props }, ref) {
   const [pending, startTransition] = useTransition();
   return (
     <button
+      ref={ref}
       type="button"
       disabled={pending}
-      onClick={() => startTransition(() => signOut())}
+      onClick={(e) => {
+        onClick?.(e);
+        startTransition(() => signOut());
+      }}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground hover:bg-muted disabled:opacity-60",
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground outline-none hover:bg-muted focus:bg-muted disabled:opacity-60",
         className,
       )}
+      {...props}
     >
       <LogOut className="h-4 w-4" aria-hidden="true" />
       {pending ? "Keluar…" : "Keluar"}
     </button>
   );
-}
+});

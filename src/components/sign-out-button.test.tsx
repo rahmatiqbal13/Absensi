@@ -1,3 +1,4 @@
+import { createRef } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,5 +17,11 @@ describe("SignOutButton", () => {
     render(<SignOutButton />);
     await user.click(screen.getByRole("button", { name: /keluar/i }));
     expect(signOutMock).toHaveBeenCalledOnce();
+  });
+
+  it("forwards a ref to the underlying button", () => {
+    const ref = createRef<HTMLButtonElement>();
+    render(<SignOutButton ref={ref} />);
+    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
   });
 });
