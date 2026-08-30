@@ -30,3 +30,7 @@ export function resolveRouteAccess(pathname: string, role: Role | null): RouteAc
 
   return "allow";
 }
+
+export function homePathForRole(role: Role): "/absen" | "/dashboard" {
+  return role === "karyawan" ? "/absen" : "/dashboard";
+}

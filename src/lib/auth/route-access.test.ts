@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRouteAccess } from "./route-access";
+import { resolveRouteAccess, homePathForRole } from "./route-access";
 
 describe("resolveRouteAccess", () => {
   it("redirects to login when there is no role and the path is protected", () => {
@@ -77,5 +77,16 @@ describe("resolveRouteAccess — /karyawan is hr-admin only", () => {
   });
   it("redirects a karyawan to the employee home", () => {
     expect(resolveRouteAccess("/karyawan", "karyawan")).toBe("redirect-employee-home");
+  });
+});
+
+describe("homePathForRole", () => {
+  it("sends karyawan to /absen", () => {
+    expect(homePathForRole("karyawan")).toBe("/absen");
+  });
+  it("sends every admin role to /dashboard", () => {
+    for (const r of ["atasan", "hr_admin", "super_admin"] as const) {
+      expect(homePathForRole(r)).toBe("/dashboard");
+    }
   });
 });
