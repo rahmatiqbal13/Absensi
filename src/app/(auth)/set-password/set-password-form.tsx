@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type SubmitResult = { ok: true } | { ok: false; error: string };
 
@@ -43,32 +47,43 @@ export function SetPasswordForm({
   }
 
   if (done) {
-    return <p className="text-sm text-green-600">Kata sandi tersimpan. Mengalihkan…</p>;
+    return (
+      <Alert>
+        <AlertDescription>Kata sandi berhasil disimpan. Mengalihkan…</AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label htmlFor="pw" className="text-sm font-medium text-neutral-700">Kata Sandi Baru</label>
-        <input
-          id="pw" type="password" value={pw} onChange={(e) => setPw(e.target.value)}
-          className="w-full rounded-lg border border-neutral-300 px-3.5 py-2.5 text-base outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Field id="pw" label="Kata Sandi">
+        <Input
+          id="pw"
+          type="password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          autoComplete="new-password"
+          className="h-11 text-base"
         />
-      </div>
-      <div className="space-y-1.5">
-        <label htmlFor="confirm" className="text-sm font-medium text-neutral-700">Konfirmasi Kata Sandi</label>
-        <input
-          id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
-          className="w-full rounded-lg border border-neutral-300 px-3.5 py-2.5 text-base outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+      </Field>
+      <Field id="confirm" label="Konfirmasi Kata Sandi">
+        <Input
+          id="confirm"
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          className="h-11 text-base"
         />
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="submit" disabled={busy}
-        className="min-h-11 w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
-      >
-        Simpan
-      </button>
+      </Field>
+      <Button type="submit" disabled={busy} className="h-11 w-full text-base">
+        {busy ? "Menyimpan…" : "Simpan"}
+      </Button>
     </form>
   );
 }

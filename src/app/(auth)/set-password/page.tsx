@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SetPasswordForm } from "./set-password-form";
 
 export default function SetPasswordPage() {
@@ -52,18 +54,23 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
-        <h1 className="mb-1 text-xl font-semibold text-neutral-900">Buat Kata Sandi</h1>
-        <p className="mb-6 text-sm text-neutral-500">Tetapkan kata sandi untuk akun Anda.</p>
-        {fatal ? (
-          <p className="text-sm text-red-600">{fatal}</p>
-        ) : ready ? (
-          <SetPasswordForm onSubmit={onSubmit} />
-        ) : (
-          <p className="text-sm text-neutral-500">Memeriksa link…</p>
-        )}
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-xl font-semibold text-foreground">Buat Kata Sandi</h1>
+        <p className="text-sm text-muted-foreground">Tetapkan kata sandi untuk akun Anda.</p>
       </div>
-    </main>
+      {fatal ? (
+        <Alert variant="destructive">
+          <AlertDescription>{fatal}</AlertDescription>
+        </Alert>
+      ) : ready ? (
+        <SetPasswordForm onSubmit={onSubmit} />
+      ) : (
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <p className="text-sm text-muted-foreground">Memeriksa link…</p>
+        </div>
+      )}
+    </div>
   );
 }
