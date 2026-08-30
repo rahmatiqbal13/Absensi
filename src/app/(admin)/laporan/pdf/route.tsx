@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { loadRecap } from "@/lib/laporan/load-recap";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
+import { getAppSettings } from "@/lib/branding/get-app-settings";
+import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
 import { RecapDocument } from "@/components/recap-document";
 
 // @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
@@ -43,9 +45,21 @@ export async function GET(request: Request) {
     return new Response(recap.error, { status: 400 });
   }
 
+  const { namaInstansi, logoUrl } = await getAppSettings();
+  const orgLogoUrl = await fetchLogoDataUrl(logoUrl);
+
   try {
     const buffer = await renderToBuffer(
-      <RecapDocument data={{ branchNama: recap.branchNama, from: range.from, to: range.to, rows: recap.rows }} />,
+      <RecapDocument
+        data={{
+          branchNama: recap.branchNama,
+          from: range.from,
+          to: range.to,
+          rows: recap.rows,
+          orgNama: namaInstansi,
+          orgLogoUrl,
+        }}
+      />,
     );
     return new Response(new Uint8Array(buffer), {
       headers: {

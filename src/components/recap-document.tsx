@@ -1,10 +1,20 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import type { RecapRow } from "@/lib/laporan/attendance-recap";
 
-export type RecapDocData = { branchNama: string; from: string; to: string; rows: RecapRow[] };
+export type RecapDocData = {
+  branchNama: string;
+  from: string;
+  to: string;
+  rows: RecapRow[];
+  orgNama: string;
+  orgLogoUrl: string | null;
+};
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 9, fontFamily: "Helvetica" },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  headerLogo: { width: 24, height: 24, objectFit: "contain" },
+  headerName: { fontSize: 12, fontFamily: "Helvetica-Bold" },
   title: { fontSize: 14, marginBottom: 2 },
   sub: { color: "#555", marginBottom: 12 },
   headRow: { flexDirection: "row", borderBottom: "1px solid #333", paddingBottom: 3, fontFamily: "Helvetica-Bold" },
@@ -17,6 +27,10 @@ export function RecapDocument({ data }: { data: RecapDocData }) {
   return (
     <Document>
       <Page size="A4" style={styles.page} orientation="landscape">
+        <View style={styles.header}>
+          {data.orgLogoUrl ? <Image src={data.orgLogoUrl} style={styles.headerLogo} /> : null}
+          <Text style={styles.headerName}>{data.orgNama}</Text>
+        </View>
         <Text style={styles.title}>Laporan Kehadiran — {data.branchNama}</Text>
         <Text style={styles.sub}>{data.from} s/d {data.to}</Text>
         <View style={styles.headRow}>

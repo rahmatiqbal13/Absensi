@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { formatRupiah } from "@/lib/format/rupiah";
 
 export type PayslipDocData = {
@@ -10,10 +10,15 @@ export type PayslipDocData = {
   gajiHarian: number;
   totalPotongan: number;
   gajiAkhir: number;
+  orgNama: string;
+  orgLogoUrl: string | null;
 };
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 11, fontFamily: "Helvetica" },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  headerLogo: { width: 28, height: 28, objectFit: "contain" },
+  headerName: { fontSize: 13, fontFamily: "Helvetica-Bold" },
   title: { fontSize: 16, marginBottom: 4 },
   sub: { color: "#555", marginBottom: 16 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderBottom: "1px solid #eee" },
@@ -24,6 +29,10 @@ export function PayslipDocument({ data }: { data: PayslipDocData }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <View style={styles.header}>
+          {data.orgLogoUrl ? <Image src={data.orgLogoUrl} style={styles.headerLogo} /> : null}
+          <Text style={styles.headerName}>{data.orgNama}</Text>
+        </View>
         <Text style={styles.title}>Slip Gaji — {data.branchNama}</Text>
         <Text style={styles.sub}>{data.nama} · {data.periodeLabel}</Text>
 

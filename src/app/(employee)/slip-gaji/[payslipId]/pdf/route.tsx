@@ -1,6 +1,8 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { monthLabel } from "@/lib/format/month";
+import { getAppSettings } from "@/lib/branding/get-app-settings";
+import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
 import { PayslipDocument } from "@/components/payslip-document";
 
 // @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
@@ -46,12 +48,17 @@ export async function GET(
   const slip = data as unknown as PayslipQueryRow;
   const period = slip.payroll_periods;
 
+  const { namaInstansi, logoUrl } = await getAppSettings();
+  const orgLogoUrl = await fetchLogoDataUrl(logoUrl);
+
   let buffer: Buffer;
   try {
     buffer = await renderToBuffer(
       <PayslipDocument
         data={{
           nama: (slip.employees as { nama: string } | null)?.nama ?? "-",
+          orgNama: namaInstansi,
+          orgLogoUrl,
           branchNama: period?.branches?.nama ?? "-",
           periodeLabel: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
           gajiPokok: Number(slip.gaji_pokok),
