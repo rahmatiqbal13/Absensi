@@ -11,6 +11,15 @@ export type AttendanceSummary = {
   // shrink the alpa figure — see the review's Minor #7.
   other: number;
   total: number;
+  // Counts of today's rows with exactly this `status`. These OVERLAP `hadir`
+  // (both statuses are in PRESENT_STATUSES) — they are surfaced separately so
+  // the dashboard can show a "pulang cepat" / "di luar lokasi" breakdown
+  // without changing what `hadir` means.
+  pulangCepat: number;
+  diLuarLokasi: number;
+  // Distinct employees with an `approved` leave_requests row spanning today
+  // (branch-scoped when `branchId` is given).
+  cuti: number;
 };
 
 export type AttendanceSummaryResult =
@@ -78,5 +87,41 @@ export async function getTodaySummary(
   const noRecord = Math.max(totalCount - rows.length, 0);
   const alpa = alpaRows + noRecord;
 
-  return { ok: true, summary: { hadir, terlambat, alpa, other, total: totalCount } };
+  const pulangCepat = rows.filter((row) => row.status === "pulang_cepat").length;
+  const diLuarLokasi = rows.filter((row) => row.status === "di_luar_lokasi").length;
+
+  // Approved leave that spans today: tanggal_mulai <= today <= tanggal_selesai.
+  // `leave_requests` has two FKs to `employees` (`employee_id` and
+  // `approver_id`), so the branch-scoped embed needs the explicit
+  // `!leave_requests_employee_id_fkey` hint to disambiguate; `!inner` turns it
+  // into a filtering join (same pattern as the attendances query above). The
+  // unscoped path needs no join at all — just the `employee_id` column.
+  const leaveQuery = branchId
+    ? db
+        .from("leave_requests")
+        .select("employee_id, employees!leave_requests_employee_id_fkey!inner(branch_id)")
+        .eq("status", "approved")
+        .lte("tanggal_mulai", today)
+        .gte("tanggal_selesai", today)
+        .eq("employees.branch_id", branchId)
+    : db
+        .from("leave_requests")
+        .select("employee_id")
+        .eq("status", "approved")
+        .lte("tanggal_mulai", today)
+        .gte("tanggal_selesai", today);
+
+  const { data: leaveRows, error: leaveError } = await leaveQuery;
+  if (leaveError) {
+    console.error("getTodaySummary: leave_requests query failed", leaveError);
+    return { ok: false, error: "Gagal memuat data absensi." };
+  }
+  const cuti = new Set(
+    ((leaveRows ?? []) as { employee_id: string }[]).map((row) => row.employee_id),
+  ).size;
+
+  return {
+    ok: true,
+    summary: { hadir, terlambat, alpa, other, total: totalCount, pulangCepat, diLuarLokasi, cuti },
+  };
 }

@@ -7,8 +7,14 @@ import { getTodaySummary } from "./attendance-summary";
 // unscoped path chains one) and the chain resolves via `.then()` whenever
 // it is awaited, regardless of how many `.eq()` calls preceded it.
 function makeChain(result: Record<string, unknown>) {
-  const chain: PromiseLike<typeof result> & { eq: (...args: unknown[]) => typeof chain } = {
+  const chain: PromiseLike<typeof result> & {
+    eq: (...args: unknown[]) => typeof chain;
+    lte: (...args: unknown[]) => typeof chain;
+    gte: (...args: unknown[]) => typeof chain;
+  } = {
     eq: vi.fn(() => chain),
+    lte: vi.fn(() => chain),
+    gte: vi.fn(() => chain),
     then: (onFulfilled) => Promise.resolve(result).then(onFulfilled),
   };
   return chain;
@@ -18,12 +24,22 @@ function makeMockDb(
   opts: {
     attendanceRows?: { status: string }[];
     employeeCount?: number;
+    // employee_id values for the approved `leave_requests` rows spanning today.
+    // Duplicates are intentional — the impl collapses them into distinct `cuti`.
+    leaveEmployeeIds?: string[];
     attendanceError?: unknown;
     employeeError?: unknown;
+    leaveError?: unknown;
   } = {},
 ) {
-  const { attendanceRows = [], employeeCount = 10, attendanceError = null, employeeError = null } =
-    opts;
+  const {
+    attendanceRows = [],
+    employeeCount = 10,
+    leaveEmployeeIds = [],
+    attendanceError = null,
+    employeeError = null,
+    leaveError = null,
+  } = opts;
 
   const tables: Record<string, any> = {
     attendances: {
@@ -34,6 +50,14 @@ function makeMockDb(
     employees: {
       select: vi.fn(() =>
         makeChain({ count: employeeError ? null : employeeCount, error: employeeError }),
+      ),
+    },
+    leave_requests: {
+      select: vi.fn(() =>
+        makeChain({
+          data: leaveError ? null : leaveEmployeeIds.map((employee_id) => ({ employee_id })),
+          error: leaveError,
+        }),
       ),
     },
   };
@@ -64,6 +88,9 @@ describe("getTodaySummary", () => {
         alpa: 5, // 10 employees - 5 rows with attendance today
         other: 0,
         total: 10,
+        pulangCepat: 1, // overlaps hadir
+        diLuarLokasi: 1, // overlaps hadir
+        cuti: 0, // no approved leave rows
       },
     });
   });
@@ -73,7 +100,16 @@ describe("getTodaySummary", () => {
     const result = await getTodaySummary(db as any);
     expect(result).toEqual({
       ok: true,
-      summary: { hadir: 0, terlambat: 0, alpa: 3, other: 0, total: 3 },
+      summary: {
+        hadir: 0,
+        terlambat: 0,
+        alpa: 3,
+        other: 0,
+        total: 3,
+        pulangCepat: 0,
+        diLuarLokasi: 0,
+        cuti: 0,
+      },
     });
   });
 
@@ -100,6 +136,9 @@ describe("getTodaySummary", () => {
         alpa: 8,
         other: 1,
         total: 10,
+        pulangCepat: 0,
+        diLuarLokasi: 0,
+        cuti: 0,
       },
     });
   });
@@ -114,7 +153,16 @@ describe("getTodaySummary", () => {
 
     expect(result).toEqual({
       ok: true,
-      summary: { hadir: 1, terlambat: 1, alpa: 3, other: 0, total: 5 },
+      summary: {
+        hadir: 1,
+        terlambat: 1,
+        alpa: 3,
+        other: 0,
+        total: 5,
+        pulangCepat: 0,
+        diLuarLokasi: 0,
+        cuti: 0,
+      },
     });
 
     // The corrected query must select the embedded `employees` resource and
@@ -151,6 +199,79 @@ describe("getTodaySummary", () => {
     expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
     expect(errSpy).toHaveBeenCalledWith(
       "getTodaySummary: employees count query failed",
+      expect.objectContaining({ message: expect.any(String) }),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("counts pulang_cepat and di_luar_lokasi as their own fields (overlapping hadir)", async () => {
+    const db = makeMockDb({
+      attendanceRows: [
+        { status: "tepat_waktu" },
+        { status: "tepat_waktu" },
+        { status: "pulang_cepat" },
+        { status: "di_luar_lokasi" },
+        { status: "terlambat" },
+      ],
+      employeeCount: 6,
+      leaveEmployeeIds: ["emp-1", "emp-2"],
+    });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({
+      ok: true,
+      summary: {
+        hadir: 4, // tepat_waktu x2 + pulang_cepat + di_luar_lokasi
+        terlambat: 1,
+        alpa: 1, // 6 employees - 5 rows
+        other: 0,
+        total: 6,
+        pulangCepat: 1, // still counted here even though it also counts in hadir
+        diLuarLokasi: 1,
+        cuti: 2,
+      },
+    });
+  });
+
+  it("counts cuti as the distinct approved-leave employees spanning today", async () => {
+    const db = makeMockDb({
+      attendanceRows: [{ status: "tepat_waktu" }],
+      employeeCount: 5,
+      // emp-1 appears twice (e.g. two overlapping approved requests) — collapses to 1
+      leaveEmployeeIds: ["emp-1", "emp-1", "emp-2"],
+    });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({
+      ok: true,
+      summary: {
+        hadir: 1,
+        terlambat: 0,
+        alpa: 4,
+        other: 0,
+        total: 5,
+        pulangCepat: 0,
+        diLuarLokasi: 0,
+        cuti: 2,
+      },
+    });
+  });
+
+  it("returns a failure result (not zeros) and logs when the leave_requests query errors", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = makeMockDb({
+      attendanceRows: [{ status: "tepat_waktu" }],
+      employeeCount: 5,
+      leaveError: { message: "permission denied for table leave_requests" },
+    });
+
+    const result = await getTodaySummary(db as any);
+
+    expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
+    expect(errSpy).toHaveBeenCalledWith(
+      "getTodaySummary: leave_requests query failed",
       expect.objectContaining({ message: expect.any(String) }),
     );
     errSpy.mockRestore();
