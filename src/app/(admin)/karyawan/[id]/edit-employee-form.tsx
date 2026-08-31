@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { EmployeeFormFields, type EmployeeFieldValues } from "../employee-form-fields";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -67,65 +70,75 @@ export function EditEmployeeForm({
           defaults={defaults}
           emailReadOnly
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {msg && <p className="text-sm text-green-600">{msg}</p>}
-        <button
-          type="submit"
-          disabled={busy}
-          className="min-h-11 rounded bg-blue-600 px-5 py-2.5 text-base font-medium text-white disabled:opacity-60"
-        >
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {msg && (
+          <Alert>
+            <AlertDescription>{msg}</AlertDescription>
+          </Alert>
+        )}
+        <Button type="submit" disabled={busy}>
           Simpan Perubahan
-        </button>
+        </Button>
       </form>
 
       {!isSelf && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-          {currentStatus === "aktif" ? (
-            !confirming ? (
-              <button
-                type="button"
-                onClick={() => setConfirming(true)}
-                className="min-h-11 rounded border border-red-300 px-4 py-2 text-sm font-medium text-red-700"
-              >
-                Nonaktifkan Karyawan
-              </button>
+        <Card size="sm">
+          <CardContent className="space-y-2">
+            {currentStatus === "aktif" ? (
+              !confirming ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirming(true)}
+                >
+                  Nonaktifkan Karyawan
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span>Nonaktifkan karyawan ini? Mereka tak bisa login.</span>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={busy}
+                    onClick={async () => {
+                      const ok = await run(
+                        () => setStatus(employeeId, "nonaktif"),
+                        "Karyawan dinonaktifkan.",
+                      );
+                      if (ok) setConfirming(false);
+                    }}
+                  >
+                    Ya, nonaktifkan
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirming(false)}
+                  >
+                    Batal
+                  </Button>
+                </div>
+              )
             ) : (
-              <span className="flex flex-wrap items-center gap-2 text-sm">
-                <span>Nonaktifkan karyawan ini? Mereka tak bisa login.</span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    const ok = await run(
-                      () => setStatus(employeeId, "nonaktif"),
-                      "Karyawan dinonaktifkan.",
-                    );
-                    if (ok) setConfirming(false);
-                  }}
-                  className="rounded bg-red-600 px-3 py-1.5 font-medium text-white disabled:opacity-60"
-                >
-                  Ya, nonaktifkan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirming(false)}
-                  className="rounded border border-neutral-300 px-3 py-1.5"
-                >
-                  Batal
-                </button>
-              </span>
-            )
-          ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(() => setStatus(employeeId, "aktif"), "Karyawan diaktifkan kembali.")}
-              className="min-h-11 rounded border border-green-300 px-4 py-2 text-sm font-medium text-green-700 disabled:opacity-60"
-            >
-              Aktifkan Kembali
-            </button>
-          )}
-        </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-emerald-500/40 text-emerald-600 dark:text-emerald-500"
+                disabled={busy}
+                onClick={() => run(() => setStatus(employeeId, "aktif"), "Karyawan diaktifkan kembali.")}
+              >
+                Aktifkan Kembali
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
