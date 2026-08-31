@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const TIME_FMT = new Intl.DateTimeFormat("id-ID", { timeStyle: "medium", timeZone: "Asia/Jakarta" });
 
 export function DashboardControls({
-  branches, selectedBranch,
+  branches,
+  selectedBranch,
 }: {
   branches: { id: string; nama: string }[];
   selectedBranch: string;
@@ -16,7 +21,7 @@ export function DashboardControls({
 
   useEffect(() => {
     const stamp = () => setUpdatedAt(TIME_FMT.format(new Date()));
-    stamp(); // initial stamp, client-only
+    stamp();
     const id = setInterval(() => {
       router.refresh();
       stamp();
@@ -25,28 +30,28 @@ export function DashboardControls({
   }, [router]);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="branch" className="text-xs text-neutral-500">Cabang</label>
-        <select
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="branch" className="text-xs text-muted-foreground">Cabang</Label>
+        <NativeSelect
           id="branch"
           defaultValue={selectedBranch}
-          onChange={(e) => router.push(e.target.value ? `/dashboard?branch=${e.target.value}` : "/dashboard")}
-          className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
+          onChange={(e) =>
+            router.push(e.target.value ? `/dashboard?branch=${e.target.value}` : "/dashboard")
+          }
+          className="h-9 w-48"
         >
           <option value="">Semua cabang</option>
-          {branches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
-        </select>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.nama}</option>
+          ))}
+        </NativeSelect>
       </div>
-      <button
-        type="button"
-        onClick={() => router.refresh()}
-        className="min-h-9 rounded border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700"
-      >
-        Muat ulang
-      </button>
+      <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
+        <RefreshCw className="size-4" /> Muat ulang
+      </Button>
       {updatedAt && (
-        <span className="text-xs text-neutral-400">Diperbarui {updatedAt}</span>
+        <span className="text-xs text-muted-foreground">Diperbarui {updatedAt}</span>
       )}
     </div>
   );
