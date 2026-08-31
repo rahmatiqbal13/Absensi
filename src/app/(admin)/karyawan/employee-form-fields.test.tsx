@@ -33,4 +33,11 @@ describe("EmployeeFormFields", () => {
     expect(screen.getByLabelText(/nama/i)).toHaveValue("Budi");
     expect(screen.getByLabelText(/gaji pokok/i)).toHaveValue(8000000);
   });
+
+  it("groups fields under four section headings", () => {
+    render(<EmployeeFormFields branches={[]} departments={[]} approverOptions={[]} />);
+    for (const h of ["Identitas", "Kepegawaian", "Struktur Organisasi", "Persetujuan"]) {
+      expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
+    }
+  });
 });
