@@ -1,12 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { UserPlus, Users } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { RoleBadge } from "@/components/role-badge";
 import type { Role } from "@/lib/auth/route-access";
 import { EmployeeFilters } from "./employee-filters";
+import { PageHeader } from "@/components/page-header";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { StatusPill } from "@/components/status-pill";
+import { EmptyState } from "@/components/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { signProfilePhotoUrls } from "@/lib/profile/photo";
+
+function initials(nama: string): string {
+  return (
+    nama
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  );
+}
 
 export default async function KaryawanPage({
   searchParams,
@@ -42,83 +59,80 @@ export default async function KaryawanPage({
   const photoUrls = rows
     ? await signProfilePhotoUrls(db, rows.map((r) => (r.foto_profil_url as string | null) ?? null))
     : [];
+  const photoByRow = new Map<string, string | null>(
+    (rows ?? []).map((r, i) => [r.id, photoUrls[i] ?? null]),
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Karyawan</h1>
-          <p className="mt-1 text-sm text-neutral-500">Kelola data karyawan dan onboarding.</p>
-        </div>
-        <Link
-          href="/karyawan/baru"
-          className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white"
-        >
-          Tambah Karyawan
-        </Link>
-      </div>
+      <PageHeader
+        title="Karyawan"
+        description="Kelola data karyawan dan onboarding."
+        actions={
+          <Button asChild>
+            <Link href="/karyawan/baru">
+              <UserPlus className="size-4" /> Tambah Karyawan
+            </Link>
+          </Button>
+        }
+      />
 
       <EmployeeFilters
         branches={branches ?? []}
         defaults={{ cabang: sp.cabang, role: sp.role, status: rawStatus, q: sp.q ?? "" }}
       />
 
-      {error && <p className="text-sm text-red-600">Gagal memuat daftar karyawan.</p>}
-      {!error && (!rows || rows.length === 0) && (
-        <p className="text-sm text-neutral-500">Tidak ada karyawan yang cocok dengan filter.</p>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat daftar karyawan.</AlertDescription>
+        </Alert>
       )}
 
-      {rows && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-neutral-600">
-              <tr>
-                <th className="px-4 py-2 font-medium">Nama</th>
-                <th className="px-4 py-2 font-medium">Jabatan</th>
-                <th className="px-4 py-2 font-medium">Cabang</th>
-                <th className="px-4 py-2 font-medium">Role</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {rows.map((r, i) => (
-                <tr key={r.id}>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        {photoUrls[i] ? <AvatarImage src={photoUrls[i] ?? undefined} alt="" /> : null}
-                        <AvatarFallback className="text-[0.65rem]">
-                          {(r.nama.split(/\s+/).slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("")) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Link href={`/karyawan/${r.id}`} className="font-medium text-blue-700 hover:underline">
-                        {r.nama}
-                      </Link>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2">{r.jabatan}</td>
-                  <td className="px-4 py-2">
-                    {(r.branches as unknown as { nama: string } | null)?.nama ?? "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <RoleBadge role={r.role as Role} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`rounded px-2 py-1 text-xs font-medium ${
-                        r.status === "aktif"
-                          ? "bg-green-50 text-green-700"
-                          : "bg-neutral-100 text-neutral-500"
-                      }`}
-                    >
-                      {r.status === "aktif" ? "Aktif" : "Nonaktif"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {!error && (
+        <ResponsiveTable
+          columns={[
+            {
+              key: "nama",
+              header: "Nama",
+              cell: (r) => (
+                <span className="flex items-center gap-2">
+                  <Avatar className="size-7">
+                    {photoByRow.get(r.id) ? (
+                      <AvatarImage src={photoByRow.get(r.id)!} alt="" />
+                    ) : null}
+                    <AvatarFallback className="text-[0.65rem]">{initials(r.nama)}</AvatarFallback>
+                  </Avatar>
+                  {r.nama}
+                </span>
+              ),
+            },
+            { key: "jabatan", header: "Jabatan", cell: (r) => r.jabatan, mobileLabel: "Jabatan" },
+            {
+              key: "cabang",
+              header: "Cabang",
+              cell: (r) => (r.branches as unknown as { nama: string } | null)?.nama ?? "-",
+              mobileLabel: "Cabang",
+            },
+            {
+              key: "role",
+              header: "Peran",
+              cell: (r) => <RoleBadge role={r.role as Role} />,
+              mobileLabel: "Peran",
+            },
+            {
+              key: "status",
+              header: "Status",
+              cell: (r) => <StatusPill status={r.status as "aktif" | "nonaktif"} />,
+              mobileLabel: "Status",
+            },
+          ]}
+          rows={rows ?? []}
+          rowKey={(r) => r.id}
+          rowHref={(r) => `/karyawan/${r.id}`}
+          emptyState={
+            <EmptyState icon={Users} message="Tidak ada karyawan yang cocok dengan filter." />
+          }
+        />
       )}
     </div>
   );
