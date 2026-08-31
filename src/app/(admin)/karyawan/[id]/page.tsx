@@ -1,9 +1,17 @@
 import { notFound, redirect } from "next/navigation";
+import { History } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { RoleBadge } from "@/components/role-badge";
+import { PageHeader } from "@/components/page-header";
+import { StatusPill } from "@/components/status-pill";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { EmptyState } from "@/components/empty-state";
+import { AuditAksiBadge } from "@/components/audit-aksi-badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Role } from "@/lib/auth/route-access";
 import { EditEmployeeForm } from "./edit-employee-form";
+import { KaryawanTabs } from "./karyawan-tabs";
 import { updateEmployee, setEmployeeStatus } from "../actions";
 
 export default async function KaryawanDetailPage({
@@ -26,7 +34,11 @@ export default async function KaryawanDetailPage({
     .maybeSingle();
   if (error) {
     console.error("KaryawanDetailPage: employee lookup failed", error);
-    return <p className="text-sm text-red-600">Gagal memuat data karyawan.</p>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>Gagal memuat data karyawan.</AlertDescription>
+      </Alert>
+    );
   }
   if (!emp) notFound();
 
@@ -51,69 +63,74 @@ export default async function KaryawanDetailPage({
   if (approversError) console.error("KaryawanDetailPage: approvers lookup failed", approversError);
   if (auditError) console.error("KaryawanDetailPage: audit lookup failed", auditError);
 
+  const auditRows = (audit ?? []).map((a) => ({
+    key: `${a.waktu}-${a.aksi}`,
+    aksi: a.aksi as string,
+    oleh: (a.actor as unknown as { nama: string } | null)?.nama ?? "Sistem",
+    waktu: a.waktu as string,
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">{emp.nama}</h1>
-          <p className="mt-1 text-sm text-neutral-500">{emp.email}</p>
-        </div>
-        <RoleBadge role={emp.role as Role} />
-        <span
-          className={`rounded px-2 py-1 text-xs font-medium ${
-            emp.status === "aktif" ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"
-          }`}
-        >
-          {emp.status === "aktif" ? "Aktif" : "Nonaktif"}
-        </span>
-      </div>
-
-      <EditEmployeeForm
-        employeeId={emp.id}
-        defaults={{
-          nama: emp.nama,
-          email: emp.email,
-          jabatan: emp.jabatan,
-          statusKontrak: emp.status_kontrak,
-          tanggalMulaiKerja: emp.tanggal_mulai_kerja,
-          gajiPokok: String(emp.gaji_pokok),
-          role: emp.role,
-          branchId: emp.branch_id,
-          departmentId: emp.department_id ?? "",
-          atasanId: emp.atasan_id ?? "",
-          designatedApproverId: emp.designated_approver_id ?? "",
-        }}
-        branches={branches ?? []}
-        departments={departments ?? []}
-        approverOptions={approvers ?? []}
-        updateEmployee={updateEmployee}
-        setStatus={setEmployeeStatus}
-        currentStatus={emp.status as "aktif" | "nonaktif"}
-        isSelf={me.id === emp.id}
+      <PageHeader
+        title={emp.nama}
+        description={emp.email}
+        actions={
+          <>
+            <RoleBadge role={emp.role as Role} />
+            <StatusPill status={emp.status as "aktif" | "nonaktif"} />
+          </>
+        }
       />
-
-      <div>
-        <h2 className="mb-2 text-sm font-medium text-neutral-900">Riwayat Perubahan</h2>
-        {!audit || audit.length === 0 ? (
-          <p className="text-sm text-neutral-500">Belum ada riwayat.</p>
-        ) : (
-          <ul className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white text-sm">
-            {audit.map((a) => (
-              <li key={`${a.waktu}-${a.aksi}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
-                <span>{a.aksi}</span>
-                <span className="text-neutral-500">
-                  {(a.actor as unknown as { nama: string } | null)?.nama ?? "Sistem"} ·{" "}
-                  {new Intl.DateTimeFormat("id-ID", {
+      <KaryawanTabs
+        detailSlot={
+          <EditEmployeeForm
+            employeeId={emp.id}
+            defaults={{
+              nama: emp.nama,
+              email: emp.email,
+              jabatan: emp.jabatan,
+              statusKontrak: emp.status_kontrak,
+              tanggalMulaiKerja: emp.tanggal_mulai_kerja,
+              gajiPokok: String(emp.gaji_pokok),
+              role: emp.role,
+              branchId: emp.branch_id,
+              departmentId: emp.department_id ?? "",
+              atasanId: emp.atasan_id ?? "",
+              designatedApproverId: emp.designated_approver_id ?? "",
+            }}
+            branches={branches ?? []}
+            departments={departments ?? []}
+            approverOptions={approvers ?? []}
+            updateEmployee={updateEmployee}
+            setStatus={setEmployeeStatus}
+            currentStatus={emp.status as "aktif" | "nonaktif"}
+            isSelf={me.id === emp.id}
+          />
+        }
+        riwayatSlot={
+          <ResponsiveTable
+            columns={[
+              { key: "aksi", header: "Aksi", cell: (r) => <AuditAksiBadge aksi={r.aksi} /> },
+              { key: "oleh", header: "Oleh", cell: (r) => r.oleh, mobileLabel: "Oleh" },
+              {
+                key: "waktu",
+                header: "Waktu",
+                cell: (r) =>
+                  new Intl.DateTimeFormat("id-ID", {
                     dateStyle: "medium",
                     timeStyle: "short",
                     timeZone: "Asia/Jakarta",
-                  }).format(new Date(a.waktu))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  }).format(new Date(r.waktu)),
+                mobileLabel: "Waktu",
+              },
+            ]}
+            rows={auditRows}
+            rowKey={(r) => r.key}
+            emptyState={<EmptyState icon={History} message="Belum ada riwayat." />}
+          />
+        }
+      />
     </div>
   );
 }
