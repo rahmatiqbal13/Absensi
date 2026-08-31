@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
-import { ApprovalTable, type PendingLeaveRequest } from "./approval-table";
+import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ApprovalList, type PendingLeaveRequest } from "./approval-list";
 import { approveLeave, rejectLeave } from "./actions";
 
 export default async function PersetujuanCutiPage() {
@@ -30,15 +32,15 @@ export default async function PersetujuanCutiPage() {
     console.error("Failed to load pending leave requests:", error);
     return (
       <div className="space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Persetujuan Cuti</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan.
-          </p>
-        </div>
-        <p className="text-sm text-red-600">
-          Gagal memuat daftar pengajuan cuti. Silakan muat ulang halaman.
-        </p>
+        <PageHeader
+          title="Persetujuan Cuti"
+          description="Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan."
+        />
+        <Alert variant="destructive">
+          <AlertDescription>
+            Gagal memuat daftar pengajuan cuti. Silakan muat ulang halaman.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -63,13 +65,11 @@ export default async function PersetujuanCutiPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Persetujuan Cuti</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan.
-        </p>
-      </div>
-      <ApprovalTable requests={requests} approveLeave={approveLeave} rejectLeave={rejectLeave} />
+      <PageHeader
+        title="Persetujuan Cuti"
+        description="Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan."
+      />
+      <ApprovalList requests={requests} approveLeave={approveLeave} rejectLeave={rejectLeave} />
     </div>
   );
 }
