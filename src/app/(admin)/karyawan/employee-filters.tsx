@@ -2,6 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Search } from "lucide-react";
+import { FilterBar } from "@/components/filter-bar";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 type Defaults = { cabang?: string; role?: string; status: string; q: string };
 
@@ -23,7 +29,7 @@ export function EmployeeFilters({
   const router = useRouter();
   const [q, setQ] = useState(defaults.q);
 
-  function pushWith(overrides: Partial<Defaults & { q: string }>) {
+  function pushWith(overrides: Partial<Defaults>) {
     const next = {
       cabang: defaults.cabang ?? "",
       role: defaults.role ?? "",
@@ -40,81 +46,63 @@ export function EmployeeFilters({
   }
 
   return (
-    <form
-      role="search"
-      onSubmit={(e) => {
-        e.preventDefault();
-        pushWith({ q });
-      }}
-      className="flex flex-wrap items-end gap-3"
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="q" className="text-sm text-neutral-700">
-          Cari nama
-        </label>
-        <input
-          id="q"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cabang" className="text-sm text-neutral-700">
-          Cabang
-        </label>
-        <select
-          id="cabang"
-          defaultValue={defaults.cabang ?? ""}
-          onChange={(e) => pushWith({ cabang: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        >
-          <option value="">Semua cabang</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.nama}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="role" className="text-sm text-neutral-700">
-          Role
-        </label>
-        <select
-          id="role"
-          defaultValue={defaults.role ?? ""}
-          onChange={(e) => pushWith({ role: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        >
-          {ROLE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="status" className="text-sm text-neutral-700">
-          Status
-        </label>
-        <select
-          id="status"
-          defaultValue={defaults.status}
-          onChange={(e) => pushWith({ status: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        >
-          <option value="aktif">Aktif</option>
-          <option value="nonaktif">Nonaktif</option>
-          <option value="semua">Semua</option>
-        </select>
-      </div>
-      <button
-        type="submit"
-        className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+    <FilterBar>
+      <form
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          pushWith({ q });
+        }}
+        className="flex flex-wrap items-end gap-3"
       >
-        Cari
-      </button>
-    </form>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="q">Cari nama</Label>
+          <Input id="q" value={q} onChange={(e) => setQ(e.target.value)} className="h-9 w-56" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="cabang">Cabang</Label>
+          <NativeSelect
+            id="cabang"
+            defaultValue={defaults.cabang ?? ""}
+            onChange={(e) => pushWith({ cabang: e.target.value })}
+            className="h-9 w-44"
+          >
+            <option value="">Semua cabang</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.nama}</option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="role">Role</Label>
+          <NativeSelect
+            id="role"
+            defaultValue={defaults.role ?? ""}
+            onChange={(e) => pushWith({ role: e.target.value })}
+            className="h-9 w-40"
+          >
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="status">Status</Label>
+          <NativeSelect
+            id="status"
+            defaultValue={defaults.status}
+            onChange={(e) => pushWith({ status: e.target.value })}
+            className="h-9 w-32"
+          >
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+            <option value="semua">Semua</option>
+          </NativeSelect>
+        </div>
+        <Button type="submit" size="sm">
+          <Search className="size-4" /> Cari
+        </Button>
+      </form>
+    </FilterBar>
   );
 }
