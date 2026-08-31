@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmployeeFormFields } from "../employee-form-fields";
 
 type Result = { ok: true; setPasswordUrl: string } | { ok: false; error: string };
@@ -42,30 +46,30 @@ export function CreateEmployeeForm({
 
   if (link) {
     return (
-      <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50 p-4">
-        <p className="text-sm font-medium text-green-800">
+      <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-4">
+        <p className="text-sm font-medium text-foreground">
           Karyawan dibuat. Kirim link berikut ke karyawan (berlaku terbatas):
         </p>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             readOnly
             value={link}
-            className="flex-1 rounded border border-neutral-300 bg-white px-3 py-2 text-xs"
+            className="flex-1"
           />
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => {
               navigator.clipboard?.writeText(link);
               setCopied(true);
             }}
-            className="min-h-10 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
           >
             {copied ? "Tersalin" : "Salin"}
-          </button>
+          </Button>
         </div>
-        <a href="/karyawan" className="inline-block text-sm text-blue-700 hover:underline">
-          Kembali ke daftar karyawan
-        </a>
+        <Button asChild variant="link">
+          <Link href="/karyawan">Kembali ke daftar karyawan</Link>
+        </Button>
       </div>
     );
   }
@@ -77,14 +81,14 @@ export function CreateEmployeeForm({
         departments={departments}
         approverOptions={approverOptions}
       />
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="min-h-11 rounded bg-blue-600 px-5 py-2.5 text-base font-medium text-white disabled:opacity-60"
-      >
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Button type="submit" disabled={busy}>
         Buat &amp; Ambil Link
-      </button>
+      </Button>
     </form>
   );
 }
