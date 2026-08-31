@@ -12,6 +12,9 @@ import {
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+// NOTE: on mobile the FIRST column's cell is rendered as the card's title with
+// no label — its `mobileLabel`, `align`, and `hideOnMobile` are ignored.
+// Consumers must lead with an identifying column.
 export type Column<T> = {
   key: string;
   header: React.ReactNode;
@@ -43,6 +46,9 @@ export function ResponsiveTable<T>({
   footerMobile?: React.ReactNode;
 }) {
   if (rows.length === 0) return <>{emptyState}</>;
+  // An empty `columns` would make `const [first, ...rest] = columns` yield an
+  // undefined `first`, and `first.cell(row)` would throw.
+  if (columns.length === 0) return <>{emptyState}</>;
 
   const alignCls = (a?: "left" | "right") =>
     a === "right" ? "text-right tabular-nums" : "text-left";
@@ -66,9 +72,12 @@ export function ResponsiveTable<T>({
             {rows.map((row) => {
               const href = rowHref?.(row);
               return (
-                <TableRow key={rowKey(row)} className={cn(href && "relative")}>
+                <TableRow key={rowKey(row)}>
                   {columns.map((c, i) => (
-                    <TableCell key={c.key} className={cn(alignCls(c.align), c.cellClassName)}>
+                    <TableCell
+                      key={c.key}
+                      className={cn(alignCls(c.align), c.cellClassName, href && i === 0 && "relative")}
+                    >
                       {href && i === 0 ? (
                         <Link
                           href={href}
@@ -109,7 +118,7 @@ export function ResponsiveTable<T>({
                       <dt className="text-muted-foreground">
                         {c.mobileLabel ?? (typeof c.header === "string" ? c.header : c.key)}
                       </dt>
-                      <dd className={cn("text-foreground", c.align === "right" && "text-right")}>
+                      <dd className={cn("text-foreground", c.align === "right" && "text-right tabular-nums")}>
                         {c.cell(row)}
                       </dd>
                     </div>

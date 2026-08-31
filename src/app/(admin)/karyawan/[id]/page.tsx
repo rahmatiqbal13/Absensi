@@ -110,6 +110,7 @@ export default async function KaryawanDetailPage({
         }
         riwayatSlot={
           <ResponsiveTable
+            caption="Riwayat perubahan data karyawan"
             columns={[
               { key: "aksi", header: "Aksi", cell: (r) => <AuditAksiBadge aksi={r.aksi} /> },
               { key: "oleh", header: "Oleh", cell: (r) => r.oleh, mobileLabel: "Oleh" },

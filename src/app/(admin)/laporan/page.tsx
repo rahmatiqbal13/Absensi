@@ -136,6 +136,7 @@ export default async function LaporanPage({
 
       {recap.ok && (
         <ResponsiveTable
+          caption="Rekap kehadiran per karyawan"
           columns={[
             { key: "nama", header: "Nama", cell: (r) => r.nama },
             { key: "hadir", header: "Hadir", align: "right", cell: (r) => r.hadir, mobileLabel: "Hadir" },

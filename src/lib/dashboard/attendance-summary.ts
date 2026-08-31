@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { PRESENT_STATUSES } from "@/lib/attendance/status";
+import { getTodayContext, type TodayContext } from "./today-context";
 
 export type AttendanceSummary = {
   hadir: number;
@@ -29,8 +30,22 @@ export type AttendanceSummaryResult =
 export async function getTodaySummary(
   db: SupabaseClient,
   branchId?: string,
+  ctx?: TodayContext,
 ): Promise<AttendanceSummaryResult> {
   const today = toJakartaDateOnly(new Date());
+
+  // Leave + non-working-day context needed to attribute "no attendance row
+  // today" correctly for the `alpa` figure (mirrors the precedence in
+  // src/lib/laporan/attendance-recap.ts). `hadir`/`terlambat`/`cuti`/etc are
+  // unaffected — they come from real rows and the dedicated leave query below.
+  let context = ctx;
+  if (!context) {
+    const ctxRes = await getTodayContext(db, branchId);
+    if (!ctxRes.ok) {
+      return { ok: false, error: "Gagal memuat data absensi." };
+    }
+    context = ctxRes.ctx;
+  }
 
   // `attendances` has no `branch_id` column of its own — it only carries
   // `employee_id` (see supabase/migrations/0002_attendance_leave.sql); the
@@ -85,7 +100,14 @@ export async function getTodaySummary(
   const alpaRows = rows.filter((row) => row.status === "alpa").length;
   const other = rows.length - hadir - terlambat - alpaRows;
   const noRecord = Math.max(totalCount - rows.length, 0);
-  const alpa = alpaRows + noRecord;
+  // `ctx.onLeave` is already branch-scoped when `branchId` is given. Employees
+  // on approved leave today are `cuti`, not `alpa`. When `branchId` is given and
+  // that branch is not a working day today, nobody is `alpa`.
+  const onLeaveCount = context.onLeave.size;
+  const nonWorkingForBranch = branchId
+    ? context.workingByBranch.get(branchId) === false
+    : false;
+  const alpa = nonWorkingForBranch ? 0 : Math.max(alpaRows + noRecord - onLeaveCount, 0);
 
   const pulangCepat = rows.filter((row) => row.status === "pulang_cepat").length;
   const diLuarLokasi = rows.filter((row) => row.status === "di_luar_lokasi").length;

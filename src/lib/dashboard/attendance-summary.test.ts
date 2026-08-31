@@ -1,5 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { getTodaySummary } from "./attendance-summary";
+import type { TodayContext } from "./today-context";
+
+// A TodayContext with the given branch working and nobody on leave — passing
+// this explicitly keeps the pre-context `alpa` numbers unchanged.
+function ctxWorking(branchId = "branch-1", onLeave: string[] = []): TodayContext {
+  return {
+    today: "2026-08-31",
+    workingByBranch: new Map([[branchId, true]]),
+    onLeave: new Set(onLeave),
+  };
+}
 
 // A minimal chainable/thenable query-builder stand-in for Supabase's
 // PostgrestFilterBuilder. `.eq()` can be called any number of times (the
@@ -78,7 +89,7 @@ describe("getTodaySummary", () => {
       employeeCount: 10,
     });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({
       ok: true,
@@ -97,7 +108,7 @@ describe("getTodaySummary", () => {
 
   it("returns all-alpa when nobody has clocked in today", async () => {
     const db = makeMockDb({ attendanceRows: [], employeeCount: 3 });
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
     expect(result).toEqual({
       ok: true,
       summary: {
@@ -124,7 +135,7 @@ describe("getTodaySummary", () => {
       employeeCount: 10,
     });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({
       ok: true,
@@ -149,7 +160,7 @@ describe("getTodaySummary", () => {
       employeeCount: 5,
     });
 
-    const result = await getTodaySummary(db as any, "branch-1");
+    const result = await getTodaySummary(db as any, "branch-1", ctxWorking("branch-1"));
 
     expect(result).toEqual({
       ok: true,
@@ -180,7 +191,7 @@ describe("getTodaySummary", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = makeMockDb({ attendanceError: { message: "permission denied for table attendances" } });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
     expect(errSpy).toHaveBeenCalledWith(
@@ -194,7 +205,7 @@ describe("getTodaySummary", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = makeMockDb({ employeeError: { message: "permission denied for table employees" } });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
     expect(errSpy).toHaveBeenCalledWith(
@@ -217,7 +228,7 @@ describe("getTodaySummary", () => {
       leaveEmployeeIds: ["emp-1", "emp-2"],
     });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({
       ok: true,
@@ -242,7 +253,7 @@ describe("getTodaySummary", () => {
       leaveEmployeeIds: ["emp-1", "emp-1", "emp-2"],
     });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({
       ok: true,
@@ -267,7 +278,7 @@ describe("getTodaySummary", () => {
       leaveError: { message: "permission denied for table leave_requests" },
     });
 
-    const result = await getTodaySummary(db as any);
+    const result = await getTodaySummary(db as any, undefined, ctxWorking());
 
     expect(result).toEqual({ ok: false, error: "Gagal memuat data absensi." });
     expect(errSpy).toHaveBeenCalledWith(
@@ -275,5 +286,36 @@ describe("getTodaySummary", () => {
       expect.objectContaining({ message: expect.any(String) }),
     );
     errSpy.mockRestore();
+  });
+
+  it("excludes employees on approved leave today from alpa", async () => {
+    const db = makeMockDb({ attendanceRows: [], employeeCount: 5, leaveEmployeeIds: ["e1", "e2"] });
+
+    const result = await getTodaySummary(
+      db as any,
+      undefined,
+      ctxWorking("branch-1", ["e1", "e2"]),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 5 no-record employees − 2 on leave.
+    expect(result.summary.alpa).toBe(3);
+    expect(result.summary.cuti).toBe(2);
+  });
+
+  it("reports alpa: 0 when the given branch is not a working day today", async () => {
+    const db = makeMockDb({ attendanceRows: [], employeeCount: 5 });
+    const ctx: TodayContext = {
+      today: "2026-08-31",
+      workingByBranch: new Map([["branch-1", false]]),
+      onLeave: new Set(),
+    };
+
+    const result = await getTodaySummary(db as any, "branch-1", ctx);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.alpa).toBe(0);
   });
 });

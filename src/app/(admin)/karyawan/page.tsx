@@ -90,6 +90,7 @@ export default async function KaryawanPage({
 
       {!error && (
         <ResponsiveTable
+          caption="Daftar karyawan"
           columns={[
             {
               key: "nama",

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getTodayExceptions } from "./today-exceptions";
+import type { TodayContext } from "./today-context";
 
 function makeDb(opts: {
   activeEmployees: { id: string; nama: string; branch_id: string }[];
@@ -33,6 +34,15 @@ function makeDb(opts: {
   } as never;
 }
 
+// A TodayContext with the given branches marked working and no one on leave.
+function ctxWith(branches: string[], onLeave: string[] = []): TodayContext {
+  return {
+    today: "2026-08-31",
+    workingByBranch: new Map(branches.map((b) => [b, true])),
+    onLeave: new Set(onLeave),
+  };
+}
+
 describe("getTodayExceptions", () => {
   it("includes late/dll/pc rows and employees with no row as alpa, sorted alpa→terlambat→dll→pc", async () => {
     const res = await getTodayExceptions(
@@ -49,6 +59,8 @@ describe("getTodayExceptions", () => {
           { employee_id: "e4", status: "tepat_waktu" }, // not an exception
         ],
       }),
+      undefined,
+      ctxWith(["b1"]),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -71,6 +83,8 @@ describe("getTodayExceptions", () => {
           { employee_id: "e2", status: "terlambat" },
         ],
       }),
+      undefined,
+      ctxWith(["b1"]),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -83,7 +97,68 @@ describe("getTodayExceptions", () => {
   it("returns an error result on a query error", async () => {
     const res = await getTodayExceptions(
       makeDb({ activeEmployees: [], attendances: [], error: { message: "x" } }),
+      undefined,
+      ctxWith(["b1"]),
     );
     expect(res.ok).toBe(false);
+  });
+
+  it("skips an employee who is on approved leave today (not an exception)", async () => {
+    const res = await getTodayExceptions(
+      makeDb({
+        activeEmployees: [
+          { id: "e1", nama: "Andi", branch_id: "b1" },
+          { id: "e2", nama: "Siti", branch_id: "b1" },
+        ],
+        attendances: [],
+      }),
+      undefined,
+      ctxWith(["b1"], ["e1"]),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rows.map((r) => r.nama)).toEqual(["Siti"]);
+  });
+
+  it("returns nonWorkingDay when the given branch is not working today", async () => {
+    const ctx: TodayContext = {
+      today: "2026-08-31",
+      workingByBranch: new Map([["b1", false]]),
+      onLeave: new Set(),
+    };
+    const res = await getTodayExceptions(
+      makeDb({
+        activeEmployees: [{ id: "e1", nama: "Andi", branch_id: "b1" }],
+        attendances: [],
+      }),
+      "b1",
+      ctx,
+    );
+    expect(res).toEqual({ ok: true, nonWorkingDay: true, rows: [] });
+  });
+
+  it("skips an employee whose branch is non-working when no branch filter is given", async () => {
+    const ctx: TodayContext = {
+      today: "2026-08-31",
+      workingByBranch: new Map([
+        ["b1", true],
+        ["b2", false],
+      ]),
+      onLeave: new Set(),
+    };
+    const res = await getTodayExceptions(
+      makeDb({
+        activeEmployees: [
+          { id: "e1", nama: "Andi", branch_id: "b1" },
+          { id: "e2", nama: "Siti", branch_id: "b2" },
+        ],
+        attendances: [],
+      }),
+      undefined,
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rows.map((r) => r.nama)).toEqual(["Andi"]);
   });
 });

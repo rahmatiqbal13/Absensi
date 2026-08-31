@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "./route-access";
 
@@ -10,7 +11,11 @@ export type CurrentEmployee = {
   fotoPath: string | null;
 };
 
-export async function getCurrentEmployee(
+// Wrapped in React `cache` so a single request de-dupes it repo-wide — `/profil`
+// resolves it in both (account)/layout.tsx and profil/page.tsx. `cache` keys on
+// the argument; `db` is a fresh client per request, so this de-dupes within a
+// request only.
+export const getCurrentEmployee = cache(async function getCurrentEmployee(
   db: SupabaseClient,
 ): Promise<CurrentEmployee | null> {
   const { data: userData } = await db.auth.getUser();
@@ -34,4 +39,4 @@ export async function getCurrentEmployee(
     branchId: employee.branch_id,
     fotoPath: employee.foto_profil_url ?? null,
   };
-}
+});

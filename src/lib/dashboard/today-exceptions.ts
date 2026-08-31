@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { getTodayContext, type TodayContext } from "./today-context";
 
 type ExceptionStatus = "terlambat" | "alpa" | "di_luar_lokasi" | "pulang_cepat";
 type ExceptionRow = {
@@ -7,7 +8,9 @@ type ExceptionRow = {
   nama: string;
   status: ExceptionStatus;
 };
-type Result = { ok: true; rows: ExceptionRow[] } | { ok: false; error: string };
+type Result =
+  | { ok: true; nonWorkingDay: boolean; rows: ExceptionRow[] }
+  | { ok: false; error: string };
 
 const SORT_ORDER: Record<ExceptionStatus, number> = {
   alpa: 0,
@@ -19,7 +22,32 @@ const SORT_ORDER: Record<ExceptionStatus, number> = {
 export async function getTodayExceptions(
   db: SupabaseClient,
   branchId?: string,
+  ctx?: TodayContext,
 ): Promise<Result> {
+  let context = ctx;
+  if (!context) {
+    const ctxRes = await getTodayContext(db, branchId);
+    if (!ctxRes.ok) {
+      return { ok: false, error: "Gagal memuat daftar perlu perhatian." };
+    }
+    context = ctxRes.ctx;
+  }
+
+  // Branch-scoped: if that branch is not working today, there is nothing to flag.
+  if (branchId && context.workingByBranch.get(branchId) === false) {
+    return { ok: true, nonWorkingDay: true, rows: [] };
+  }
+
+  // Org-wide: only a "hari libur" state if EVERY known branch is non-working
+  // (or there are no schedules at all).
+  const allBranchesNonWorking =
+    !branchId &&
+    (context.workingByBranch.size === 0 ||
+      [...context.workingByBranch.values()].every((w) => w === false));
+  if (allBranchesNonWorking) {
+    return { ok: true, nonWorkingDay: true, rows: [] };
+  }
+
   const today = toJakartaDateOnly(new Date());
 
   let employeeQuery = db
@@ -51,6 +79,12 @@ export async function getTodayExceptions(
   const rows: ExceptionRow[] = [];
   for (const e of employeesRes.data ?? []) {
     const id = e.id as string;
+    const empBranch = e.branch_id as string;
+    // Precedence (mirrors attendance-recap.ts): non-working branch, then leave,
+    // then no-row/explicit-alpa, then late/dll/pc.
+    if (!branchId && context.workingByBranch.get(empBranch) === false) continue;
+    if (context.onLeave.has(id)) continue;
+
     const status = byEmployee.get(id);
     if (status === undefined || status === "alpa") {
       rows.push({ employeeId: id, nama: e.nama as string, status: "alpa" });
@@ -68,5 +102,5 @@ export async function getTodayExceptions(
     return d !== 0 ? d : a.nama.localeCompare(b.nama);
   });
 
-  return { ok: true, rows };
+  return { ok: true, nonWorkingDay: false, rows };
 }

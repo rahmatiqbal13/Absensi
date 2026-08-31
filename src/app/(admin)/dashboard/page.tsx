@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { getTodayContext } from "@/lib/dashboard/today-context";
 import { getTodaySummary } from "@/lib/dashboard/attendance-summary";
 import { getMonthlyTrend } from "@/lib/dashboard/monthly-trend";
 import { getPendingApprovalCount } from "@/lib/dashboard/pending-approval-count";
@@ -38,22 +39,47 @@ export default async function DashboardPage({
   const employee = await getCurrentEmployee(db);
   if (!employee) redirect("/login");
 
-  const { data: branches } = await db.from("branches").select("id, nama").order("nama");
+  const { data: branches, error: branchesError } = await db
+    .from("branches")
+    .select("id, nama")
+    .order("nama");
+  if (branchesError) {
+    console.error("DashboardPage: branches query failed", branchesError);
+  }
   const branchList = branches ?? [];
   const branchId = branch && branchList.some((b) => b.id === branch) ? branch : undefined;
   const branchName = branchId ? branchList.find((b) => b.id === branchId)?.nama : undefined;
   const isHrAdmin = employee.role === "hr_admin" || employee.role === "super_admin";
   const showBranchBreakdown = !branchId && branchList.length > 1;
 
+  // Access tier: migration 0009 widened `is_admin_role()` to include `atasan`,
+  // so an `atasan` reaches this page and sees the org-wide *aggregates* (the
+  // stat tiles, the trend, the pending-approval count, the per-branch table).
+  // The *named* per-employee lists — the "Perlu perhatian" exceptions list and
+  // the recent-activity feed — are hr_admin / super_admin only: `atasan` has no
+  // `/karyawan` access (route-access.ts `HR_ADMIN_PATH_PREFIXES`), so naming
+  // every employee here would leak the roster.
+  const showExceptions = isHrAdmin;
+
+  // getTodayContext resolves the per-branch working-day status + today's
+  // approved-leave employee set once, then feeds the three attendance libs so
+  // they attribute "no attendance row today" correctly (leave / holiday /
+  // non-working-day precedence — mirrors src/lib/laporan/attendance-recap.ts).
+  const contextRes = await getTodayContext(db, branchId);
+  const ctx = contextRes.ok ? contextRes.ctx : undefined;
+
   const ym = toJakartaDateOnly(new Date()).slice(0, 7);
   const [summary, trend, approvals, exceptions, breakdown, activity] = await Promise.all([
-    getTodaySummary(db, branchId),
+    getTodaySummary(db, branchId, ctx),
     getMonthlyTrend(db, ym, branchId),
     getPendingApprovalCount(db, employee),
-    getTodayExceptions(db, branchId),
-    showBranchBreakdown ? getBranchBreakdown(db) : Promise.resolve(null),
+    showExceptions ? getTodayExceptions(db, branchId, ctx) : Promise.resolve(null),
+    showBranchBreakdown ? getBranchBreakdown(db, ctx) : Promise.resolve(null),
     isHrAdmin ? getRecentActivity(db) : Promise.resolve(null),
   ]);
+
+  const showExceptionsCard = showExceptions && exceptions;
+  const twoColRow = showBranchBreakdown && showExceptionsCard;
 
   return (
     <div className="space-y-6">
@@ -62,6 +88,13 @@ export default async function DashboardPage({
         description={`Ringkasan kehadiran hari ini${branchName ? ` · ${branchName}` : ""}`}
         actions={<DashboardControls branches={branchList} selectedBranch={branchId ?? ""} />}
       />
+
+      {branchesError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="size-4" />
+          <AlertDescription>Gagal memuat daftar cabang.</AlertDescription>
+        </Alert>
+      )}
 
       {/* stat row */}
       {summary.ok ? (
@@ -105,56 +138,63 @@ export default async function DashboardPage({
       </div>
 
       {/* per-branch + exceptions */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {showBranchBreakdown && (
-          <Card>
-            <CardHeader><CardTitle>Per Cabang · hari ini</CardTitle></CardHeader>
-            <CardContent>
-              {breakdown && breakdown.ok ? (
-                <ResponsiveTable
-                  columns={[
-                    { key: "nama", header: "Cabang", cell: (r) => r.nama },
-                    { key: "hadir", header: "Hadir", align: "right", cell: (r) => r.hadir },
-                    { key: "terlambat", header: "Terlambat", align: "right", cell: (r) => r.terlambat },
-                    { key: "alpa", header: "Alpa", align: "right", cell: (r) => r.alpa },
-                  ]}
-                  rows={breakdown.rows}
-                  rowKey={(r) => r.branchId}
-                  emptyState={<p className="text-sm text-muted-foreground">Belum ada cabang.</p>}
-                />
-              ) : (
-                <InlineError>{breakdown?.ok === false ? breakdown.error : "Gagal memuat."}</InlineError>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        <Card>
-          <CardHeader><CardTitle>Perlu perhatian · hari ini</CardTitle></CardHeader>
-          <CardContent>
-            {exceptions.ok ? (
-              exceptions.rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Semua karyawan hadir tepat waktu.</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {exceptions.rows.slice(0, 8).map((r) => (
-                    <li key={r.employeeId} className="flex items-center justify-between gap-2">
-                      <span className="text-foreground">{r.nama}</span>
-                      <AttendanceStatusBadge status={r.status} />
-                    </li>
-                  ))}
-                  {exceptions.rows.length > 8 && (
-                    <li className="text-xs text-muted-foreground">
-                      + {exceptions.rows.length - 8} lainnya
-                    </li>
-                  )}
-                </ul>
-              )
-            ) : (
-              <InlineError>{exceptions.error}</InlineError>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {(showBranchBreakdown || showExceptionsCard) && (
+        <div className={`grid gap-4 ${twoColRow ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
+          {showBranchBreakdown && (
+            <Card>
+              <CardHeader><CardTitle>Per Cabang · hari ini</CardTitle></CardHeader>
+              <CardContent>
+                {breakdown && breakdown.ok ? (
+                  <ResponsiveTable
+                    caption="Ringkasan kehadiran per cabang hari ini"
+                    columns={[
+                      { key: "nama", header: "Cabang", cell: (r) => r.nama },
+                      { key: "hadir", header: "Hadir", align: "right", cell: (r) => r.hadir },
+                      { key: "terlambat", header: "Terlambat", align: "right", cell: (r) => r.terlambat },
+                      { key: "alpa", header: "Alpa", align: "right", cell: (r) => r.alpa },
+                    ]}
+                    rows={breakdown.rows}
+                    rowKey={(r) => r.branchId}
+                    emptyState={<p className="text-sm text-muted-foreground">Belum ada cabang.</p>}
+                  />
+                ) : (
+                  <InlineError>{breakdown?.ok === false ? breakdown.error : "Gagal memuat."}</InlineError>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {showExceptionsCard && (
+            <Card>
+              <CardHeader><CardTitle>Perlu perhatian · hari ini</CardTitle></CardHeader>
+              <CardContent>
+                {exceptions.ok ? (
+                  exceptions.nonWorkingDay ? (
+                    <p className="text-sm text-muted-foreground">Hari ini bukan hari kerja.</p>
+                  ) : exceptions.rows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Semua karyawan hadir tepat waktu.</p>
+                  ) : (
+                    <ul className="space-y-2 text-sm">
+                      {exceptions.rows.slice(0, 8).map((r) => (
+                        <li key={r.employeeId} className="flex items-center justify-between gap-2">
+                          <span className="text-foreground">{r.nama}</span>
+                          <AttendanceStatusBadge status={r.status} />
+                        </li>
+                      ))}
+                      {exceptions.rows.length > 8 && (
+                        <li className="text-xs text-muted-foreground">
+                          + {exceptions.rows.length - 8} lainnya
+                        </li>
+                      )}
+                    </ul>
+                  )
+                ) : (
+                  <InlineError>{exceptions.error}</InlineError>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* recent activity */}
       {isHrAdmin && (
