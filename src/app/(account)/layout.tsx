@@ -1,0 +1,39 @@
+import { redirect } from "next/navigation";
+import { AdminShell } from "@/components/admin-shell";
+import { EmployeeShell } from "@/components/employee-shell";
+import { AppFooter } from "@/components/app-footer";
+import { BrandMark } from "@/components/brand-mark";
+import { getCurrentEmployee } from "@/lib/auth/session";
+import { signProfilePhotoUrl } from "@/lib/profile/photo";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
+  const db = await createServerSupabaseClient();
+  const employee = await getCurrentEmployee(db);
+  if (!employee) redirect("/login");
+
+  const isAdmin =
+    employee.role === "hr_admin" ||
+    employee.role === "super_admin" ||
+    employee.role === "atasan";
+
+  if (isAdmin) {
+    const avatarUrl = await signProfilePhotoUrl(db, employee.fotoPath);
+    return (
+      <AdminShell
+        employee={employee}
+        avatarUrl={avatarUrl ?? undefined}
+        brand={<BrandMark size="md" />}
+        footer={<AppFooter />}
+      >
+        {children}
+      </AdminShell>
+    );
+  }
+
+  return (
+    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />}>
+      {children}
+    </EmployeeShell>
+  );
+}
