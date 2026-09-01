@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { MONTH_NAMES_ID } from "@/lib/format/month";
+import { Field } from "@/components/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ActionResult } from "./actions";
 
 export function CreatePeriodForm({
@@ -31,35 +36,34 @@ export function CreatePeriodForm({
 
   return (
     <form action={handleSubmit} className="flex flex-wrap items-end gap-3">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="branchId" className="text-sm text-neutral-700">Cabang</label>
-        <select id="branchId" name="branchId" required className="rounded border border-neutral-300 px-3 py-2 text-sm">
+      <Field id="branchId" label="Cabang">
+        <NativeSelect name="branchId" required defaultValue={branches[0]?.id ?? ""} className="w-44">
           {branches.map((b) => (
             <option key={b.id} value={b.id}>{b.nama}</option>
           ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="bulan" className="text-sm text-neutral-700">Bulan</label>
-        <select id="bulan" name="bulan" defaultValue={String(now.getMonth() + 1)} className="rounded border border-neutral-300 px-3 py-2 text-sm">
+        </NativeSelect>
+      </Field>
+      <Field id="bulan" label="Bulan">
+        <NativeSelect name="bulan" defaultValue={String(now.getMonth() + 1)} className="w-40">
           {MONTH_NAMES_ID.map((label, i) => (
             <option key={label} value={i + 1}>{label}</option>
           ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="tahun" className="text-sm text-neutral-700">Tahun</label>
-        <input id="tahun" name="tahun" type="number" defaultValue={now.getFullYear()} className="w-24 rounded border border-neutral-300 px-3 py-2 text-sm" />
-      </div>
-      <button
-        type="submit"
-        disabled={submitting}
-        className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-      >
-        Buat Periode
-      </button>
-      {error && <p className="w-full text-sm text-red-600">{error}</p>}
-      {success && <p className="w-full text-sm text-green-600">Periode dibuat.</p>}
+        </NativeSelect>
+      </Field>
+      <Field id="tahun" label="Tahun">
+        <Input name="tahun" type="number" defaultValue={now.getFullYear()} className="w-28" />
+      </Field>
+      <Button type="submit" disabled={submitting}>Buat Periode</Button>
+      {error && (
+        <Alert variant="destructive" className="w-full">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {success && (
+        <Alert className="w-full">
+          <AlertDescription>Periode dibuat.</AlertDescription>
+        </Alert>
+      )}
     </form>
   );
 }

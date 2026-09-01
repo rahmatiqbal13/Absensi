@@ -1,8 +1,13 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Wallet } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PayrollStatusBadge, type PayrollStatus } from "@/components/payroll-status-badge";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { EmptyState } from "@/components/empty-state";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { monthLabel } from "@/lib/format/month";
 import { CreatePeriodForm } from "./create-period-form";
@@ -38,45 +43,72 @@ export default async function PayrollPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Payroll</h1>
-        <p className="mt-1 text-sm text-neutral-500">Buat periode, generate slip gaji, lalu finalisasi.</p>
-      </div>
+      <PageHeader
+        title="Payroll"
+        description="Buat periode, generate slip gaji, lalu finalisasi."
+      />
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-medium text-neutral-900">Buat Periode Baru</h2>
-        {branchErr ? (
-          <p className="text-sm text-red-600">Gagal memuat daftar cabang.</p>
-        ) : (
-          <CreatePeriodForm branches={branches ?? []} createPeriod={createPeriod} />
-        )}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Buat Periode Baru</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {branchErr ? (
+            <Alert variant="destructive">
+              <AlertDescription>Gagal memuat daftar cabang.</AlertDescription>
+            </Alert>
+          ) : (
+            <CreatePeriodForm branches={branches ?? []} createPeriod={createPeriod} />
+          )}
+        </CardContent>
+      </Card>
 
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-neutral-900">Periode</h2>
-        {periodErr && <p className="text-sm text-red-600">Gagal memuat periode payroll.</p>}
-        {!periodErr && (!periods || periods.length === 0) && (
-          <p className="text-sm text-neutral-500">Belum ada periode payroll.</p>
-        )}
-        <ul className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white">
-          {(periods ?? []).map((p) => {
-            const total = ((p.payslips ?? []) as { gaji_akhir: number }[]).reduce(
-              (sum, s) => sum + Number(s.gaji_akhir),
-              0,
-            );
-            const count = ((p.payslips ?? []) as unknown[]).length;
-            return (
-              <li key={p.id} className="flex items-center justify-between gap-4 p-4">
-                <Link href={`/payroll/${p.id}`} className="flex-1 text-sm font-medium text-blue-700 hover:underline">
-                  {(p.branches as unknown as { nama: string } | null)?.nama ?? "-"} — {monthLabel(p.bulan)} {p.tahun}
-                </Link>
-                <span className="text-sm text-neutral-500">{count} slip · {formatRupiah(total)}</span>
-                <PayrollStatusBadge status={p.status as PayrollStatus} />
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      {periodErr ? (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat periode payroll.</AlertDescription>
+        </Alert>
+      ) : (
+        <ResponsiveTable
+          columns={[
+            {
+              key: "periode",
+              header: "Periode",
+              cell: (p) =>
+                `${(p.branches as unknown as { nama: string } | null)?.nama ?? "-"} — ${monthLabel(p.bulan)} ${p.tahun}`,
+            },
+            {
+              key: "slip",
+              header: "Slip",
+              mobileLabel: "Slip",
+              cell: (p) => `${((p.payslips ?? []) as unknown[]).length} slip`,
+            },
+            {
+              key: "total",
+              header: "Total",
+              align: "right",
+              mobileLabel: "Total",
+              cell: (p) =>
+                formatRupiah(
+                  ((p.payslips ?? []) as { gaji_akhir: number }[]).reduce(
+                    (sum, s) => sum + Number(s.gaji_akhir),
+                    0,
+                  ),
+                ),
+            },
+            {
+              key: "status",
+              header: "Status",
+              mobileLabel: "Status",
+              cell: (p) => <PayrollStatusBadge status={p.status as PayrollStatus} />,
+            },
+          ]}
+          rows={periods ?? []}
+          rowKey={(p) => p.id}
+          rowHref={(p) => `/payroll/${p.id}`}
+          caption="Daftar periode payroll"
+          emptyState={<EmptyState icon={Wallet} message="Belum ada periode payroll." />}
+        />
+      )}
     </div>
   );
 }
