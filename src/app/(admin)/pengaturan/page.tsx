@@ -3,6 +3,46 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { countActiveSuperAdmins } from "@/lib/employees/super-admin-count";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Building2,
+  Network,
+  Clock,
+  CalendarOff,
+  ScrollText,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+function HubCard({
+  href,
+  icon: Icon,
+  title,
+  desc,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <Link href={href} className="block">
+      <Card size="sm" className="transition-colors hover:bg-muted/40">
+        <CardContent className="flex items-start gap-3">
+          <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">{title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
+          </div>
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
 
 export default async function PengaturanPage() {
   const db = await createServerSupabaseClient();
@@ -14,74 +54,46 @@ export default async function PengaturanPage() {
   const superAdminCount = await countActiveSuperAdmins(db);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Pengaturan</h1>
-        <p className="mt-1 text-sm text-neutral-500">Konfigurasi dan status sistem.</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title="Pengaturan" description="Konfigurasi dan status sistem." />
+
       {superAdminCount === null ? (
-        <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-          Tidak dapat memeriksa jumlah Super Admin aktif saat ini. Silakan muat ulang halaman.
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>
+            Tidak dapat memeriksa jumlah Super Admin aktif saat ini. Silakan muat ulang halaman.
+          </AlertDescription>
+        </Alert>
       ) : (
         superAdminCount < 2 && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2
-            Super Admin diperlukan agar mekanisme persetujuan cuti berjenjang untuk HR/Super Admin
-            tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
-          </p>
+          <Alert variant="destructive">
+            <AlertTriangle className="size-4" />
+            <AlertDescription>
+              Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2
+              Super Admin diperlukan agar mekanisme persetujuan cuti berjenjang untuk HR/Super Admin
+              tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
+            </AlertDescription>
+          </Alert>
         )
       )}
 
       {(employee.role === "hr_admin" || employee.role === "super_admin") && (
         <div className="grid gap-3 sm:grid-cols-2">
           {employee.role === "super_admin" && (
-            <Link
+            <HubCard
               href="/pengaturan/instansi"
-              className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
-            >
-              <p className="text-sm font-medium text-neutral-900">Instansi</p>
-              <p className="mt-1 text-xs text-neutral-500">
-                Nama, logo, kontak, dan warna aksen aplikasi.
-              </p>
-            </Link>
+              icon={Building2}
+              title="Instansi"
+              desc="Nama, logo, kontak, dan warna aksen aplikasi."
+            />
           )}
-          <Link
-            href="/pengaturan/libur"
-            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
-          >
-            <p className="text-sm font-medium text-neutral-900">Hari Libur</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              Kelola hari libur nasional &amp; cabang untuk perhitungan payroll.
-            </p>
-          </Link>
-          <Link
-            href="/pengaturan/audit"
-            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
-          >
-            <p className="text-sm font-medium text-neutral-900">Log Audit</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              Riwayat perubahan data karyawan &amp; persetujuan cuti.
-            </p>
-          </Link>
-          <Link
-            href="/pengaturan/departemen"
-            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
-          >
-            <p className="text-sm font-medium text-neutral-900">Departemen</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              Kelompokkan karyawan per departemen di tiap cabang.
-            </p>
-          </Link>
-          <Link
-            href="/pengaturan/jadwal"
-            className="rounded-lg border border-neutral-200 bg-white p-4 hover:border-blue-300"
-          >
-            <p className="text-sm font-medium text-neutral-900">Jadwal Kerja</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              Jam kerja, hari kerja, dan toleransi keterlambatan per cabang.
-            </p>
-          </Link>
+          <HubCard href="/pengaturan/libur" icon={CalendarOff} title="Hari Libur"
+            desc="Kelola hari libur nasional & cabang untuk perhitungan payroll." />
+          <HubCard href="/pengaturan/audit" icon={ScrollText} title="Log Audit"
+            desc="Riwayat perubahan data karyawan & persetujuan cuti." />
+          <HubCard href="/pengaturan/departemen" icon={Network} title="Departemen"
+            desc="Kelompokkan karyawan per departemen di tiap cabang." />
+          <HubCard href="/pengaturan/jadwal" icon={Clock} title="Jadwal Kerja"
+            desc="Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." />
         </div>
       )}
     </div>
