@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { PayslipTable, type PayslipView } from "./payslip-table";
 
 const ROWS: PayslipView[] = [
@@ -20,8 +20,11 @@ describe("PayslipTable", () => {
 
   it("renders one row per payslip with the final amount", () => {
     render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
-    expect(screen.getByText("Budi")).toBeInTheDocument();
-    expect(screen.getByText(/9\.500\.000/)).toBeInTheDocument();
+    // desktop table + mobile cards both render under jsdom; scope to the
+    // desktop <Table> (the only role="table") so getByText asserts exactly one
+    const table = within(screen.getByRole("table"));
+    const row = table.getByText("Budi").closest("tr") as HTMLElement;
+    expect(within(row).getByText(/9\.500\.000/)).toBeInTheDocument();
   });
 
   it("calls onGenerate when Generate is clicked", async () => {
@@ -43,7 +46,8 @@ describe("PayslipTable", () => {
     render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={onFinalize} />);
     fireEvent.click(screen.getByRole("button", { name: /finalisasi/i }));
     expect(onFinalize).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /ya, finalisasi/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /finalisasi/i }));
     await waitFor(() => expect(onFinalize).toHaveBeenCalled());
   });
 
@@ -58,13 +62,14 @@ describe("PayslipTable", () => {
 
   it("expands a row to show rincian_harian", () => {
     render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /rincian budi/i }));
-    expect(screen.getByText("2026-08-03")).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    fireEvent.click(table.getByRole("button", { name: /rincian budi/i }));
+    expect(table.getByText("2026-08-03")).toBeInTheDocument();
   });
 
   it("reflects toggle state via aria-expanded", () => {
     render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
-    const toggle = screen.getByRole("button", { name: /rincian budi/i });
+    const toggle = screen.getAllByRole("button", { name: /rincian budi/i })[0];
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");

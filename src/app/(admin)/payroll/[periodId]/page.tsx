@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PayrollStatusBadge, type PayrollStatus } from "@/components/payroll-status-badge";
+import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { monthLabel } from "@/lib/format/month";
 import { PayslipTable, type PayslipView } from "./payslip-table";
@@ -24,7 +26,11 @@ export default async function PayrollPeriodPage({
     .eq("id", periodId)
     .maybeSingle();
   if (periodErr) {
-    return <p className="text-sm text-red-600">Gagal memuat periode payroll.</p>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>Gagal memuat periode payroll.</AlertDescription>
+      </Alert>
+    );
   }
   if (!period) notFound();
 
@@ -59,18 +65,17 @@ export default async function PayrollPeriodPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">
-            {(period.branches as unknown as { nama: string } | null)?.nama ?? "-"} — {monthLabel(period.bulan)}{" "}
-            {period.tahun}
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">Slip gaji periode ini.</p>
-        </div>
-        <PayrollStatusBadge status={period.status as PayrollStatus} />
-      </div>
+      <PageHeader
+        title={`${(period.branches as unknown as { nama: string } | null)?.nama ?? "-"} — ${monthLabel(period.bulan)} ${period.tahun}`}
+        description="Slip gaji periode ini."
+        actions={<PayrollStatusBadge status={period.status as PayrollStatus} />}
+      />
 
-      {slipErr && <p className="text-sm text-red-600">Gagal memuat slip gaji.</p>}
+      {slipErr && (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat slip gaji.</AlertDescription>
+        </Alert>
+      )}
 
       <PayslipTable
         rows={rows}
