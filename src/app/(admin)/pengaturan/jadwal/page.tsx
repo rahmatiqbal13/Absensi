@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { Clock } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { ScheduleForm } from "./schedule-form";
 import { saveSchedule } from "./actions";
 
@@ -26,22 +29,25 @@ export default async function JadwalPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Jadwal Kerja</h1>
-        <p className="mt-1 text-sm text-neutral-500">Satu jadwal per cabang — dipakai untuk status terlambat dan perhitungan payroll.</p>
-      </div>
-      {(branches ?? []).length === 0 && <p className="text-sm text-neutral-500">Belum ada cabang.</p>}
-      <div className="space-y-4">
-        {(branches ?? []).map((b) => (
-          <ScheduleForm
-            key={b.id}
-            branchId={b.id}
-            branchNama={b.nama}
-            defaults={byBranch.get(b.id) ?? null}
-            saveSchedule={saveSchedule}
-          />
-        ))}
-      </div>
+      <PageHeader
+        title="Jadwal Kerja"
+        description="Satu jadwal per cabang — dipakai untuk status terlambat dan perhitungan payroll."
+      />
+      {(branches ?? []).length === 0 ? (
+        <EmptyState icon={Clock} message="Belum ada cabang." />
+      ) : (
+        <div className="space-y-4">
+          {(branches ?? []).map((b) => (
+            <ScheduleForm
+              key={b.id}
+              branchId={b.id}
+              branchNama={b.nama}
+              defaults={byBranch.get(b.id) ?? null}
+              saveSchedule={saveSchedule}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
