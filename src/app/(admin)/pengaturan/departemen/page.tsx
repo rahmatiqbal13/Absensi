@@ -1,6 +1,13 @@
 import { redirect } from "next/navigation";
+import { Network } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { EmptyState } from "@/components/empty-state";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { DepartmentForm } from "./department-form";
 import { addDepartment, deleteDepartment } from "./actions";
 
@@ -20,35 +27,53 @@ export default async function DepartemenPage() {
     "use server";
     const res = await deleteDepartment(id);
     if (!res.ok) console.error("DepartemenPage: deleteDepartment failed", res.error);
+    return res;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Departemen</h1>
-        <p className="mt-1 text-sm text-neutral-500">Kelompokkan karyawan per departemen di tiap cabang.</p>
-      </div>
+      <PageHeader
+        title="Departemen"
+        description="Kelompokkan karyawan per departemen di tiap cabang."
+      />
+      <Card>
+        <CardContent>
+          <DepartmentForm branches={branches ?? []} addDepartment={addDepartment} />
+        </CardContent>
+      </Card>
 
-      <DepartmentForm branches={branches ?? []} addDepartment={addDepartment} />
-
-      {error && <p className="text-sm text-red-600">Gagal memuat daftar departemen.</p>}
-      {!error && (!departments || departments.length === 0) && (
-        <p className="text-sm text-neutral-500">Belum ada departemen.</p>
-      )}
-      {departments && departments.length > 0 && (
-        <ul className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white text-sm">
-          {departments.map((d) => (
-            <li key={d.id} className="flex items-center justify-between px-4 py-2">
-              <span>
-                <span className="font-medium">{d.nama}</span>{" "}
-                <span className="text-neutral-500">· {(d.branches as unknown as { nama: string } | null)?.nama ?? "-"}</span>
-              </span>
-              <form action={remove.bind(null, d.id)}>
-                <button type="submit" className="text-xs text-red-600 hover:underline">Hapus</button>
-              </form>
-            </li>
-          ))}
-        </ul>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat daftar departemen.</AlertDescription>
+        </Alert>
+      ) : (
+        <ResponsiveTable
+          columns={[
+            { key: "nama", header: "Nama", cell: (d) => d.nama },
+            {
+              key: "cabang",
+              header: "Cabang",
+              mobileLabel: "Cabang",
+              cell: (d) => (d.branches as unknown as { nama: string } | null)?.nama ?? "-",
+            },
+            {
+              key: "aksi",
+              header: "Aksi",
+              align: "right",
+              cell: (d) => (
+                <ConfirmDeleteButton
+                  action={() => remove(d.id)}
+                  title="Hapus departemen?"
+                  description={`Departemen "${d.nama}" akan dihapus. Karyawan di dalamnya tidak ikut terhapus.`}
+                />
+              ),
+            },
+          ]}
+          rows={departments ?? []}
+          rowKey={(d) => d.id}
+          caption="Daftar departemen"
+          emptyState={<EmptyState icon={Network} message="Belum ada departemen." />}
+        />
       )}
     </div>
   );

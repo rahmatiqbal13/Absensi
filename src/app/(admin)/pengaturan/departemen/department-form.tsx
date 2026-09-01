@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -29,18 +34,22 @@ export function DepartmentForm({
 
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Nama Departemen
-        <input name="nama" className="rounded border border-neutral-300 px-3 py-2 text-sm" />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Cabang
-        <select name="branchId" defaultValue={branches[0]?.id ?? ""} className="rounded border border-neutral-300 px-3 py-2 text-sm">
-          {branches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
-        </select>
-      </label>
-      <button type="submit" disabled={busy} className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Tambah</button>
-      {error && <p className="w-full text-sm text-red-600">{error}</p>}
+      <Field id="nama" label="Nama Departemen">
+        <Input name="nama" />
+      </Field>
+      <Field id="branchId" label="Cabang">
+        <NativeSelect name="branchId" defaultValue={branches[0]?.id ?? ""} className="w-44">
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.nama}</option>
+          ))}
+        </NativeSelect>
+      </Field>
+      <Button type="submit" disabled={busy}>Tambah</Button>
+      {error && (
+        <Alert variant="destructive" className="w-full">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </form>
   );
 }
