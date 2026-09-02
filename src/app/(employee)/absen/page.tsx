@@ -43,8 +43,8 @@ export default async function AbsenPage() {
   return (
     <main className="mx-auto max-w-md p-4 pt-8">
       <div className="mb-6">
-        <p className="text-sm text-neutral-500">{formattedToday}</p>
-        <h1 className="text-2xl font-semibold text-neutral-900">Halo, {employee.nama}</h1>
+        <p className="text-sm text-muted-foreground">{formattedToday}</p>
+        <h1 className="text-2xl font-semibold text-foreground">Halo, {employee.nama}</h1>
       </div>
       <ClockPanel
         todaysAttendance={todaysAttendance}
