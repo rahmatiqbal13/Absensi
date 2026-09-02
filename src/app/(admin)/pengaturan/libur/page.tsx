@@ -1,7 +1,16 @@
 import { redirect } from "next/navigation";
+import { CalendarOff } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { PageHeader } from "@/components/page-header";
+import { FilterBar } from "@/components/filter-bar";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { EmptyState } from "@/components/empty-state";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HolidayForm } from "./holiday-form";
+import { YearFilter } from "./year-filter";
 import { addHoliday, deleteHoliday } from "./actions";
 
 const fmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "full", timeZone: "Asia/Jakarta" });
@@ -30,45 +39,63 @@ export default async function LiburPage({
     "use server";
     const res = await deleteHoliday(id);
     if (!res.ok) console.error("LiburPage: deleteHoliday failed", res.error);
+    return res;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Hari Libur {tahun}</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Dipakai payroll untuk menghitung hari kerja efektif.
-        </p>
-      </div>
+      <PageHeader
+        title={`Hari Libur ${tahun}`}
+        description="Dipakai payroll untuk menghitung hari kerja efektif."
+      />
 
-      <HolidayForm branches={branches ?? []} addHoliday={addHoliday} />
+      <FilterBar>
+        <YearFilter tahun={tahun} />
+      </FilterBar>
 
-      {error && <p className="text-sm text-red-600">Gagal memuat daftar libur.</p>}
-      {!error && (!holidays || holidays.length === 0) && (
-        <p className="text-sm text-neutral-500">Belum ada libur tercatat untuk {tahun}.</p>
-      )}
+      <Card>
+        <CardContent>
+          <HolidayForm branches={branches ?? []} addHoliday={addHoliday} />
+        </CardContent>
+      </Card>
 
-      {holidays && holidays.length > 0 && (
-        <ul className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white text-sm">
-          {holidays.map((h) => (
-            <li key={h.id} className="flex items-center justify-between px-4 py-2">
-              <span>
-                <span className="font-medium">{h.nama}</span>{" "}
-                <span className="text-neutral-500">
-                  · {fmt.format(new Date(`${h.tanggal}T00:00:00Z`))}
-                  {(h.branches as unknown as { nama: string } | null)?.nama
-                    ? ` · ${(h.branches as unknown as { nama: string }).nama}`
-                    : " · Nasional"}
-                </span>
-              </span>
-              <form action={remove.bind(null, h.id)}>
-                <button type="submit" className="text-xs text-red-600 hover:underline">
-                  Hapus
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat daftar libur.</AlertDescription>
+        </Alert>
+      ) : (
+        <ResponsiveTable
+          columns={[
+            {
+              key: "tanggal",
+              header: "Tanggal",
+              cell: (h) => fmt.format(new Date(`${h.tanggal}T00:00:00Z`)),
+            },
+            { key: "nama", header: "Nama", mobileLabel: "Nama", cell: (h) => h.nama },
+            {
+              key: "cakupan",
+              header: "Cakupan",
+              mobileLabel: "Cakupan",
+              cell: (h) => (h.branches as unknown as { nama: string } | null)?.nama ?? "Nasional",
+            },
+            {
+              key: "aksi",
+              header: "Aksi",
+              align: "right",
+              cell: (h) => (
+                <ConfirmDeleteButton
+                  action={() => remove(h.id)}
+                  title="Hapus hari libur?"
+                  description={`"${h.nama}" pada ${fmt.format(new Date(`${h.tanggal}T00:00:00Z`))} akan dihapus.`}
+                />
+              ),
+            },
+          ]}
+          rows={holidays ?? []}
+          rowKey={(h) => h.id}
+          caption={`Daftar hari libur ${tahun}`}
+          emptyState={<EmptyState icon={CalendarOff} message={`Belum ada libur tercatat untuk ${tahun}.`} />}
+        />
       )}
     </div>
   );

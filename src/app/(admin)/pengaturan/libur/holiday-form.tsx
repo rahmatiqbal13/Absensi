@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -32,44 +37,30 @@ export function HolidayForm({
     <form action={action} className="flex flex-wrap items-end gap-3">
       {/* No HTML `required` — jsdom/React 19 form-action tests submit these empty;
           addHoliday() validates server-side (ISO date + non-empty nama). */}
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Tanggal
-        <input
-          name="tanggal"
-          type="date"
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Nama Libur
-        <input
-          name="nama"
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Cakupan
-        <select
-          name="branchId"
-          defaultValue=""
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
-        >
+      <Field id="tanggal" label="Tanggal">
+        <Input name="tanggal" type="date" className="w-44" />
+      </Field>
+      <Field id="nama" label="Nama Libur">
+        <Input name="nama" />
+      </Field>
+      <Field id="branchId" label="Cakupan">
+        <NativeSelect name="branchId" defaultValue="" className="w-48">
           <option value="">Nasional</option>
           {branches.map((b) => (
             <option key={b.id} value={b.id}>
               {b.nama}
             </option>
           ))}
-        </select>
-      </label>
-      <button
-        type="submit"
-        disabled={busy}
-        className="min-h-10 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-      >
+        </NativeSelect>
+      </Field>
+      <Button type="submit" disabled={busy}>
         Tambah
-      </button>
-      {error && <p className="w-full text-sm text-red-600">{error}</p>}
+      </Button>
+      {error && (
+        <Alert variant="destructive" className="w-full">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </form>
   );
 }
