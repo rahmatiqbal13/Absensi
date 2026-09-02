@@ -3,6 +3,10 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { monthLabel } from "@/lib/format/month";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Download, ReceiptText } from "lucide-react";
 
 export default async function SlipGajiPage() {
   const db = await createServerSupabaseClient();
@@ -34,38 +38,41 @@ export default async function SlipGajiPage() {
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-4 pt-8">
-      <h1 className="text-2xl font-semibold text-neutral-900">Slip Gaji</h1>
+      <h1 className="text-2xl font-semibold text-foreground">Slip Gaji</h1>
 
-      {error && <p className="text-sm text-red-600">Gagal memuat slip gaji.</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>Gagal memuat slip gaji.</AlertDescription>
+        </Alert>
+      )}
       {!error && rows.length === 0 && (
-        <p className="text-sm text-neutral-500">
-          Belum ada slip gaji yang difinalisasi.
-        </p>
+        <EmptyState icon={ReceiptText} message="Belum ada slip gaji yang difinalisasi." />
       )}
 
-      <ul className="divide-y divide-neutral-200">
-        {rows.map((s) => {
-          const p = s.payroll_periods as unknown as { bulan: number; tahun: number };
-          return (
-            <li key={s.id} className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium text-neutral-900">
-                  {monthLabel(p.bulan)} {p.tahun}
-                </p>
-                <p className="text-sm text-neutral-500">
-                  {formatRupiah(Number(s.gaji_akhir))}
-                </p>
-              </div>
-              <a
-                href={`/slip-gaji/${s.id}/pdf`}
-                className="flex min-h-11 items-center rounded border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800"
-              >
-                Unduh PDF
-              </a>
-            </li>
-          );
-        })}
-      </ul>
+      {rows.length > 0 && (
+        <ul className="divide-y divide-border">
+          {rows.map((s) => {
+            const p = s.payroll_periods as unknown as { bulan: number; tahun: number };
+            return (
+              <li key={s.id} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {monthLabel(p.bulan)} {p.tahun}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatRupiah(Number(s.gaji_akhir))}
+                  </p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/slip-gaji/${s.id}/pdf`}>
+                    <Download className="size-4" /> Unduh PDF
+                  </a>
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </main>
   );
 }
