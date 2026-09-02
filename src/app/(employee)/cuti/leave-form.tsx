@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
 
 const JENIS_OPTIONS = [
   { value: "tahunan", label: "Cuti Tahunan" },
@@ -17,9 +24,6 @@ const JENIS_OPTIONS = [
 ];
 
 type ActionResult = { ok: true } | { ok: false; error: string };
-
-const inputClasses =
-  "w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-base text-neutral-900 outline-none transition-colors focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20";
 
 export function LeaveForm({
   submitLeave,
@@ -44,57 +48,40 @@ export function LeaveForm({
   }
 
   return (
-    <form
-      action={handleSubmit}
-      className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]"
-    >
-      <div className="space-y-1">
-        <label htmlFor="jenis" className="text-sm font-medium text-neutral-700">
-          Jenis Cuti
-        </label>
-        <select id="jenis" name="jenis" required className={inputClasses}>
-          {JENIS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="space-y-1">
-        <label htmlFor="tanggalMulai" className="text-sm font-medium text-neutral-700">
-          Tanggal Mulai
-        </label>
-        <input id="tanggalMulai" name="tanggalMulai" type="date" className={inputClasses} />
-      </div>
-      <div className="space-y-1">
-        <label htmlFor="tanggalSelesai" className="text-sm font-medium text-neutral-700">
-          Tanggal Selesai
-        </label>
-        <input id="tanggalSelesai" name="tanggalSelesai" type="date" className={inputClasses} />
-      </div>
-      <div className="space-y-1">
-        <label htmlFor="alasan" className="text-sm font-medium text-neutral-700">
-          Alasan
-        </label>
-        <textarea id="alasan" name="alasan" rows={3} className={inputClasses} />
-      </div>
-      {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          Pengajuan cuti berhasil dikirim.
-        </p>
-      )}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none"
-      >
-        Ajukan
-      </button>
-    </form>
+    <Card>
+      <CardContent>
+        <form action={handleSubmit} className="space-y-4">
+          <Field id="jenis" label="Jenis Cuti">
+            <NativeSelect name="jenis" required>
+              {JENIS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field id="tanggalMulai" label="Tanggal Mulai">
+            <Input name="tanggalMulai" type="date" />
+          </Field>
+          <Field id="tanggalSelesai" label="Tanggal Selesai">
+            <Input name="tanggalSelesai" type="date" />
+          </Field>
+          <Field id="alasan" label="Alasan">
+            <Textarea name="alasan" rows={3} />
+          </Field>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {success && (
+            <Alert>
+              <AlertDescription>Pengajuan cuti berhasil dikirim.</AlertDescription>
+            </Alert>
+          )}
+          <Button type="submit" disabled={submitting} className="w-full">
+            Ajukan
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
