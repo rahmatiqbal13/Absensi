@@ -63,7 +63,7 @@ export default async function SlipGajiPage() {
                     {formatRupiah(Number(s.gaji_akhir))}
                   </p>
                 </div>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="min-h-11">
                   <a href={`/slip-gaji/${s.id}/pdf`}>
                     <Download className="size-4" /> Unduh PDF
                   </a>

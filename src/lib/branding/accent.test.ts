@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveAccent, contrastRatio, accentWarning, normalizeHex } from "./accent";
+import { deriveAccent, deriveAccentDark, contrastRatio, accentWarning, normalizeHex } from "./accent";
 
 describe("normalizeHex", () => {
   it("upper-cases and keeps the hash", () => {
@@ -36,6 +36,23 @@ describe("deriveAccent", () => {
   });
   it("normalizes the input", () => {
     expect(deriveAccent("#2563eb").primary).toBe("#2563EB");
+  });
+});
+
+describe("deriveAccentDark", () => {
+  it("passes a light accent through unchanged", () => {
+    expect(deriveAccentDark("#FCD34D").primary).toBe("#FCD34D");
+  });
+  it("lightens a dark accent until it reads on the dark surface", () => {
+    const d = deriveAccentDark("#1E3A5F"); // navy
+    expect(d.primary).not.toBe("#1E3A5F");
+    expect(contrastRatio(d.primary, "#1C1C1C")).toBeGreaterThanOrEqual(4.5);
+  });
+  it("gives a lightened accent a dark foreground", () => {
+    expect(deriveAccentDark("#1B4332").primaryForeground).toBe("#0A0A0A");
+  });
+  it("normalizes its input", () => {
+    expect(deriveAccentDark("#fcd34d").primary).toBe("#FCD34D");
   });
 });
 

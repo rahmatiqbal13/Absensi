@@ -5,17 +5,29 @@ import { join } from "node:path";
 
 const APP_DIR = join(process.cwd(), "src", "app");
 
+const ROOTS = [
+  { label: "src/app", dir: join(process.cwd(), "src", "app"), exclude: undefined as RegExp | undefined },
+  {
+    label: "src/components",
+    dir: join(process.cwd(), "src", "components"),
+    exclude: /^ui\//,
+  },
+];
+
 // Deliberate exception: brand-preview.tsx renders literal light/dark preview
 // swatches (bg-white + `dark bg-neutral-950`) so a super_admin sees their accent
 // on both backgrounds regardless of the current theme.
 const ALLOWLIST = new Set(["(admin)/pengaturan/instansi/brand-preview.tsx"]);
 
+const GRAYS = "neutral|gray|slate|zinc|stone";
 const BANNED: [RegExp, string][] = [
-  [/\btext-neutral-[3-9]00\b/, "text-neutral-[3-9]00"],
-  [/\bbg-neutral-\d/, "bg-neutral-*"],
-  [/\bborder-neutral-\d/, "border-neutral-*"],
-  [/\bdivide-neutral-\d/, "divide-neutral-*"],
+  [new RegExp(`\\btext-(?:${GRAYS})-[1-9]00\\b`), "text-<gray>-N00"],
+  [new RegExp(`\\bbg-(?:${GRAYS})-\\d`), "bg-<gray>-*"],
+  [new RegExp(`\\bborder-(?:${GRAYS})-\\d`), "border-<gray>-*"],
+  [new RegExp(`\\bdivide-(?:${GRAYS})-\\d`), "divide-<gray>-*"],
   [/\bbg-white\b/, "bg-white"],
+  [/\btext-white\b/, "text-white"],
+  [/\bbg-black\b/, "bg-black"],
   [/\bbg-blue-\d/, "bg-blue-*"],
   [/\btext-blue-\d/, "text-blue-*"],
   [/\bhover:(?:bg|border)-blue-\d/, "hover:*-blue-*"],
@@ -36,19 +48,20 @@ function walk(dir: string, rel = ""): string[] {
   return out;
 }
 
-describe("no legacy Tailwind classes in src/app", () => {
-  const files = walk(APP_DIR);
-
+describe("no legacy Tailwind classes", () => {
   it("has no banned class in any non-test file", () => {
     const violations: string[] = [];
-    for (const rel of files) {
-      if (ALLOWLIST.has(rel)) continue;
-      const lines = readFileSync(join(APP_DIR, rel), "utf8").split("\n");
-      lines.forEach((line, i) => {
-        for (const [re, name] of BANNED) {
-          if (re.test(line)) violations.push(`src/app/${rel}:${i + 1} — matched "${name}"`);
-        }
-      });
+    for (const { label, dir, exclude } of ROOTS) {
+      for (const rel of walk(dir)) {
+        if (exclude && exclude.test(rel)) continue;
+        if (label === "src/app" && ALLOWLIST.has(rel)) continue;
+        const lines = readFileSync(join(dir, rel), "utf8").split("\n");
+        lines.forEach((line, i) => {
+          for (const [re, name] of BANNED) {
+            if (re.test(line)) violations.push(`${label}/${rel}:${i + 1} — matched "${name}"`);
+          }
+        });
+      }
     }
     expect(violations).toEqual([]);
   });

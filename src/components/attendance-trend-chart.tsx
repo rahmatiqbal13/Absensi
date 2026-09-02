@@ -55,7 +55,7 @@ export function AttendanceTrendChart({ data }: { data: MonthlyTrendPoint[] }) {
             contentStyle={{
               borderRadius: 8,
               border: "1px solid var(--border)",
-              background: "var(--popover)",
+              backgroundColor: "var(--popover)",
               color: "var(--popover-foreground)",
               fontSize: 12,
             }}

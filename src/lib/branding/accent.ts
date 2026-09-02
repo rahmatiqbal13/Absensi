@@ -39,6 +39,36 @@ export function deriveAccent(hex: string): DerivedAccent {
   return { primary, primaryForeground, ring: primary };
 }
 
+// Approximates the .dark theme surface (--background: oklch(0.145 0 0)).
+const DARK_SURFACE = "#1C1C1C";
+
+function mixToward(hex: string, target: string, t: number): string {
+  const a = normalizeHex(hex);
+  const b = normalizeHex(target);
+  const ch = (start: number) => {
+    const av = parseInt(a.slice(start, start + 2), 16);
+    const bv = parseInt(b.slice(start, start + 2), 16);
+    return Math.round(av * (1 - t) + bv * t)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${ch(1)}${ch(3)}${ch(5)}`.toUpperCase();
+}
+
+// For the .dark theme: lighten the tenant accent toward white until it clears
+// 4.5:1 against the dark surface, so the primary button + ring stay visible.
+// A light accent already clears it and passes through unchanged.
+export function deriveAccentDark(hex: string): DerivedAccent {
+  let primary = normalizeHex(hex);
+  for (let i = 0; i < 12 && contrastRatio(primary, DARK_SURFACE) < 4.5; i++) {
+    primary = mixToward(primary, WHITE, 0.15);
+  }
+  const onWhite = contrastRatio(primary, WHITE);
+  const onBlack = contrastRatio(primary, NEAR_BLACK);
+  const primaryForeground = onWhite >= onBlack ? WHITE : NEAR_BLACK;
+  return { primary, primaryForeground, ring: primary };
+}
+
 export function accentWarning(hex: string): string | null {
   const best = Math.max(contrastRatio(hex, WHITE), contrastRatio(hex, NEAR_BLACK));
   return best < 4.5
