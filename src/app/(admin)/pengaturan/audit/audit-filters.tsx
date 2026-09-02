@@ -1,6 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { FilterBar } from "@/components/filter-bar";
+import { Field } from "@/components/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const AKSI_OPTIONS = [
   { value: "", label: "Semua aksi" },
@@ -36,54 +40,46 @@ export function AuditFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Dari
-        <input
+    <FilterBar>
+      <Field id="audit-dari" label="Dari">
+        <Input
           type="date"
           defaultValue={defaults.dari}
           onChange={(e) => pushWith({ dari: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          className="w-40"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Sampai
-        <input
+      </Field>
+      <Field id="audit-sampai" label="Sampai">
+        <Input
           type="date"
           defaultValue={defaults.sampai}
           onChange={(e) => pushWith({ sampai: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          className="w-40"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Karyawan
-        <select
+      </Field>
+      <Field id="audit-target" label="Karyawan">
+        <NativeSelect
           defaultValue={defaults.target ?? ""}
           onChange={(e) => pushWith({ target: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          className="w-48"
         >
           <option value="">Semua</option>
           {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.nama}
-            </option>
+            <option key={e.id} value={e.id}>{e.nama}</option>
           ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-700">
-        Aksi
-        <select
+        </NativeSelect>
+      </Field>
+      <Field id="audit-aksi" label="Aksi">
+        <NativeSelect
           defaultValue={defaults.aksi ?? ""}
           onChange={(e) => pushWith({ aksi: e.target.value })}
-          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          className="w-48"
         >
           {AKSI_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-        </select>
-      </label>
-    </div>
+        </NativeSelect>
+      </Field>
+    </FilterBar>
   );
 }
