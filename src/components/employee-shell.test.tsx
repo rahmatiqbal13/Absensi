@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/absen" }));
+vi.mock("@/components/theme-toggle", () => ({
+  ThemeToggle: () => <button aria-label="Ubah tema">tema</button>,
+}));
 
 import { EmployeeShell } from "./employee-shell";
 
@@ -35,5 +38,10 @@ describe("EmployeeShell", () => {
     expect(screen.getByText("Brand")).toBeInTheDocument();
     expect(screen.getByText("konten halaman")).toBeInTheDocument();
     expect(screen.getByText("footer")).toBeInTheDocument();
+  });
+
+  it("renders the theme toggle in the header", () => {
+    renderShell();
+    expect(screen.getByRole("button", { name: /ubah tema/i })).toBeInTheDocument();
   });
 });

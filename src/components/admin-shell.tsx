@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -170,6 +171,7 @@ export function AdminShell({
             </SheetContent>
           </Sheet>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <UserMenu employee={employee} avatarUrl={avatarUrl} />
           </div>
         </header>

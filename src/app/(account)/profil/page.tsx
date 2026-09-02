@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { SignOutButton } from "@/components/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -69,6 +70,11 @@ export default async function ProfilPage() {
 
       <div className="border-t border-border pt-4">
         <SignOutButton className="w-full justify-center rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted sm:w-auto" />
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border pt-4">
+        <span className="text-sm text-foreground">Tema</span>
+        <ThemeToggle />
       </div>
     </div>
   );

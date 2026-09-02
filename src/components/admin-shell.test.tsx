@@ -11,6 +11,9 @@ vi.mock("@/components/ui/avatar", () => ({
   AvatarImage: (p: Record<string, unknown>) => <img {...p} alt="Foto profil" />,
   AvatarFallback: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }));
+vi.mock("@/components/theme-toggle", () => ({
+  ThemeToggle: () => <button aria-label="Ubah tema">tema</button>,
+}));
 
 import { AdminShell } from "./admin-shell";
 import * as actionsModule from "@/app/(auth)/actions";
@@ -88,6 +91,11 @@ describe("AdminShell", () => {
     renderShell("hr_admin");
     expect(screen.getByText("BS")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("renders the theme toggle in the topbar", () => {
+    renderShell("hr_admin");
+    expect(screen.getByRole("button", { name: /ubah tema/i })).toBeInTheDocument();
   });
 
   it("opens the mobile nav sheet", async () => {
