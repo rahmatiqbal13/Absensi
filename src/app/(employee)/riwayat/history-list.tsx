@@ -1,4 +1,7 @@
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
+import { EmptyState } from "@/components/empty-state";
+import { ClipboardList } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import type { AttendanceStatus } from "@/lib/attendance/status";
 
 export type AttendanceRecord = {
@@ -39,32 +42,29 @@ function formatDate(dateOnly: string): string {
 
 export function HistoryList({ records }: { records: AttendanceRecord[] }) {
   if (records.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center">
-        <p className="text-sm text-neutral-500">Belum ada riwayat absensi.</p>
-      </div>
-    );
+    return <EmptyState icon={ClipboardList} message="Belum ada riwayat absensi." />;
   }
 
   return (
     <ul className="flex flex-col gap-2">
       {records.map((record) => (
-        <li
-          key={record.tanggal}
-          className="flex flex-col gap-1.5 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-neutral-900">{formatDate(record.tanggal)}</span>
-            <AttendanceStatusBadge status={record.status} />
-          </div>
-          <span className="text-sm text-neutral-500">
-            {formatTime(record.jamMasuk)} – {formatTime(record.jamPulang)}
-          </span>
-          {record.catatan && (
-            <span className="rounded-lg bg-neutral-50 px-2.5 py-1.5 text-sm text-neutral-600">
-              {record.catatan}
-            </span>
-          )}
+        <li key={record.tanggal}>
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-foreground">{formatDate(record.tanggal)}</span>
+                <AttendanceStatusBadge status={record.status} />
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {formatTime(record.jamMasuk)} – {formatTime(record.jamPulang)}
+              </span>
+              {record.catatan && (
+                <p className="rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">
+                  {record.catatan}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </li>
       ))}
     </ul>

@@ -27,7 +27,7 @@ export default async function RiwayatPage() {
 
   return (
     <main className="mx-auto max-w-md p-4 pt-8">
-      <h1 className="mb-4 text-2xl font-semibold text-neutral-900">Riwayat Absensi</h1>
+      <h1 className="mb-4 text-2xl font-semibold text-foreground">Riwayat Absensi</h1>
       <HistoryList records={records} />
     </main>
   );
