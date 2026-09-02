@@ -143,7 +143,7 @@ Keep the guard, role check, `branches` + `departments` queries, and the inline `
 - `<PageHeader title="Departemen" description="Kelompokkan karyawan per departemen di tiap cabang." />`.
 - `<Card><CardContent><DepartmentForm branches={branches ?? []} addDepartment={addDepartment} /></CardContent></Card>`.
 - `error` → `<Alert variant="destructive">`. List → `<ResponsiveTable>`:
-  - columns: **Nama** (first), **Cabang** (`(d.branches as unknown as { nama: string } | null)?.nama ?? "-"`, `mobileLabel: "Cabang"`), **Aksi** (`align: "right"`, `cell`: `<ConfirmDeleteButton action={() => remove(d.id)} title="Hapus departemen?" description={\`Departemen "${d.nama}" akan dihapus. Karyawan di dalamnya tidak ikut terhapus.\`} />`).
+  - columns: **Nama** (first), **Cabang** (`(d.branches as unknown as { nama: string } | null)?.nama ?? "-"`, `mobileLabel: "Cabang"`), **Aksi** (`align: "right"`, `cell`: `<ConfirmDeleteButton action={remove.bind(null, d.id)} title="Hapus departemen?" description={\`Departemen "${d.nama}" akan dihapus. Karyawan di dalamnya tidak ikut terhapus.\`} />`).
   - `rowKey={(d) => d.id}`, `caption="Daftar departemen"`, `emptyState={<EmptyState icon={Network} message="Belum ada departemen." />}`.
 - The inline `remove` must return the `Result` so `<ConfirmDeleteButton>` can toast on failure. Current `remove` returns `void` + `console.error`s — change it to `return res;` (still `console.error` on `!res.ok`). This is a page-local server action, not a shared action — the change is allowed (it's presentation wiring, not a contract change).
 
@@ -183,7 +183,7 @@ Keep the guard, role check, the `tahun` param, `branches` + `holidays` queries, 
 - `<FilterBar>` with one field: `<Field id="tahun" label="Tahun">` + `<NativeSelect defaultValue={tahun} onChange={(e) => router.push(\`/pengaturan/libur?tahun=${e.target.value}\`)}>` with options for `currentYear - 2 .. currentYear + 1`. This makes the page need a small `"use client"` `<YearFilter>` sub-component (the page is a server component) — create `src/app/(admin)/pengaturan/libur/year-filter.tsx` (`{ tahun: string }`, uses `useRouter`).
 - `<Card><CardContent><HolidayForm branches={branches ?? []} addHoliday={addHoliday} /></CardContent></Card>`.
 - `error` → `<Alert variant="destructive">`. List → `<ResponsiveTable>`:
-  - columns: **Tanggal** (first — `fmt.format(new Date(\`${h.tanggal}T00:00:00Z\`))`), **Nama** (`mobileLabel: "Nama"`), **Cakupan** (`(h.branches as unknown as { nama: string } | null)?.nama ?? "Nasional"`, `mobileLabel: "Cakupan"`), **Aksi** (`align: "right"`, `<ConfirmDeleteButton action={() => remove(h.id)} title="Hapus hari libur?" description={\`"${h.nama}" pada ${fmt.format(...)} akan dihapus.\`} />`).
+  - columns: **Tanggal** (first — `fmt.format(new Date(\`${h.tanggal}T00:00:00Z\`))`), **Nama** (`mobileLabel: "Nama"`), **Cakupan** (`(h.branches as unknown as { nama: string } | null)?.nama ?? "Nasional"`, `mobileLabel: "Cakupan"`), **Aksi** (`align: "right"`, `<ConfirmDeleteButton action={remove.bind(null, h.id)} title="Hapus hari libur?" description={\`"${h.nama}" pada ${fmt.format(...)} akan dihapus.\`} />`).
   - `rowKey={(h) => h.id}`, `caption={\`Daftar hari libur ${tahun}\`}`, `emptyState={<EmptyState icon={CalendarOff} message={\`Belum ada libur tercatat untuk ${tahun}.\`} />}`.
 
 ### 8.1 `holiday-form.tsx`

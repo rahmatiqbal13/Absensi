@@ -26,7 +26,8 @@ export default async function LiburPage({
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const tahun = sp.tahun ?? String(new Date().getFullYear());
+  const rawTahun = sp.tahun ?? String(new Date().getFullYear());
+  const tahun = /^\d{4}$/.test(rawTahun) ? rawTahun : String(new Date().getFullYear());
   const { data: branches } = await db.from("branches").select("id, nama").order("nama");
   const { data: holidays, error } = await db
     .from("holidays")
@@ -84,7 +85,7 @@ export default async function LiburPage({
               align: "right",
               cell: (h) => (
                 <ConfirmDeleteButton
-                  action={() => remove(h.id)}
+                  action={remove.bind(null, h.id)}
                   title="Hapus hari libur?"
                   description={`"${h.nama}" pada ${fmt.format(new Date(`${h.tanggal}T00:00:00Z`))} akan dihapus.`}
                 />

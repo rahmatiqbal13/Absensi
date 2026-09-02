@@ -62,7 +62,7 @@ export default async function DepartemenPage() {
               align: "right",
               cell: (d) => (
                 <ConfirmDeleteButton
-                  action={() => remove(d.id)}
+                  action={remove.bind(null, d.id)}
                   title="Hapus departemen?"
                   description={`Departemen "${d.nama}" akan dihapus. Karyawan di dalamnya tidak ikut terhapus.`}
                 />

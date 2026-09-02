@@ -58,14 +58,14 @@ export default async function PengaturanPage() {
       <PageHeader title="Pengaturan" description="Konfigurasi dan status sistem." />
 
       {superAdminCount === null ? (
-        <Alert variant="destructive">
+        <Alert>
           <AlertDescription>
             Tidak dapat memeriksa jumlah Super Admin aktif saat ini. Silakan muat ulang halaman.
           </AlertDescription>
         </Alert>
       ) : (
         superAdminCount < 2 && (
-          <Alert variant="destructive">
+          <Alert variant="warning">
             <AlertTriangle className="size-4" />
             <AlertDescription>
               Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2

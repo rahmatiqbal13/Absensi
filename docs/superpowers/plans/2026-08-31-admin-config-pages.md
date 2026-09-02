@@ -940,7 +940,7 @@ Replace the JSX:
               align: "right",
               cell: (d) => (
                 <ConfirmDeleteButton
-                  action={() => remove(d.id)}
+                  action={remove.bind(null, d.id)}
                   title="Hapus departemen?"
                   description={`Departemen "${d.nama}" akan dihapus. Karyawan di dalamnya tidak ikut terhapus.`}
                 />
@@ -1233,7 +1233,7 @@ Replace the JSX:
               align: "right",
               cell: (h) => (
                 <ConfirmDeleteButton
-                  action={() => remove(h.id)}
+                  action={remove.bind(null, h.id)}
                   title="Hapus hari libur?"
                   description={`"${h.nama}" pada ${fmt.format(new Date(`${h.tanggal}T00:00:00Z`))} akan dihapus.`}
                 />

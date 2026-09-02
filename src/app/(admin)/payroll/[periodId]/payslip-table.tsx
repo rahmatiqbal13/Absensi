@@ -39,6 +39,7 @@ export function PayslipTable({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
 
   async function run(action: () => Promise<ActionResult>): Promise<boolean> {
     setError(null);
@@ -78,7 +79,7 @@ export function PayslipTable({
             {rows.length ? "Regenerate" : "Generate"}
           </Button>
           {rows.length > 0 && (
-            <AlertDialog>
+            <AlertDialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
               <AlertDialogTrigger asChild>
                 <Button type="button" variant="default" disabled={busy}>Finalisasi</Button>
               </AlertDialogTrigger>
@@ -93,7 +94,10 @@ export function PayslipTable({
                   <AlertDialogCancel>Batal</AlertDialogCancel>
                   <AlertDialogAction
                     disabled={busy}
-                    onClick={(e) => { e.preventDefault(); void run(onFinalize); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void run(onFinalize).then(() => setFinalizeOpen(false));
+                    }}
                   >
                     Finalisasi
                   </AlertDialogAction>
@@ -114,6 +118,7 @@ export function PayslipTable({
           {/* desktop */}
           <div className="hidden md:block">
             <Table>
+              <caption className="sr-only">Slip gaji periode ini</caption>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama</TableHead>

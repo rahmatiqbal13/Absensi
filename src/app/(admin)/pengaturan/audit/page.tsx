@@ -97,7 +97,9 @@ export default async function AuditPage({
               key: "detail",
               header: "Detail",
               align: "right",
-              cell: (r) => <AuditDetailPopover detail={r.detail} />,
+              cell: (r) => (
+                <AuditDetailPopover detail={r.detail} label={fmt.format(new Date(r.waktu))} />
+              ),
             },
           ]}
           rows={rows ?? []}
