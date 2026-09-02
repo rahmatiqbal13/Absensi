@@ -21,9 +21,10 @@ const COLOR_TERLAMBAT = "#eb6834"; // categorical slot 2 (orange)
 
 // Chrome tokens from the same reference: hairline gridlines/axis one step
 // off the chart surface, muted ink for axis ticks — recessive by design so
-// the two lines stay the only loud thing on the chart.
-const COLOR_GRID = "#e1e0d9";
-const COLOR_AXIS = "#898781";
+// the two lines stay the only loud thing on the chart. These chrome vars are
+// theme-reactive via CSS custom properties.
+const COLOR_GRID = "var(--chart-grid)";
+const COLOR_AXIS = "var(--chart-axis)";
 
 function formatDayLabel(dateStr: string) {
   // "2026-10-07" -> "07"; keeps the x-axis to a compact day-of-month tick.
@@ -53,15 +54,18 @@ export function AttendanceTrendChart({ data }: { data: MonthlyTrendPoint[] }) {
           <Tooltip
             contentStyle={{
               borderRadius: 8,
-              border: "1px solid #e1e0d9",
+              border: "1px solid var(--border)",
+              background: "var(--popover)",
+              color: "var(--popover-foreground)",
               fontSize: 12,
             }}
+            labelStyle={{ color: "var(--foreground)" }}
           />
           <Legend
             verticalAlign="top"
             align="right"
             iconType="line"
-            wrapperStyle={{ fontSize: 12, color: "#52514e" }}
+            wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }}
           />
           <Line
             type="monotone"
@@ -69,8 +73,8 @@ export function AttendanceTrendChart({ data }: { data: MonthlyTrendPoint[] }) {
             name="Hadir"
             stroke={COLOR_HADIR}
             strokeWidth={2}
-            dot={{ r: 4, fill: COLOR_HADIR, strokeWidth: 2, stroke: "#fcfcfb" }}
-            activeDot={{ r: 6, strokeWidth: 2, stroke: "#fcfcfb" }}
+            dot={{ r: 4, fill: COLOR_HADIR, strokeWidth: 2, stroke: "var(--chart-dot-halo)" }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: "var(--chart-dot-halo)" }}
           />
           <Line
             type="monotone"
@@ -78,8 +82,8 @@ export function AttendanceTrendChart({ data }: { data: MonthlyTrendPoint[] }) {
             name="Terlambat"
             stroke={COLOR_TERLAMBAT}
             strokeWidth={2}
-            dot={{ r: 4, fill: COLOR_TERLAMBAT, strokeWidth: 2, stroke: "#fcfcfb" }}
-            activeDot={{ r: 6, strokeWidth: 2, stroke: "#fcfcfb" }}
+            dot={{ r: 4, fill: COLOR_TERLAMBAT, strokeWidth: 2, stroke: "var(--chart-dot-halo)" }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: "var(--chart-dot-halo)" }}
           />
         </LineChart>
       </ResponsiveContainer>

@@ -28,6 +28,9 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --chart-grid: #e1e0d9;
+  --chart-axis: #898781;
+  --chart-dot-halo: #fcfcfb;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -111,6 +114,9 @@ body {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --chart-grid: oklch(1 0 0 / 12%);
+  --chart-axis: oklch(0.708 0 0);
+  --chart-dot-halo: oklch(0.205 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
