@@ -1,3 +1,7 @@
+import { MapPin } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { acceptConsent } from "./actions";
 
 // The `error` query param is attacker-controllable (anyone can hand an employee
@@ -15,41 +19,28 @@ export default async function ConsentPage({
   const { error } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-50 p-6">
-      <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
-        <svg
-          aria-hidden="true"
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="text-blue-600"
-        >
-          <path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11Z" />
-          <circle cx="12" cy="10" r="2.5" />
-        </svg>
-        <h1 className="text-xl font-semibold text-neutral-900">Persetujuan Lokasi &amp; Foto</h1>
-        <p className="text-sm text-neutral-600">
-          Untuk mencatat absensi, aplikasi ini perlu mengakses lokasi GPS dan mengambil foto
-          selfie Anda saat clock-in dan clock-out. Data ini disimpan sesuai kebijakan privasi
-          perusahaan dan akan ditandai kedaluwarsa setelah 90 hari.
-        </p>
-        {errorMessage && (
-          <p className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-            {errorMessage}
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
+      <Card className="w-full max-w-sm">
+        <CardContent className="flex flex-col items-center gap-4 py-8 text-center">
+          <MapPin className="size-9 text-primary" aria-hidden="true" />
+          <h1 className="text-xl font-semibold text-foreground">Persetujuan Lokasi &amp; Foto</h1>
+          <p className="text-sm text-muted-foreground">
+            Untuk mencatat absensi, aplikasi ini perlu mengakses lokasi GPS dan mengambil foto
+            selfie Anda saat clock-in dan clock-out. Data ini disimpan sesuai kebijakan privasi
+            perusahaan dan akan ditandai kedaluwarsa setelah 90 hari.
           </p>
-        )}
-        <form action={acceptConsent} className="w-full">
-          <button
-            type="submit"
-            className="min-h-11 w-full rounded-lg bg-blue-600 px-6 py-3 text-base font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
-          >
-            Saya Setuju
-          </button>
-        </form>
-      </div>
+          {errorMessage && (
+            <Alert variant="destructive">
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+          <form action={acceptConsent} className="w-full">
+            <Button type="submit" size="lg" className="w-full">
+              Saya Setuju
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }
