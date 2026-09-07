@@ -28,3 +28,26 @@ export function isWithinRadius(
 ): boolean {
   return haversineDistanceMeters(lat1, lon1, lat2, lon2) <= radiusMeters;
 }
+
+export type GeofenceState = {
+  configured: boolean;
+  distanceMeters: number | null;
+  withinRadius: boolean;
+};
+
+export function geofenceState(
+  userLat: number,
+  userLng: number,
+  office: { lat: number; long: number },
+  radiusMeters: number,
+): GeofenceState {
+  if (office.lat === 0 && office.long === 0) {
+    return { configured: false, distanceMeters: null, withinRadius: false };
+  }
+  const distanceMeters = haversineDistanceMeters(userLat, userLng, office.lat, office.long);
+  return {
+    configured: true,
+    distanceMeters,
+    withinRadius: distanceMeters <= radiusMeters,
+  };
+}
