@@ -101,6 +101,7 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
   if (!isValidCoordinate(lat, long)) {
     return { ok: false, error: "Lokasi tidak valid." };
   }
+  const catatan = (formData.get("catatan") as string | null) ?? undefined;
   const photo = formData.get("photo");
   if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
@@ -119,5 +120,6 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
     long,
     photoPath: uploadResult.path,
     photoExpiresAt: uploadResult.expiresAt,
+    catatan,
   });
 }
