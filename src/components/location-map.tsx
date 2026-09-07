@@ -111,14 +111,17 @@ export function LocationMap({
     circleRef.current?.setRadius(radiusMeters);
   }, [radiusMeters]);
 
+  const uLat = userPosition?.lat;
+  const uLng = userPosition?.lng;
+
   useEffect(() => {
     if (!mapRef.current) return;
-    if (!userPosition) {
+    if (uLat === undefined || uLng === undefined) {
       userRef.current?.remove();
       userRef.current = null;
       return;
     }
-    const ll: L.LatLngExpression = [userPosition.lat, userPosition.lng];
+    const ll: L.LatLngExpression = [uLat, uLng];
     if (userRef.current) {
       userRef.current.setLatLng(ll);
     } else {
@@ -130,8 +133,7 @@ export function LocationMap({
         fillOpacity: 1,
       }).addTo(mapRef.current);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPosition?.lat, userPosition?.lng]);
+  }, [uLat, uLng]);
 
   return (
     <div
