@@ -140,6 +140,24 @@ describe("ClockPanel", () => {
     expect(formData.get("catatan")).toBe("Dinas luar");
   });
 
+  it("stale reason (typed out-of-radius, then moved in-radius) is not sent as catatan", async () => {
+    renderPanel();
+    await pushGeo(OUT_OF_RADIUS);
+
+    const textarea = await screen.findByLabelText(/alasan/i);
+    fireEvent.change(textarea, { target: { value: "Dinas luar" } });
+
+    // User moves into radius before submitting; textarea hides, reason goes stale.
+    await pushGeo(IN_RADIUS);
+    attachPhoto();
+
+    fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+    await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+
+    const formData = mockSubmitClockIn.mock.calls[0][0] as FormData;
+    expect(formData.has("catatan")).toBe(false);
+  });
+
   it("in-radius clock-in omits catatan entirely", async () => {
     renderPanel();
     await pushGeo(IN_RADIUS);

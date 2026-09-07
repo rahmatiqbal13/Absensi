@@ -114,7 +114,7 @@ export function ClockPanel({
       formData.set("long", String(position.coords.longitude));
       if (photo) formData.set("photo", photo);
       const catatan = reason.trim();
-      if (catatan) formData.set("catatan", catatan);
+      if (catatan && reasonRequired) formData.set("catatan", catatan);
 
       const action = kind === "masuk" ? submitClockIn : submitClockOut;
       const result = await action(formData);

@@ -102,8 +102,8 @@ export function LocationForm({
             className={cn(
               "rounded-full px-2.5 py-0.5 text-xs font-medium",
               configured
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
             )}
           >
             {configured
