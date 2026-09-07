@@ -11,6 +11,7 @@ import {
   Network,
   Clock,
   CalendarOff,
+  MapPin,
   ScrollText,
   ChevronRight,
   AlertTriangle,
@@ -94,6 +95,8 @@ export default async function PengaturanPage() {
             desc="Kelompokkan karyawan per departemen di tiap cabang." />
           <HubCard href="/pengaturan/jadwal" icon={Clock} title="Jadwal Kerja"
             desc="Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." />
+          <HubCard href="/pengaturan/lokasi" icon={MapPin} title="Lokasi Kantor"
+            desc="Titik kantor & radius geofence untuk absensi per cabang." />
         </div>
       )}
     </div>
