@@ -8,12 +8,15 @@ import { Camera, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { BranchGeofence } from "./proximity-panel";
 
 export type TodaysAttendance = {
   jamMasuk: string;
   jamPulang: string | null;
   status: AttendanceStatus;
 } | null;
+
+export type WorkShift = { jamMasuk: string; toleransiMenit: number } | null;
 
 type ActionResult = { ok: true; status: AttendanceStatus } | { ok: false; error: string };
 
@@ -23,6 +26,10 @@ export function ClockPanel({
   submitClockOut,
 }: {
   todaysAttendance: TodaysAttendance;
+  // `office` and `shift` are threaded through from page.tsx now but consumed
+  // in Task 14 (ClockPanel rewrite: geofence-aware gating + ProximityPanel).
+  office?: BranchGeofence;
+  shift?: WorkShift;
   submitClockIn: (formData: FormData) => Promise<ActionResult>;
   submitClockOut: (formData: FormData) => Promise<ActionResult>;
 }) {
