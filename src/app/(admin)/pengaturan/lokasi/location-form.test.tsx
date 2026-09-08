@@ -57,6 +57,10 @@ describe("LocationForm", () => {
         branch={unconfigured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     expect(screen.getByText("Belum diatur")).toBeInTheDocument();
@@ -68,6 +72,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     expect(
@@ -81,6 +89,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     const save = screen.getByRole("button", { name: /simpan/i });
@@ -97,6 +109,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     fireEvent.change(screen.getByLabelText(/radius dalam meter/i), {
@@ -112,6 +128,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     fireEvent.click(
@@ -127,6 +147,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={vi.fn()}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     fireEvent.click(
@@ -144,6 +168,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={saveBranchLocation}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     fireEvent.change(screen.getByLabelText(/radius dalam meter/i), {
@@ -162,6 +190,10 @@ describe("LocationForm", () => {
         branch={configured}
         fallbackCenter={fallbackCenter}
         saveBranchLocation={saveBranchLocation}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={vi.fn()}
+        resetKioskKey={vi.fn()}
       />,
     );
     fireEvent.change(screen.getByLabelText(/radius dalam meter/i), {

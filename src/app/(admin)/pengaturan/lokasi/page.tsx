@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -5,7 +6,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { LocationForm, type BranchLocation } from "./location-form";
-import { saveBranchLocation } from "./actions";
+import { saveBranchLocation, setBranchQr, resetKioskKey } from "./actions";
 
 const JAKARTA = { lat: -6.2, lng: 106.816 };
 
@@ -15,20 +16,51 @@ export default async function LokasiPage() {
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
-  const { data: branches, error } = await db
+  // Migration 0031 (qr_enabled, kiosk_key) may not be applied yet: if selecting
+  // those columns errors, retry without them and treat QR as off per branch.
+  type BranchRow = {
+    id: string;
+    nama: string;
+    alamat: string | null;
+    lat: number;
+    long: number;
+    radius_geofencing_meter: number;
+    qr_enabled?: boolean | null;
+    kiosk_key?: string | null;
+  };
+  let branches: BranchRow[] | null = null;
+  const full = await db
     .from("branches")
-    .select("id, nama, alamat, lat, long, radius_geofencing_meter")
+    .select("id, nama, alamat, lat, long, radius_geofencing_meter, qr_enabled, kiosk_key")
     .order("nama");
-  if (error) console.error("lokasi: branches query failed", error);
+  if (full.error) {
+    console.error("lokasi: branches query failed (retrying without QR columns)", full.error);
+    const basic = await db
+      .from("branches")
+      .select("id, nama, alamat, lat, long, radius_geofencing_meter")
+      .order("nama");
+    if (basic.error) console.error("lokasi: branches query failed", basic.error);
+    branches = basic.data;
+  } else {
+    branches = full.data;
+  }
 
-  const rows: BranchLocation[] = (branches ?? []).map((b) => ({
-    id: b.id,
-    nama: b.nama,
-    alamat: b.alamat,
-    lat: b.lat,
-    long: b.long,
-    radius: b.radius_geofencing_meter,
-  }));
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("host");
+  const origin = host ? `${proto}://${host}` : "";
+
+  const rows: (BranchLocation & { qrEnabled: boolean; kioskUrl: string | null })[] =
+    (branches ?? []).map((b) => ({
+      id: b.id,
+      nama: b.nama,
+      alamat: b.alamat,
+      lat: b.lat,
+      long: b.long,
+      radius: b.radius_geofencing_meter,
+      qrEnabled: b.qr_enabled ?? false,
+      kioskUrl: b.kiosk_key && origin ? `${origin}/kiosk/${b.kiosk_key}` : null,
+    }));
 
   const configuredBranch = rows.find((r) => !(r.lat === 0 && r.long === 0));
   const fallbackCenter = configuredBranch
@@ -51,6 +83,10 @@ export default async function LokasiPage() {
               branch={b}
               fallbackCenter={fallbackCenter}
               saveBranchLocation={saveBranchLocation}
+              qrEnabled={b.qrEnabled}
+              kioskUrl={b.kioskUrl}
+              setBranchQr={setBranchQr}
+              resetKioskKey={resetKioskKey}
             />
           ))}
         </div>
