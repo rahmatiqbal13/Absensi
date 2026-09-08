@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Building,
   Building2,
   Network,
   Clock,
@@ -95,6 +96,8 @@ export default async function PengaturanPage() {
             desc="Kelompokkan karyawan per departemen di tiap cabang." />
           <HubCard href="/pengaturan/jadwal" icon={Clock} title="Jadwal Kerja"
             desc="Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." />
+          <HubCard href="/pengaturan/cabang" icon={Building} title="Cabang"
+            desc="Tambah, ubah nama/alamat, atau hapus kantor cabang." />
           <HubCard href="/pengaturan/lokasi" icon={MapPin} title="Lokasi Kantor"
             desc="Titik kantor & radius geofence untuk absensi per cabang." />
         </div>
