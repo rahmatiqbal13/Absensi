@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { haversineDistanceMeters, isWithinRadius, geofenceState } from "./geofencing";
+import {
+  haversineDistanceMeters,
+  isWithinRadius,
+  geofenceState,
+  isGeofenceConfigured,
+} from "./geofencing";
 
 describe("haversineDistanceMeters", () => {
   it("returns 0 for identical coordinates", () => {
@@ -36,6 +41,20 @@ describe("isWithinRadius", () => {
     // ~100m north of the branch
     const distance = haversineDistanceMeters(-6.2, 106.8, -6.2009, 106.8);
     expect(isWithinRadius(-6.2, 106.8, -6.2009, 106.8, Math.ceil(distance))).toBe(true);
+  });
+});
+
+describe("isGeofenceConfigured", () => {
+  it("returns false for the (0,0) placeholder", () => {
+    expect(isGeofenceConfigured({ lat: 0, long: 0 })).toBe(false);
+  });
+
+  it("returns true once real coordinates are set", () => {
+    expect(isGeofenceConfigured({ lat: -6.2, long: 106.8 })).toBe(true);
+  });
+
+  it("returns true when only one axis is non-zero", () => {
+    expect(isGeofenceConfigured({ lat: 0, long: 106.8 })).toBe(true);
   });
 });
 
