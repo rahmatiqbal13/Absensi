@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { cn } from "@/lib/utils";
@@ -48,55 +48,68 @@ export function LocationMap({
   const markerRef = useRef<L.Marker | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const userRef = useRef<L.CircleMarker | null>(null);
+  const [failed, setFailed] = useState(false);
   const onMarkerChangeRef = useRef(onMarkerChange);
   useEffect(() => {
     onMarkerChangeRef.current = onMarkerChange;
   }, [onMarkerChange]);
 
-  // Init once.
+  // Init once. Wrapped in try/catch: a Leaflet failure (bad tile host, missing
+  // marker asset, jsdom) must degrade to a static fallback, never throw out of
+  // the effect and take the whole page's error boundary with it.
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
-    const map = L.map(elRef.current, {
-      center: [center.lat, center.lng],
-      zoom: 16,
-      scrollWheelZoom: mode === "edit",
-      attributionControl: true,
-    });
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
-
-    const m = L.marker([marker.lat, marker.lng], {
-      draggable: mode === "edit",
-      icon: ICON,
-    }).addTo(map);
-    const c = L.circle([marker.lat, marker.lng], {
-      radius: radiusMeters,
-      color: "#2563eb",
-      weight: 1,
-      fillOpacity: 0.1,
-    }).addTo(map);
-    markerRef.current = m;
-    circleRef.current = c;
-
-    if (mode === "edit") {
-      m.on("dragend", () => {
-        const p = m.getLatLng();
-        c.setLatLng(p);
-        onMarkerChangeRef.current?.({ lat: p.lat, lng: p.lng });
+    let map: L.Map | undefined;
+    try {
+      map = L.map(elRef.current, {
+        center: [center.lat, center.lng],
+        zoom: 16,
+        scrollWheelZoom: mode === "edit",
+        attributionControl: true,
       });
-      map.on("click", (e: L.LeafletMouseEvent) => {
-        m.setLatLng(e.latlng);
-        c.setLatLng(e.latlng);
-        onMarkerChangeRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng });
-      });
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      const m = L.marker([marker.lat, marker.lng], {
+        draggable: mode === "edit",
+        icon: ICON,
+      }).addTo(map);
+      const c = L.circle([marker.lat, marker.lng], {
+        radius: radiusMeters,
+        color: "#2563eb",
+        weight: 1,
+        fillOpacity: 0.1,
+      }).addTo(map);
+      markerRef.current = m;
+      circleRef.current = c;
+
+      if (mode === "edit") {
+        m.on("dragend", () => {
+          const p = m.getLatLng();
+          c.setLatLng(p);
+          onMarkerChangeRef.current?.({ lat: p.lat, lng: p.lng });
+        });
+        map.on("click", (e: L.LeafletMouseEvent) => {
+          m.setLatLng(e.latlng);
+          c.setLatLng(e.latlng);
+          onMarkerChangeRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng });
+        });
+      }
+
+      mapRef.current = map;
+    } catch (err) {
+      console.error("LocationMap: init failed", err);
+      map?.remove();
+      mapRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot: record the init failure so a static fallback renders
+      setFailed(true);
+      return;
     }
-
-    mapRef.current = map;
     return () => {
-      map.remove();
+      map?.remove();
       mapRef.current = null;
       markerRef.current = null;
       circleRef.current = null;
@@ -153,13 +166,19 @@ export function LocationMap({
   }, [uLat, uLng]);
 
   return (
-    <div
-      ref={elRef}
-      className={cn(
-        "h-64 w-full overflow-hidden rounded-lg border border-border",
-        "[&_.leaflet-tile-pane]:dark:brightness-90 [&_.leaflet-tile-pane]:dark:contrast-90 [&_.leaflet-tile-pane]:dark:invert [&_.leaflet-tile-pane]:dark:hue-rotate-180",
-        className,
+    <div className={cn("relative h-64 w-full", className)}>
+      <div
+        ref={elRef}
+        className={cn(
+          "h-full w-full overflow-hidden rounded-lg border border-border",
+          "[&_.leaflet-tile-pane]:dark:brightness-90 [&_.leaflet-tile-pane]:dark:contrast-90 [&_.leaflet-tile-pane]:dark:invert [&_.leaflet-tile-pane]:dark:hue-rotate-180",
+        )}
+      />
+      {failed && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-muted px-4 text-center text-sm text-muted-foreground">
+          Peta tidak dapat dimuat. Masukkan koordinat secara manual di bawah.
+        </div>
       )}
-    />
+    </div>
   );
 }
