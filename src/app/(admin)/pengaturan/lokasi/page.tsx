@@ -42,7 +42,7 @@ export default async function LokasiPage() {
         description="Titik kantor dan radius geofence dipakai untuk memvalidasi absensi karyawan."
       />
       {rows.length === 0 ? (
-        <EmptyState icon={MapPin} message="Belum ada cabang." />
+        <EmptyState icon={MapPin} message="Belum ada cabang. Tambahkan lewat menu Cabang." />
       ) : (
         <div className="space-y-4">
           {rows.map((b) => (

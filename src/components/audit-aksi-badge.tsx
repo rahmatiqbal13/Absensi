@@ -11,6 +11,9 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   leave_approved: { label: "Cuti Disetujui", variant: "success" },
   leave_rejected: { label: "Cuti Ditolak", variant: "destructive" },
   branch_location_update: { label: "Lokasi Kantor Diubah", variant: "info" },
+  branch_created: { label: "Cabang Dibuat", variant: "success" },
+  branch_updated: { label: "Cabang Diubah", variant: "info" },
+  branch_deleted: { label: "Cabang Dihapus", variant: "destructive" },
 };
 
 export function AuditAksiBadge({ aksi }: { aksi: string }) {

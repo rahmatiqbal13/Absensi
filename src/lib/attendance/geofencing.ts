@@ -29,6 +29,10 @@ export function isWithinRadius(
   return haversineDistanceMeters(lat1, lon1, lat2, lon2) <= radiusMeters;
 }
 
+export function isGeofenceConfigured(office: { lat: number; long: number }): boolean {
+  return !(office.lat === 0 && office.long === 0);
+}
+
 export type GeofenceState = {
   configured: boolean;
   distanceMeters: number | null;
@@ -41,7 +45,7 @@ export function geofenceState(
   office: { lat: number; long: number },
   radiusMeters: number,
 ): GeofenceState {
-  if (office.lat === 0 && office.long === 0) {
+  if (!isGeofenceConfigured(office)) {
     return { configured: false, distanceMeters: null, withinRadius: false };
   }
   const distanceMeters = haversineDistanceMeters(userLat, userLng, office.lat, office.long);

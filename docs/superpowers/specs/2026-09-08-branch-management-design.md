@@ -40,9 +40,13 @@ icons.
 
 `branches` already has `id, nama, alamat, lat double precision NOT NULL,
 long double precision NOT NULL, radius_geofencing_meter integer NOT NULL
-DEFAULT 100, created_at`. RLS `branches_write` is `is_admin_role()`
-(= `hr_admin` | `super_admin`), so INSERT/UPDATE/DELETE already work for admins
-at the DB layer.
+DEFAULT 100, created_at`. `branches_write` RLS is `is_admin_role()`, which since
+migration 0009 includes `atasan` as well as `hr_admin`/`super_admin`. The
+`assertHrAdmin` check in every action is therefore the real enforcement of
+"HR Admin + Super Admin only" for this page — consistent with `departments` /
+`work_schedules` / `holidays`, which have the same posture. A follow-up could
+tighten `branches_write` to `is_hr_admin_role()` (exists since 0010) as part of a
+broader decision about all the config tables; out of scope here.
 
 ### `validateBranchInput` — `src/lib/branches/validate-branch.ts`
 
