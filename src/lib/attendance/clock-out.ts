@@ -28,7 +28,7 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
 
   const { data: today, error: todayErr } = await db
     .from("attendances")
-    .select("id, status, jam_pulang")
+    .select("id, status, jam_pulang, catatan")
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .single();
@@ -112,9 +112,13 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     foto_pulang_expires_at: input.photoExpiresAt,
     status: finalStatus,
   };
-  // Persist the out-of-radius reason only when one was given. Never write null:
-  // that would wipe a reason the employee entered at clock-in.
-  if (catatan) updatePayload.catatan = catatan;
+  // Persist the out-of-radius reason only when one was given. `catatan` is a
+  // single column shared with clock-in, so append rather than overwrite an
+  // existing clock-in reason. Never write null.
+  if (catatan) {
+    const existing = (today.catatan as string | null)?.trim();
+    updatePayload.catatan = existing ? `${existing} | ${catatan}` : catatan;
+  }
 
   const { data: updated, error: updateErr } = await db
     .from("attendances")

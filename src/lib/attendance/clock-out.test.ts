@@ -121,7 +121,7 @@ describe("clockOut", () => {
     expect(result).toEqual({ ok: true, status: "tepat_waktu" });
 
     // The today lookup must be scoped to this employee and the Jakarta date.
-    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang");
+    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang, catatan");
     expect(db.__todayEmployeeEqMock).toHaveBeenCalledWith("employee_id", "employee-1");
     expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-01");
 
@@ -294,6 +294,30 @@ describe("clockOut", () => {
     expect(result.ok).toBe(true);
     expect(db.__updateMock).toHaveBeenCalledWith(
       expect.objectContaining({ catatan: "Meeting klien di luar" }),
+    );
+  });
+
+  it("appends the clock-out reason to a pre-existing clock-in reason instead of overwriting it", async () => {
+    const db = makeMockDb({
+      todaysAttendance: {
+        id: "attendance-1",
+        status: "tepat_waktu",
+        jam_pulang: null,
+        catatan: "Masuk dari lokasi klien",
+      },
+    });
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      lat: -6.9,
+      long: 107.6,
+      catatan: "Pulang dari lokasi klien",
+      now: new Date("2026-09-07T10:00:00Z"),
+    });
+    expect(result.ok).toBe(true);
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        catatan: "Masuk dari lokasi klien | Pulang dari lokasi klien",
+      }),
     );
   });
 
