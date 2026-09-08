@@ -49,6 +49,10 @@ export function LocationForm({
 
   const [marker, setMarker] = useState(initialMarker);
   const [radius, setRadius] = useState(initialRadius);
+  // Bumped only by the "pakai lokasi saya" button so the map recenters on the
+  // new pin. Deliberately NOT bumped on manual-edit typing or map drag/click —
+  // those must not fight the user's viewport.
+  const [recenterKey, setRecenterKey] = useState(0);
   const [baseline, setBaseline] = useState({
     lat: initialMarker.lat,
     lng: initialMarker.lng,
@@ -63,9 +67,15 @@ export function LocationForm({
     radius !== baseline.radius;
 
   function useMyLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Perangkat tidak mendukung lokasi.");
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        setMarker({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setMarker({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setRecenterKey((k) => k + 1);
+      },
       () => toast.error("Gagal mengambil lokasi."),
     );
   }
@@ -122,6 +132,7 @@ export function LocationForm({
             center={initialMarker}
             marker={marker}
             radiusMeters={radius}
+            recenterKey={recenterKey}
             onMarkerChange={setMarker}
           />
 
@@ -148,9 +159,11 @@ export function LocationForm({
                   step="any"
                   aria-label="Lintang"
                   value={marker.lat}
-                  onChange={(e) =>
-                    setMarker({ ...marker, lat: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    if (e.target.value === "") return;
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n)) setMarker({ ...marker, lat: n });
+                  }}
                   className="w-40"
                 />
                 <Input
@@ -158,9 +171,11 @@ export function LocationForm({
                   step="any"
                   aria-label="Bujur"
                   value={marker.lng}
-                  onChange={(e) =>
-                    setMarker({ ...marker, lng: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    if (e.target.value === "") return;
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n)) setMarker({ ...marker, lng: n });
+                  }}
                   className="w-40"
                 />
               </div>
@@ -189,7 +204,11 @@ export function LocationForm({
                 max={5000}
                 aria-label="Radius dalam meter"
                 value={radius}
-                onChange={(e) => setRadius(Number(e.target.value))}
+                onChange={(e) => {
+                  if (e.target.value === "") return;
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n)) setRadius(n);
+                }}
                 className="w-24"
               />
             </div>

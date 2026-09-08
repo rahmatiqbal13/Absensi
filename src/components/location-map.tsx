@@ -29,6 +29,7 @@ export function LocationMap({
   marker,
   userPosition,
   onMarkerChange,
+  recenterKey,
   className,
 }: {
   mode: "edit" | "view";
@@ -37,6 +38,9 @@ export function LocationMap({
   marker: LatLng;
   userPosition?: { lat: number; lng: number; accuracy?: number };
   onMarkerChange?: (p: LatLng) => void;
+  /** Bump to re-center the map on the current marker (e.g. "pakai lokasi saya").
+   * A dedicated key avoids fighting the user during drag/click. */
+  recenterKey?: number | string;
   className?: string;
 }) {
   const elRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +114,19 @@ export function LocationMap({
   useEffect(() => {
     circleRef.current?.setRadius(radiusMeters);
   }, [radiusMeters]);
+
+  // Recenter only on an explicit key bump (not on marker drag/click), so the
+  // "pakai lokasi saya" button can pull a far-away pin back into view.
+  const didMountRecenter = useRef(false);
+  useEffect(() => {
+    if (recenterKey === undefined) return;
+    if (!didMountRecenter.current) {
+      didMountRecenter.current = true;
+      return;
+    }
+    mapRef.current?.setView([marker.lat, marker.lng]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recenterKey]);
 
   const uLat = userPosition?.lat;
   const uLng = userPosition?.lng;

@@ -93,6 +93,15 @@ describe("saveBranchLocation", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/absen");
   });
 
+  it("lets an hr_admin caller through to the success path", async () => {
+    state.role = "hr_admin";
+    const r = await saveBranchLocation("b1", validFd());
+    expect(r).toEqual({ ok: true });
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: -6.2, long: 106.816, radius_geofencing_meter: 120 }),
+    );
+  });
+
   it("still returns { ok: true } when the audit insert errors", async () => {
     auditResult.error = { message: "rls denied" };
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

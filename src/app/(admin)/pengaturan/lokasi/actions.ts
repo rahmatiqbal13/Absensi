@@ -28,11 +28,12 @@ export async function saveBranchLocation(
   });
   if (!parsed.ok) return parsed;
 
-  const { data: before } = await db
+  const { data: before, error: beforeErr } = await db
     .from("branches")
     .select("lat, long, radius_geofencing_meter")
     .eq("id", branchId)
     .single();
+  if (beforeErr) console.error("saveBranchLocation: before-read failed", beforeErr);
 
   const after = {
     lat: parsed.value.lat,

@@ -25,7 +25,10 @@ export function validateLocationInput(input: LocationInput): LocationResult {
   if (!Number.isFinite(long) || long < -180 || long > 180) {
     return { ok: false, error: "Longitude tidak valid." };
   }
-  if (lat === 0 && long === 0) {
+  // Reject when EITHER coordinate is exactly 0 — that is a cleared/empty field
+  // coerced to 0, not a real office. No legitimate office sits exactly on the
+  // equator or the prime meridian.
+  if (lat === 0 || long === 0) {
     return { ok: false, error: "Titik kantor belum dipilih di peta." };
   }
   if (!Number.isInteger(radius) || radius < 20 || radius > 5000) {

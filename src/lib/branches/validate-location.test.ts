@@ -16,6 +16,16 @@ describe("validateLocationInput", () => {
     expect(r).toEqual({ ok: false, error: "Titik kantor belum dipilih di peta." });
   });
 
+  it("rejects a lone zeroed latitude (a cleared field coerced to 0)", () => {
+    const r = validateLocationInput({ lat: "0", long: "106.8", radius: "100" });
+    expect(r).toEqual({ ok: false, error: "Titik kantor belum dipilih di peta." });
+  });
+
+  it("rejects a lone zeroed longitude (a cleared field coerced to 0)", () => {
+    const r = validateLocationInput({ lat: "-6.2", long: "0", radius: "100" });
+    expect(r).toEqual({ ok: false, error: "Titik kantor belum dipilih di peta." });
+  });
+
   it("rejects latitude out of range", () => {
     expect(validateLocationInput({ ...ok, lat: "95" }).ok).toBe(false);
   });
