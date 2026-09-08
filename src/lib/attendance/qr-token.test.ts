@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { qrToken, verifyQrToken, windowRemainingMs, QR_WINDOW_MS } from "./qr-token";
 
 const SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const T0 = 1_700_000_010_000; // mid-window
+const T0 = 1_700_000_010_000; // exactly on a 30s window boundary (T0 % 30_000 === 0)
 
 describe("qrToken", () => {
   it("is 16 lowercase hex chars", () => {
