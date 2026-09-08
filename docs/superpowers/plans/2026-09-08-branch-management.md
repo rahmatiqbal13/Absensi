@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- No schema migration — `branches` columns + `branches_write` RLS (`is_admin_role()`) already exist.
+- No schema migration — `branches` columns + `branches_write` RLS (`is_admin_role()`) already exist. `branches_write` RLS is `is_admin_role()`, which since migration 0009 includes `atasan` as well as `hr_admin`/`super_admin`. The `assertHrAdmin` check in every action is therefore the real enforcement of "HR Admin + Super Admin only" for this page — consistent with `departments` / `work_schedules` / `holidays`, which have the same posture. A follow-up could tighten `branches_write` to `is_hr_admin_role()` (exists since 0010) as part of a broader decision about all the config tables; out of scope here.
 - All user-facing strings Indonesian. Never surface raw Postgres text — log it, return an Indonesian message.
 - Icons: `lucide-react` only, never emoji.
 - Access: `hr_admin` OR `super_admin` (page redirect + every action).
