@@ -13,9 +13,7 @@ const ROWS: BranchRow[] = [
     alamat: "Jl. Merdeka 1",
     lat: -6.2,
     long: 106.8,
-    radius: 100,
-    employeeCount: 3,
-    departmentCount: 2,
+    scheduleSet: true,
   },
   {
     id: "b2",
@@ -23,9 +21,7 @@ const ROWS: BranchRow[] = [
     alamat: null,
     lat: 0,
     long: 0,
-    radius: 100,
-    employeeCount: 0,
-    departmentCount: 0,
+    scheduleSet: false,
   },
 ];
 
@@ -55,14 +51,18 @@ function setup(overrides?: {
 describe("BranchManager", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders each branch's nama, alamat ('—' when null) and a geofence chip", () => {
+  it("renders each branch's nama, alamat ('—' when null) and the setup chips", () => {
     setup();
     expect(screen.getAllByText("Kantor Pusat").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Cabang Bandung").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Jl. Merdeka 1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Aktif").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Belum diatur").length).toBeGreaterThan(0);
+    // b1: real coords + a schedule -> both chips show the ok label
+    expect(screen.getAllByText("Geofence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Jadwal").length).toBeGreaterThan(0);
+    // b2: (0,0) coords and no schedule -> both chips show the "belum diatur" label
+    expect(screen.getAllByText("Geofence belum diatur").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Jadwal belum diatur").length).toBeGreaterThan(0);
   });
 
   it("submits nama and alamat to createBranch", async () => {
@@ -84,7 +84,7 @@ describe("BranchManager", () => {
 
   it("opens a prefilled edit dialog and submits updateBranch(id, fd)", async () => {
     const { updateBranch } = setup({ branches: [ROWS[0]] });
-    fireEvent.click(screen.getAllByRole("button", { name: "Ubah" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Ubah Kantor Pusat" })[0]);
     expect(await screen.findByText("Ubah Cabang")).toBeInTheDocument();
     const nama = screen.getByLabelText("Nama Cabang", { selector: "#edit-nama" }) as HTMLInputElement;
     expect(nama.value).toBe("Kantor Pusat");

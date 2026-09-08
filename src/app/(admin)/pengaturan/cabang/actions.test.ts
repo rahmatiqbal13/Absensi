@@ -10,11 +10,14 @@ const beforeBranchRow: { data: unknown; error: unknown } = {
   data: { nama: "Kantor Lama", alamat: "Jl. Lama" },
   error: null,
 };
-const branchNameRow: { data: unknown; error: unknown } = {
-  data: { nama: "Kantor Lama" },
+const branchStarRow: { data: unknown; error: unknown } = {
+  data: { id: "b1", nama: "Kantor Lama", alamat: "Jl. Lama", lat: 0, long: 0 },
   error: null,
 };
-const updateBranchResult: { error: unknown } = { error: null };
+const updateBranchResult: { data: unknown; error: unknown } = {
+  data: [{ id: "b1" }],
+  error: null,
+};
 const deleteBranchResult: { data: unknown; error: unknown } = {
   data: [{ id: "b1" }],
   error: null,
@@ -28,7 +31,8 @@ const insertBranchMock = vi.fn((v: unknown) => {
   void v;
   return { select: () => ({ single: () => Promise.resolve(insertBranchResult) }) };
 });
-const updateBranchEqMock = vi.fn(() => Promise.resolve(updateBranchResult));
+const updateBranchSelectMock = vi.fn(() => Promise.resolve(updateBranchResult));
+const updateBranchEqMock = vi.fn(() => ({ select: updateBranchSelectMock }));
 const updateBranchMock = vi.fn((v: unknown) => {
   void v;
   return { eq: updateBranchEqMock };
@@ -38,8 +42,7 @@ const deleteBranchEqMock = vi.fn(() => ({ select: deleteBranchSelectMock }));
 const deleteBranchMock = vi.fn(() => ({ eq: deleteBranchEqMock }));
 const branchSelectMock = vi.fn((cols: string) => ({
   eq: () => ({
-    single: () =>
-      Promise.resolve(cols === "nama" ? branchNameRow : beforeBranchRow),
+    single: () => Promise.resolve(cols === "*" ? branchStarRow : beforeBranchRow),
   }),
 }));
 
@@ -104,7 +107,8 @@ beforeEach(() => {
   insertBranchResult.data = { id: "b-new" };
   insertBranchResult.error = null;
   beforeBranchRow.data = { nama: "Kantor Lama", alamat: "Jl. Lama" };
-  branchNameRow.data = { nama: "Kantor Lama" };
+  branchStarRow.data = { id: "b1", nama: "Kantor Lama", alamat: "Jl. Lama", lat: 0, long: 0 };
+  updateBranchResult.data = [{ id: "b1" }];
   updateBranchResult.error = null;
   deleteBranchResult.data = [{ id: "b1" }];
   deleteBranchResult.error = null;
@@ -118,6 +122,7 @@ beforeEach(() => {
   insertBranchMock.mockClear();
   updateBranchMock.mockClear();
   updateBranchEqMock.mockClear();
+  updateBranchSelectMock.mockClear();
   deleteBranchMock.mockClear();
   deleteBranchEqMock.mockClear();
   deleteBranchSelectMock.mockClear();
@@ -173,6 +178,18 @@ describe("createBranch", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/pengaturan/cabang");
   });
 
+  it("revalidates every dependent settings path after a successful create", async () => {
+    await createBranch(validFd());
+    for (const p of [
+      "/pengaturan/cabang",
+      "/pengaturan/lokasi",
+      "/pengaturan/jadwal",
+      "/pengaturan/departemen",
+    ]) {
+      expect(revalidatePath).toHaveBeenCalledWith(p);
+    }
+  });
+
   it("still returns { ok: true, id } when the audit insert errors", async () => {
     auditResult.error = { message: "rls denied" };
     const r = await createBranch(validFd());
@@ -217,6 +234,7 @@ describe("updateBranch", () => {
       alamat: "Jl. Basuki",
     });
     expect(updateBranchEqMock).toHaveBeenCalledWith("id", "b1");
+    expect(updateBranchSelectMock).toHaveBeenCalledWith("id");
     expect(auditInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         actor_id: "u1",
@@ -238,9 +256,32 @@ describe("updateBranch", () => {
     expect(r).toEqual({ ok: false, error: "Gagal menyimpan perubahan cabang." });
     expect(auditInsertMock).not.toHaveBeenCalled();
   });
+
+  it("returns the not-authorized message when the update matches no rows", async () => {
+    updateBranchResult.data = [];
+    const r = await updateBranch("b1", validFd());
+    expect(r).toEqual({
+      ok: false,
+      error: "Gagal menyimpan perubahan cabang atau Anda tidak berhak.",
+    });
+    expect(auditInsertMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("deleteBranch", () => {
+  it("rejects a non-admin caller with \"Tidak diizinkan.\" and does not delete", async () => {
+    state.role = "karyawan";
+    const r = await deleteBranch("b1");
+    expect(r).toEqual({ ok: false, error: "Tidak diizinkan." });
+    expect(deleteBranchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank branchId with \"Cabang tidak valid.\"", async () => {
+    const r = await deleteBranch("");
+    expect(r).toEqual({ ok: false, error: "Cabang tidak valid." });
+    expect(deleteBranchMock).not.toHaveBeenCalled();
+  });
+
   it("blocks deletion and names only karyawan when employees are attached", async () => {
     empCount.count = 3;
     const r = await deleteBranch("b1");
@@ -269,7 +310,20 @@ describe("deleteBranch", () => {
     expect(deleteBranchMock).not.toHaveBeenCalled();
   });
 
-  it("deletes the branch by id and writes a branch_deleted audit row when nothing is attached", async () => {
+  it("lists every blocker joined with \", \" when more than one is non-zero", async () => {
+    empCount.count = 3;
+    payCount.count = 1;
+    const r = await deleteBranch("b1");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toContain("3 karyawan");
+      expect(r.error).toContain("1 periode payroll");
+      expect(r.error).toContain("3 karyawan, 1 periode payroll");
+    }
+    expect(deleteBranchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the branch by id and writes a branch_deleted audit row with the captured row", async () => {
     const r = await deleteBranch("b1");
     expect(r).toEqual({ ok: true });
     expect(deleteBranchEqMock).toHaveBeenCalledWith("id", "b1");
@@ -279,7 +333,10 @@ describe("deleteBranch", () => {
         actor_id: "u1",
         target_employee_id: null,
         aksi: "branch_deleted",
-        detail: expect.objectContaining({ branch_id: "b1" }),
+        detail: expect.objectContaining({
+          branch_id: "b1",
+          before: expect.objectContaining({ nama: "Kantor Lama" }),
+        }),
       }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/pengaturan/cabang");

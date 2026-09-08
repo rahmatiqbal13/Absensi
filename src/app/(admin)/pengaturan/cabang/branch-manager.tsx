@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Building, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import {
 import { ResponsiveTable } from "@/components/responsive-table";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { isGeofenceConfigured } from "@/lib/attendance/geofencing";
 import { cn } from "@/lib/utils";
 
 export type BranchRow = {
@@ -26,15 +27,28 @@ export type BranchRow = {
   alamat: string | null;
   lat: number;
   long: number;
-  radius: number;
-  employeeCount: number;
-  departmentCount: number;
+  scheduleSet: boolean;
 };
 
 type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 type Result = { ok: true } | { ok: false; error: string };
 
 const GENERIC_ERROR = "Terjadi kesalahan. Coba lagi.";
+
+function SetupChip({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-xs font-medium",
+        ok
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
 
 export function BranchManager({
   branches,
@@ -47,7 +61,6 @@ export function BranchManager({
   updateBranch: (id: string, fd: FormData) => Promise<Result>;
   deleteBranch: (id: string) => Promise<Result>;
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +75,6 @@ export function BranchManager({
       const r = await createBranch(fd);
       if (r.ok) {
         toast.success("Cabang ditambahkan.");
-        formRef.current?.reset();
       } else {
         setError(r.error);
       }
@@ -94,15 +106,11 @@ export function BranchManager({
     }
   }
 
-  async function remove(id: string) {
-    return deleteBranch(id);
-  }
-
   return (
     <div className="space-y-4">
       <Card>
         <CardContent>
-          <form ref={formRef} action={addAction} className="flex flex-wrap items-end gap-3">
+          <form action={addAction} className="flex flex-wrap items-end gap-3">
             <Field id="nama" label="Nama Cabang">
               <Input name="nama" />
             </Field>
@@ -129,22 +137,22 @@ export function BranchManager({
             cell: (r: BranchRow) => r.alamat ?? "—",
           },
           {
-            key: "geofence",
-            header: "Geofence",
-            mobileLabel: "Geofence",
+            key: "setup",
+            header: "Setup",
+            mobileLabel: "Setup",
             cell: (r: BranchRow) => {
-              const configured = !(r.lat === 0 && r.long === 0);
+              const geofenceOk = isGeofenceConfigured({ lat: r.lat, long: r.long });
               return (
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    configured
-                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                      : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                  )}
-                >
-                  {configured ? "Aktif" : "Belum diatur"}
-                </span>
+                <div className="flex flex-wrap gap-1">
+                  <SetupChip
+                    ok={geofenceOk}
+                    label={geofenceOk ? "Geofence" : "Geofence belum diatur"}
+                  />
+                  <SetupChip
+                    ok={r.scheduleSet}
+                    label={r.scheduleSet ? "Jadwal" : "Jadwal belum diatur"}
+                  />
+                </div>
               );
             },
           },
@@ -154,11 +162,17 @@ export function BranchManager({
             align: "right",
             cell: (r: BranchRow) => (
               <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setEditing(r)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditing(r)}
+                  aria-label={`Ubah ${r.nama}`}
+                >
                   <Pencil className="size-4" /> Ubah
                 </Button>
                 <ConfirmDeleteButton
-                  action={remove.bind(null, r.id)}
+                  action={() => deleteBranch(r.id)}
                   title="Hapus cabang?"
                   description={`Cabang "${r.nama}" akan dihapus beserta jadwal kerja & hari libur khususnya. Cabang yang masih dipakai karyawan/departemen akan menolak penghapusan.`}
                 />
@@ -173,7 +187,7 @@ export function BranchManager({
       />
 
       <p className="text-xs text-muted-foreground">
-        Titik &amp; radius kantor diatur di menu Lokasi Kantor.
+        Titik &amp; radius diatur di menu Lokasi Kantor; jam kerja di menu Jadwal Kerja.
       </p>
 
       <Dialog

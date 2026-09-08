@@ -79,17 +79,25 @@ export async function updateBranch(branchId: string, formData: FormData): Promis
   const parsed = validateBranchInput({ nama: formData.get("nama"), alamat: formData.get("alamat") });
   if (!parsed.ok) return parsed;
 
-  const { data: before } = await db
+  const { data: before, error: beforeErr } = await db
     .from("branches")
     .select("nama, alamat")
     .eq("id", branchId)
     .single();
+  if (beforeErr) console.error("updateBranch: before-read failed", beforeErr);
 
   const after = { nama: parsed.value.nama, alamat: parsed.value.alamat };
-  const { error } = await db.from("branches").update(after).eq("id", branchId);
+  const { data, error } = await db
+    .from("branches")
+    .update(after)
+    .eq("id", branchId)
+    .select("id");
   if (error) {
     console.error("updateBranch: update failed", error);
     return { ok: false, error: "Gagal menyimpan perubahan cabang." };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Gagal menyimpan perubahan cabang atau Anda tidak berhak." };
   }
 
   await writeAudit(me.id, "branch_updated", { branch_id: branchId, before: before ?? null, after });
@@ -122,7 +130,12 @@ export async function deleteBranch(branchId: string): Promise<Result> {
     };
   }
 
-  const { data: branchRow } = await db.from("branches").select("nama").eq("id", branchId).single();
+  const { data: branchRow, error: branchRowErr } = await db
+    .from("branches")
+    .select("*")
+    .eq("id", branchId)
+    .single();
+  if (branchRowErr) console.error("deleteBranch: before-read failed", branchRowErr);
 
   const { data, error } = await db.from("branches").delete().eq("id", branchId).select("id");
   if (error) {
@@ -133,7 +146,7 @@ export async function deleteBranch(branchId: string): Promise<Result> {
     return { ok: false, error: "Gagal menghapus cabang atau Anda tidak berhak." };
   }
 
-  await writeAudit(me.id, "branch_deleted", { branch_id: branchId, nama: branchRow?.nama ?? null });
+  await writeAudit(me.id, "branch_deleted", { branch_id: branchId, before: branchRow ?? null });
   revalidateBranchPages();
   return { ok: true };
 }

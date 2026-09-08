@@ -15,6 +15,10 @@ const AKSI_OPTIONS = [
   { value: "employee_deleted", label: "Karyawan Dihapus" },
   { value: "leave_approved", label: "Cuti Disetujui" },
   { value: "leave_rejected", label: "Cuti Ditolak" },
+  { value: "branch_location_update", label: "Lokasi Kantor Diubah" },
+  { value: "branch_created", label: "Cabang Dibuat" },
+  { value: "branch_updated", label: "Cabang Diubah" },
+  { value: "branch_deleted", label: "Cabang Dihapus" },
 ];
 
 export function AuditFilters({
