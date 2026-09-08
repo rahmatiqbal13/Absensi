@@ -24,11 +24,15 @@ const deptCount: { count: number; error: unknown } = { count: 0, error: null };
 const payCount: { count: number; error: unknown } = { count: 0, error: null };
 const auditResult: { error: unknown } = { error: null };
 
-const insertBranchMock = vi.fn(() => ({
-  select: () => ({ single: () => Promise.resolve(insertBranchResult) }),
-}));
+const insertBranchMock = vi.fn((v: unknown) => {
+  void v;
+  return { select: () => ({ single: () => Promise.resolve(insertBranchResult) }) };
+});
 const updateBranchEqMock = vi.fn(() => Promise.resolve(updateBranchResult));
-const updateBranchMock = vi.fn(() => ({ eq: updateBranchEqMock }));
+const updateBranchMock = vi.fn((v: unknown) => {
+  void v;
+  return { eq: updateBranchEqMock };
+});
 const deleteBranchSelectMock = vi.fn(() => Promise.resolve(deleteBranchResult));
 const deleteBranchEqMock = vi.fn(() => ({ select: deleteBranchSelectMock }));
 const deleteBranchMock = vi.fn(() => ({ eq: deleteBranchEqMock }));
@@ -40,7 +44,10 @@ const branchSelectMock = vi.fn((cols: string) => ({
 }));
 
 const countEqMock = vi.fn();
-const auditInsertMock = vi.fn(() => Promise.resolve(auditResult));
+const auditInsertMock = vi.fn((v: unknown) => {
+  void v;
+  return Promise.resolve(auditResult);
+});
 
 function countTable(result: { count: number; error: unknown }) {
   return {
