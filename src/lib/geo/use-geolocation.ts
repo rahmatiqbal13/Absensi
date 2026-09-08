@@ -22,10 +22,11 @@ export const OPTS: PositionOptions = {
 };
 
 export function useGeolocation(enabled = true): GeoReading {
+  const supported = typeof navigator !== "undefined" && !!navigator.geolocation;
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [status, setStatus] = useState<GeoStatus>("prompt");
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<GeoStatus>(supported ? "prompt" : "unavailable");
+  const [error, setError] = useState<string | null>(supported ? null : "Perangkat tidak mendukung lokasi.");
   const watchId = useRef<number | null>(null);
 
   const onOk = useCallback((p: GeolocationPosition) => {
@@ -46,23 +47,19 @@ export function useGeolocation(enabled = true): GeoReading {
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setStatus("unavailable");
-      setError("Perangkat tidak mendukung lokasi.");
-      return;
-    }
+    if (!enabled || !supported) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus("watching");
     watchId.current = navigator.geolocation.watchPosition(onOk, onErr, OPTS);
     return () => {
       if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
     };
-  }, [enabled, onOk, onErr]);
+  }, [enabled, supported, onOk, onErr]);
 
   const refresh = useCallback(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    if (!supported) return;
     navigator.geolocation.getCurrentPosition(onOk, onErr, OPTS);
-  }, [onOk, onErr]);
+  }, [supported, onOk, onErr]);
 
   return { position, accuracy, status, error, refresh };
 }
