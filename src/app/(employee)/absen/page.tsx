@@ -18,6 +18,21 @@ export default async function AbsenPage() {
     redirect("/absen/consent");
   }
 
+  const { data: branch, error: branchErr } = await db
+    .from("branches")
+    .select("lat, long, radius_geofencing_meter")
+    .eq("id", employee.branchId)
+    .single();
+  if (branchErr) console.error("absen: branch query failed", branchErr);
+
+  const { data: schedule, error: scheduleErr } = await db
+    .from("work_schedules")
+    .select("jam_masuk, toleransi_terlambat_menit")
+    .eq("branch_id", employee.branchId)
+    .limit(1)
+    .maybeSingle();
+  if (scheduleErr) console.error("absen: work schedule query failed", scheduleErr);
+
   // Do NOT use `new Date().toISOString().slice(0, 10)` here — that's the UTC
   // date, which is the previous day for any instant before 07:00 WIB and
   // would miss the row Task 6's clockIn() wrote under the Jakarta date.
@@ -48,6 +63,16 @@ export default async function AbsenPage() {
       </div>
       <ClockPanel
         todaysAttendance={todaysAttendance}
+        office={{
+          lat: branch?.lat ?? 0,
+          long: branch?.long ?? 0,
+          radius: branch?.radius_geofencing_meter ?? 100,
+        }}
+        shift={
+          schedule
+            ? { jamMasuk: schedule.jam_masuk.slice(0, 5), toleransiMenit: schedule.toleransi_terlambat_menit }
+            : null
+        }
         submitClockIn={submitClockIn}
         submitClockOut={submitClockOut}
       />

@@ -25,6 +25,7 @@ function makeMockDb(
     updateError?: { message: string; code?: string } | null;
     /** Successive results for repeated update() calls; the last one repeats. */
     updateResults?: QueryResult[];
+    branch?: any;
   } = {},
 ) {
   const {
@@ -34,6 +35,7 @@ function makeMockDb(
       : { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" },
     updateError = null,
     updateResults = [updateError ? { data: null, error: updateError } : UPDATE_OK],
+    branch = BASE_BRANCH,
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -65,7 +67,7 @@ function makeMockDb(
     },
     branches: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_BRANCH, error: null }) }),
+        eq: () => ({ single: () => Promise.resolve({ data: branch, error: null }) }),
       }),
     },
     work_schedules: {
@@ -119,7 +121,7 @@ describe("clockOut", () => {
     expect(result).toEqual({ ok: true, status: "tepat_waktu" });
 
     // The today lookup must be scoped to this employee and the Jakarta date.
-    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang");
+    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang, catatan");
     expect(db.__todayEmployeeEqMock).toHaveBeenCalledWith("employee_id", "employee-1");
     expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-01");
 
@@ -252,6 +254,7 @@ describe("clockOut", () => {
       ...BASE_INPUT,
       lat: -6.9175,
       long: 107.6191,
+      catatan: "Kunjungan klien di luar kota",
       now,
     });
 
@@ -262,6 +265,80 @@ describe("clockOut", () => {
         lokasi_pulang: "(-6.9175,107.6191)",
       }),
     );
+  });
+
+  it("requires a reason when configured and out of radius", async () => {
+    const db = makeMockDb(); // BASE_BRANCH configured
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      lat: -6.9,
+      long: 107.6,
+      now: new Date("2026-09-07T10:00:00Z"),
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+    });
+    expect(db.__updateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an out-of-radius clock-out with a reason and persists it", async () => {
+    const db = makeMockDb();
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      lat: -6.9,
+      long: 107.6,
+      catatan: "Meeting klien di luar",
+      now: new Date("2026-09-07T10:00:00Z"),
+    });
+    expect(result.ok).toBe(true);
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ catatan: "Meeting klien di luar" }),
+    );
+  });
+
+  it("appends the clock-out reason to a pre-existing clock-in reason instead of overwriting it", async () => {
+    const db = makeMockDb({
+      todaysAttendance: {
+        id: "attendance-1",
+        status: "tepat_waktu",
+        jam_pulang: null,
+        catatan: "Masuk dari lokasi klien",
+      },
+    });
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      lat: -6.9,
+      long: 107.6,
+      catatan: "Pulang dari lokasi klien",
+      now: new Date("2026-09-07T10:00:00Z"),
+    });
+    expect(result.ok).toBe(true);
+    expect(db.__updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        catatan: "Masuk dari lokasi klien | Pulang dari lokasi klien",
+      }),
+    );
+  });
+
+  it("does not force a reason when the geofence is unconfigured", async () => {
+    const db = makeMockDb({
+      branch: { id: "branch-1", lat: 0, long: 0, radius_geofencing_meter: 100 },
+    });
+    const result = await clockOut(db as any, {
+      ...BASE_INPUT,
+      lat: -6.9,
+      long: 107.6,
+      now: new Date("2026-09-07T10:00:00Z"),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("never nulls out an existing clock-in reason when no clock-out reason is given", async () => {
+    const db = makeMockDb();
+    await clockOut(db as any, { ...BASE_INPUT, now: new Date("2026-09-01T17:05:00+07:00") });
+    expect(db.__updateMock).toHaveBeenCalledTimes(1);
+    expect(db.__updateMock.mock.calls[0][0]).not.toHaveProperty("catatan");
   });
 
   it("takes the first work schedule row rather than erroring when a branch has several", async () => {

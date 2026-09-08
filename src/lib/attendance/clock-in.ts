@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isWithinRadius } from "./geofencing";
+import { geofenceState } from "./geofencing";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
@@ -83,18 +83,15 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }
 
-  const withinRadius = isWithinRadius(
-    input.lat,
-    input.long,
-    branch.lat,
-    branch.long,
-    branch.radius_geofencing_meter,
-  );
+  const geo = geofenceState(input.lat, input.long, branch, branch.radius_geofencing_meter);
+  const withinRadius = geo.withinRadius;
 
   // A whitespace-only catatan is not a reason — treat it as absent.
   const catatan = input.catatan?.trim() || null;
 
-  if (!withinRadius && !catatan) {
+  // Only force a reason when the branch geofence is actually configured. If an
+  // admin has not set the office point yet, do not block the employee for it.
+  if (geo.configured && !withinRadius && !catatan) {
     return { ok: false, error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan." };
   }
 

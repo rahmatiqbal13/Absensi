@@ -26,6 +26,7 @@ function makeMockDb(
     existingAttendanceError?: { message: string; code?: string } | null;
     consentRows?: any[];
     insertError?: { message: string; code?: string } | null;
+    branch?: any;
   } = {},
 ) {
   const {
@@ -33,6 +34,7 @@ function makeMockDb(
     existingAttendanceError = null,
     consentRows = [{ id: "consent-1" }],
     insertError = null,
+    branch = BASE_BRANCH,
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -67,7 +69,7 @@ function makeMockDb(
     },
     branches: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_BRANCH, error: null }) }),
+        eq: () => ({ single: () => Promise.resolve({ data: branch, error: null }) }),
       }),
     },
     work_schedules: {
@@ -281,6 +283,35 @@ describe("clockIn", () => {
         lokasi_masuk: "(-6.9175,107.6191)",
       }),
     );
+  });
+
+  it("allows clock-in without a reason when the branch geofence is unconfigured", async () => {
+    const db = makeMockDb({ branch: { id: "branch-1", lat: 0, long: 0, radius_geofencing_meter: 100 } });
+    const result = await clockIn(db as any, {
+      employeeId: "employee-1",
+      lat: -6.2,
+      long: 106.8,
+      photoPath: "p",
+      photoExpiresAt: new Date().toISOString(),
+      now: new Date("2026-09-07T02:00:00Z"), // 09:00 WIB
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("still requires a reason when configured and out of radius", async () => {
+    const db = makeMockDb(); // BASE_BRANCH at -6.2,106.8 r=100
+    const result = await clockIn(db as any, {
+      employeeId: "employee-1",
+      lat: -6.9,
+      long: 107.6, // far
+      photoPath: "p",
+      photoExpiresAt: new Date().toISOString(),
+      now: new Date("2026-09-07T02:00:00Z"),
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+    });
   });
 
   it("returns terlambat status when clocking in past the tolerance window", async () => {

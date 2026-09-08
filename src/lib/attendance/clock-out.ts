@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isWithinRadius } from "./geofencing";
+import { geofenceState } from "./geofencing";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockOutStatus, mergeAttendanceStatus, type AttendanceStatus } from "./status";
 
@@ -15,6 +15,7 @@ export type ClockOutInput = {
   long: number;
   photoPath: string;
   photoExpiresAt: string;
+  catatan?: string;
   now?: Date;
 };
 
@@ -27,7 +28,7 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
 
   const { data: today, error: todayErr } = await db
     .from("attendances")
-    .select("id, status, jam_pulang")
+    .select("id, status, jam_pulang, catatan")
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .single();
@@ -84,13 +85,17 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     return { ok: false, error: "Jadwal kerja cabang tidak ditemukan." };
   }
 
-  const withinRadius = isWithinRadius(
-    input.lat,
-    input.long,
-    branch.lat,
-    branch.long,
-    branch.radius_geofencing_meter,
-  );
+  const geo = geofenceState(input.lat, input.long, branch, branch.radius_geofencing_meter);
+  const withinRadius = geo.withinRadius;
+
+  // A whitespace-only catatan is not a reason — treat it as absent.
+  const catatan = input.catatan?.trim() || null;
+
+  // Only force a reason when the branch geofence is actually configured. If an
+  // admin has not set the office point yet, do not block the employee for it.
+  if (geo.configured && !withinRadius && !catatan) {
+    return { ok: false, error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan." };
+  }
 
   const clockOutStatus = resolveClockOutStatus({
     clockOutTime: now,
@@ -100,15 +105,24 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
 
   const finalStatus = mergeAttendanceStatus(today.status as AttendanceStatus, clockOutStatus);
 
+  const updatePayload: Record<string, unknown> = {
+    jam_pulang: now.toISOString(),
+    lokasi_pulang: `(${input.lat},${input.long})`,
+    foto_pulang_url: input.photoPath,
+    foto_pulang_expires_at: input.photoExpiresAt,
+    status: finalStatus,
+  };
+  // Persist the out-of-radius reason only when one was given. `catatan` is a
+  // single column shared with clock-in, so append rather than overwrite an
+  // existing clock-in reason. Never write null.
+  if (catatan) {
+    const existing = (today.catatan as string | null)?.trim();
+    updatePayload.catatan = existing ? `${existing} | ${catatan}` : catatan;
+  }
+
   const { data: updated, error: updateErr } = await db
     .from("attendances")
-    .update({
-      jam_pulang: now.toISOString(),
-      lokasi_pulang: `(${input.lat},${input.long})`,
-      foto_pulang_url: input.photoPath,
-      foto_pulang_expires_at: input.photoExpiresAt,
-      status: finalStatus,
-    })
+    .update(updatePayload)
     .eq("id", today.id)
     // Atomic backstop for the `today.jam_pulang` pre-check above, which is a
     // read-then-write race: two concurrent clock-outs can both pass it, and the

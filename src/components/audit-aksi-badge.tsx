@@ -10,6 +10,7 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   employee_deleted: { label: "Karyawan Dihapus", variant: "destructive" },
   leave_approved: { label: "Cuti Disetujui", variant: "success" },
   leave_rejected: { label: "Cuti Ditolak", variant: "destructive" },
+  branch_location_update: { label: "Lokasi Kantor Diubah", variant: "info" },
 };
 
 export function AuditAksiBadge({ aksi }: { aksi: string }) {

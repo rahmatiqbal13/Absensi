@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
@@ -54,7 +55,8 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
   if (!isValidCoordinate(lat, long)) {
     return { ok: false, error: "Lokasi tidak valid." };
   }
-  const catatan = (formData.get("catatan") as string | null) ?? undefined;
+  const rawCatatan = formData.get("catatan");
+  const catatan = typeof rawCatatan === "string" ? rawCatatan : undefined;
   const photo = formData.get("photo");
   if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
@@ -82,7 +84,7 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
     return { ok: false, error: uploadResult.error };
   }
 
-  return clockIn(serviceDb, {
+  const result = await clockIn(serviceDb, {
     employeeId: guard.employee.id,
     lat,
     long,
@@ -90,6 +92,10 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
     photoExpiresAt: uploadResult.expiresAt,
     catatan,
   });
+  // The redesigned Absen page is a state machine driven by `todaysAttendance`;
+  // clear its cache so the next render advances past the clock-in CTA.
+  if (result.ok) revalidatePath("/absen");
+  return result;
 }
 
 export async function submitClockOut(formData: FormData): Promise<ClockOutResult> {
@@ -101,6 +107,8 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
   if (!isValidCoordinate(lat, long)) {
     return { ok: false, error: "Lokasi tidak valid." };
   }
+  const rawCatatan = formData.get("catatan");
+  const catatan = typeof rawCatatan === "string" ? rawCatatan : undefined;
   const photo = formData.get("photo");
   if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
@@ -113,11 +121,14 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
     return { ok: false, error: uploadResult.error };
   }
 
-  return clockOut(serviceDb, {
+  const result = await clockOut(serviceDb, {
     employeeId: guard.employee.id,
     lat,
     long,
     photoPath: uploadResult.path,
     photoExpiresAt: uploadResult.expiresAt,
+    catatan,
   });
+  if (result.ok) revalidatePath("/absen");
+  return result;
 }
