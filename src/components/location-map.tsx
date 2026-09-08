@@ -3,23 +3,23 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 import { cn } from "@/lib/utils";
 
 export type LatLng = { lat: number; lng: number };
 
 // Leaflet's default marker icons resolve to broken relative URLs under a
-// bundler, so point them at the images that ship with the pinned `leaflet`
-// package. Next resolves these static image imports to hashed asset URLs
-// (StaticImageData), so use the `.src` string.
+// bundler. The PNGs that ship with the pinned `leaflet` package are copied to
+// `public/leaflet/` (see that folder) and referenced by absolute path so the
+// marker renders identically under `next dev` (Turbopack) and a production
+// build.
 const ICON = L.icon({
-  iconUrl: iconUrl.src,
-  iconRetinaUrl: iconRetinaUrl.src,
-  shadowUrl: shadowUrl.src,
+  iconUrl: "/leaflet/marker-icon.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
 });
 
 export function LocationMap({
