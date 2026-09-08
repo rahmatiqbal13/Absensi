@@ -10,6 +10,11 @@ type GeoSummary = {
   hasFix: boolean;
 };
 
+const mockRefresh = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}));
+
 // Mock ProximityPanel so each test can drive the geo summary that ClockPanel
 // gates on, without a real geolocation watch.
 vi.mock("./proximity-panel", () => ({
@@ -44,6 +49,7 @@ describe("ClockPanel", () => {
   const mockSubmitClockOut = vi.fn();
 
   beforeEach(() => {
+    mockRefresh.mockReset();
     mockSubmitClockIn.mockReset().mockResolvedValue({ ok: true, status: "tepat_waktu" });
     mockSubmitClockOut.mockReset().mockResolvedValue({ ok: true, status: "tepat_waktu" });
     vi.stubGlobal("navigator", {
@@ -156,6 +162,32 @@ describe("ClockPanel", () => {
 
     const formData = mockSubmitClockIn.mock.calls[0][0] as FormData;
     expect(formData.has("catatan")).toBe(false);
+  });
+
+  it("calls router.refresh() after a successful clock-in so the panel advances", async () => {
+    renderPanel();
+    await pushGeo(IN_RADIUS);
+    attachPhoto();
+
+    fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+    await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+  });
+
+  it("reveals the reason textarea when the server rejects for out-of-radius (client fix looked in-radius)", async () => {
+    mockSubmitClockIn.mockResolvedValue({
+      ok: false,
+      error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+    });
+    renderPanel();
+    await pushGeo(IN_RADIUS);
+    attachPhoto();
+
+    expect(screen.queryByLabelText(/alasan/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+
+    expect(await screen.findByLabelText(/alasan/i)).toBeInTheDocument();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("in-radius clock-in omits catatan entirely", async () => {

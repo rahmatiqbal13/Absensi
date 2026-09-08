@@ -12,7 +12,14 @@ export type GeoReading = {
   refresh: () => void;
 };
 
-const OPTS: PositionOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 };
+/** Shared geolocation options — the watch here and one-shot `getCurrentPosition`
+ * callers (e.g. Absen's clock-panel) must use the SAME options so a fresh fix
+ * isn't coarser than the one already displayed. */
+export const OPTS: PositionOptions = {
+  enableHighAccuracy: true,
+  timeout: 15000,
+  maximumAge: 10000,
+};
 
 export function useGeolocation(enabled = true): GeoReading {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);

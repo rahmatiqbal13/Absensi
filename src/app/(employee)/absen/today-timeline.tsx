@@ -1,13 +1,23 @@
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** ISO string or "HH:mm" -> "HH:mm". Returns "—" for a null/blank value. */
+// Pin the timezone: this renders in a Server Component with no `"use client"`,
+// so without an explicit `timeZone` it reads the instant in the executing
+// process's local timezone — "02.00" instead of "09.00" WIB on a UTC-default
+// deployment. Same fix already applied to riwayat/history-list.tsx.
+const timeFmt = new Intl.DateTimeFormat("id-ID", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Asia/Jakarta",
+});
+
+/** ISO string or "HH:mm" -> "HH:mm" (Asia/Jakarta). Returns "—" for null/blank. */
 export function formatClockTime(value: string | null): string {
   if (!value) return "—";
   if (!value.includes("T")) return value.slice(0, 5);
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return timeFmt.format(date);
 }
 
 /**

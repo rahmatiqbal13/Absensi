@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock } from "lucide-react";
+import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import type { AttendanceStatus } from "@/lib/attendance/status";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,9 +42,14 @@ function computeDuration(startIso: string): string {
   return hours > 0 ? `${hours}j ${minutes}m` : `${minutes}m`;
 }
 
+// Server message for an out-of-radius rejection — kept in sync with
+// clock-in.ts / clock-out.ts. When the server rejects for this reason the user
+// must be shown the reason field even if the client geo fix looks in-radius.
+const OUT_OF_RADIUS_MESSAGE = "Anda berada di luar radius kantor. Wajib isi catatan/alasan.";
+
 function getPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject);
+    navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTS);
   });
 }
 
@@ -59,6 +66,7 @@ export function ClockPanel({
   submitClockIn: (formData: FormData) => Promise<ActionResult>;
   submitClockOut: (formData: FormData) => Promise<ActionResult>;
 }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -90,7 +98,8 @@ export function ClockPanel({
   const reasonRequired =
     (geo.configured && geo.hasFix && !geo.withinRadius) ||
     geo.status === "denied" ||
-    geo.status === "unavailable";
+    geo.status === "unavailable" ||
+    error === OUT_OF_RADIUS_MESSAGE;
 
   const reasonHelp =
     geo.status === "denied" || geo.status === "unavailable"
@@ -105,6 +114,10 @@ export function ClockPanel({
       : null;
 
   async function handleClock(kind: "masuk" | "pulang") {
+    // Capture before clearing: on a resubmit after a server out-of-radius
+    // rejection the reason field is still required even though `error` is about
+    // to be reset and the client geo fix may read in-radius.
+    const sendReason = reasonRequired;
     setError(null);
     setSubmitting(true);
     try {
@@ -114,7 +127,7 @@ export function ClockPanel({
       formData.set("long", String(position.coords.longitude));
       if (photo) formData.set("photo", photo);
       const catatan = reason.trim();
-      if (catatan && reasonRequired) formData.set("catatan", catatan);
+      if (catatan && sendReason) formData.set("catatan", catatan);
 
       const action = kind === "masuk" ? submitClockIn : submitClockOut;
       const result = await action(formData);
@@ -123,6 +136,9 @@ export function ClockPanel({
       } else {
         setPhoto(null);
         setReason("");
+        // Re-fetch the server tree so the panel advances to the next state
+        // (clocked-in / done) immediately, alongside the action's revalidatePath.
+        router.refresh();
       }
     } catch {
       setError("Gagal mengambil lokasi. Pastikan GPS aktif dan izin lokasi diberikan.");
