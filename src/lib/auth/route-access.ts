@@ -16,7 +16,8 @@ const ADMIN_PATH_PREFIXES = [
 // Admin paths that additionally exclude the `atasan` role — HR-admin business,
 // not team-lead reporting (spec §1: /payroll is hr_admin/super_admin only).
 const HR_ADMIN_PATH_PREFIXES = ["/payroll", "/karyawan"];
-const PUBLIC_PATHS = ["/login", "/set-password"];
+// `/kiosk/<secret-key>` is a login-less branch entrance screen (QR attendance).
+const PUBLIC_PATHS = ["/login", "/set-password", "/kiosk"];
 
 export function resolveRouteAccess(pathname: string, role: Role | null): RouteAccessResult {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "allow";

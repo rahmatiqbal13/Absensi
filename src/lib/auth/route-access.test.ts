@@ -40,6 +40,10 @@ describe("resolveRouteAccess", () => {
     }
   });
 
+  it("allows the login-less /kiosk/<key> screen without a role", () => {
+    expect(resolveRouteAccess("/kiosk/anything", null)).toBe("allow");
+  });
+
   it("does not treat /login-audit as the public /login path", () => {
     expect(resolveRouteAccess("/login-audit", null)).not.toBe("allow");
     expect(resolveRouteAccess("/login-audit", null)).toBe("redirect-login");
