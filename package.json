@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run src/",
-    "test:integration": "vitest run tests/integration/",
-    "test:all": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.mts",
+    "test:all": "npm run test && npm run test:integration",
     "test:watch": "vitest src/",
     "seed": "tsx scripts/seed.ts"
   },
