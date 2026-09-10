@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clockOut } from "./clock-out";
+import { qrToken } from "./qr-token";
 
 const BASE_EMPLOYEE = { id: "employee-1", branch_id: "branch-1" };
-const BASE_BRANCH = { id: "branch-1", lat: -6.2, long: 106.8, radius_geofencing_meter: 100 };
+const BASE_BRANCH = {
+  id: "branch-1",
+  lat: -6.2,
+  long: 106.8,
+  radius_geofencing_meter: 100,
+  qr_enabled: false,
+  qr_secret: null,
+};
 const BASE_SCHEDULE = { branch_id: "branch-1", jam_masuk: "09:00:00", jam_pulang: "17:00:00" };
 
 type QueryResult = { data: any; error: { message: string; code?: string } | null };
@@ -133,6 +141,7 @@ describe("clockOut", () => {
       foto_pulang_url: "employee-1/pulang-1.jpg",
       foto_pulang_expires_at: "2026-12-01T00:00:00.000Z",
       status: "tepat_waktu",
+      metode_pulang: "gps",
     });
     expect(db.__updateEqMock).toHaveBeenCalledWith("id", "attendance-1");
     // The atomic compare-and-set that backstops the double clock-out race.
@@ -349,6 +358,115 @@ describe("clockOut", () => {
     expect(db.__scheduleEqMock).toHaveBeenCalledWith("branch_id", "branch-1");
     expect(db.__scheduleLimitMock).toHaveBeenCalledWith(1);
     expect(db.__scheduleMaybeSingleMock).toHaveBeenCalled();
+  });
+
+  describe("QR path", () => {
+    const QR_SECRET = "kiosk-secret-branch-1";
+    const QR_NOW = new Date("2026-09-01T17:05:00+07:00");
+    const QR_BRANCH = { ...BASE_BRANCH, qr_enabled: true, qr_secret: QR_SECRET };
+    const FAR = { lat: -6.9175, long: 107.6191 };
+
+    it("accepts a valid scanned QR with far coords, no geofence gate, and records metode_pulang qr", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockOut(db as any, {
+        ...BASE_INPUT,
+        lat: FAR.lat,
+        long: FAR.long,
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({ ok: true, status: "tepat_waktu" });
+      expect(db.__updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_pulang: "qr", status: "tepat_waktu" }),
+      );
+    });
+
+    it("accepts a valid scanned QR even with absent (zero) coords", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockOut(db as any, {
+        ...BASE_INPUT,
+        lat: 0,
+        long: 0,
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(db.__updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_pulang: "qr" }),
+      );
+    });
+
+    it("rejects an expired/garbage QR token without updating", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+
+      const result = await clockOut(db as any, {
+        ...BASE_INPUT,
+        lat: FAR.lat,
+        long: FAR.long,
+        qrToken: "branch-1|deadbeefdeadbeef",
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang.",
+      });
+      expect(db.__updateMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects a QR token minted for a different branch id", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockOut(db as any, {
+        ...BASE_INPUT,
+        lat: FAR.lat,
+        long: FAR.long,
+        qrToken: `branch-999|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang.",
+      });
+      expect(db.__updateMock).not.toHaveBeenCalled();
+    });
+
+    it("ignores qrToken when the branch has QR disabled and runs the GPS path", async () => {
+      const db = makeMockDb();
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockOut(db as any, {
+        ...BASE_INPUT,
+        lat: -6.2,
+        long: 106.8,
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(db.__updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_pulang: "gps" }),
+      );
+    });
+
+    it("records metode_pulang gps on the plain GPS path (no qrToken)", async () => {
+      const db = makeMockDb();
+
+      const result = await clockOut(db as any, { ...BASE_INPUT, now: QR_NOW });
+
+      expect(result.ok).toBe(true);
+      expect(db.__updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_pulang: "gps" }),
+      );
+    });
   });
 
   it("returns a generic Indonesian message and logs the raw error when the update fails", async () => {

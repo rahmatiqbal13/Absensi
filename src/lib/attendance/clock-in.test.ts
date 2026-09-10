@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clockIn } from "./clock-in";
+import { qrToken } from "./qr-token";
 
 const BASE_EMPLOYEE = {
   id: "employee-1",
@@ -11,6 +12,8 @@ const BASE_BRANCH = {
   lat: -6.2,
   long: 106.8,
   radius_geofencing_meter: 100,
+  qr_enabled: false,
+  qr_secret: null,
 };
 
 const BASE_SCHEDULE = {
@@ -363,6 +366,132 @@ describe("clockIn", () => {
 
     expect(result).toEqual({ ok: false, error: "Gagal menyimpan absensi." });
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  describe("QR path", () => {
+    const QR_SECRET = "kiosk-secret-branch-1";
+    const QR_NOW = new Date("2026-09-01T08:58:00+07:00");
+    const QR_BRANCH = { ...BASE_BRANCH, qr_enabled: true, qr_secret: QR_SECRET };
+    const FAR = { lat: -6.9175, long: 107.6191 };
+
+    it("accepts a valid scanned QR with far coords, no geofence gate, and records metode_masuk qr", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: FAR.lat,
+        long: FAR.long,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({ ok: true, attendanceId: "attendance-1", status: "tepat_waktu" });
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_masuk: "qr", status: "tepat_waktu" }),
+      );
+    });
+
+    it("accepts a valid scanned QR even with absent (zero) coords", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: 0,
+        long: 0,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_masuk: "qr" }),
+      );
+    });
+
+    it("rejects an expired/garbage QR token without inserting", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: FAR.lat,
+        long: FAR.long,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: "branch-1|deadbeefdeadbeef",
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang.",
+      });
+      expect(db.__insertMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects a QR token minted for a different branch id", async () => {
+      const db = makeMockDb({ branch: QR_BRANCH });
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: FAR.lat,
+        long: FAR.long,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: `branch-999|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang.",
+      });
+      expect(db.__insertMock).not.toHaveBeenCalled();
+    });
+
+    it("ignores qrToken when the branch has QR disabled and runs the GPS path", async () => {
+      const db = makeMockDb(); // BASE_BRANCH: qr_enabled false
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: -6.2,
+        long: 106.8,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_masuk: "gps" }),
+      );
+    });
+
+    it("records metode_masuk gps on the plain GPS path (no qrToken)", async () => {
+      const db = makeMockDb();
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: -6.2,
+        long: 106.8,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        now: QR_NOW,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ metode_masuk: "gps" }),
+      );
+    });
   });
 
   it("maps a unique-violation insert error to the duplicate clock-in message", async () => {

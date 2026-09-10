@@ -50,9 +50,15 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
   const guard = await requireMobileEmployee();
   if (!guard.ok) return guard;
 
+  const qrRaw = formData.get("qrToken");
+  const qrToken = typeof qrRaw === "string" && qrRaw ? qrRaw : undefined;
+
   const lat = Number(formData.get("lat"));
   const long = Number(formData.get("long"));
-  if (!isValidCoordinate(lat, long)) {
+  // On the QR path a valid coordinate is not required — the scanned kiosk QR
+  // proves presence and the lib ignores coords there.
+  const coordsOk = isValidCoordinate(lat, long);
+  if (!coordsOk && !qrToken) {
     return { ok: false, error: "Lokasi tidak valid." };
   }
   const rawCatatan = formData.get("catatan");
@@ -86,11 +92,12 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
 
   const result = await clockIn(serviceDb, {
     employeeId: guard.employee.id,
-    lat,
-    long,
+    lat: coordsOk ? lat : 0,
+    long: coordsOk ? long : 0,
     photoPath: uploadResult.path,
     photoExpiresAt: uploadResult.expiresAt,
     catatan,
+    qrToken,
   });
   // The redesigned Absen page is a state machine driven by `todaysAttendance`;
   // clear its cache so the next render advances past the clock-in CTA.
