@@ -22,7 +22,7 @@ describe("AuditAksiBadge", () => {
   });
   it("labels the kiosk reset action", () => {
     render(<AuditAksiBadge aksi="branch_kiosk_reset" />);
-    expect(screen.getByText("Link Kiosk Diganti")).toHaveAttribute("data-variant", "info");
+    expect(screen.getByText("Link & Kode Kiosk Diganti")).toHaveAttribute("data-variant", "info");
   });
   it("falls back to the raw value for an unknown action", () => {
     render(<AuditAksiBadge aksi="something_new" />);

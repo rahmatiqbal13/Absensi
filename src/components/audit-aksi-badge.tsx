@@ -15,7 +15,7 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   branch_updated: { label: "Cabang Diubah", variant: "info" },
   branch_deleted: { label: "Cabang Dihapus", variant: "destructive" },
   branch_qr_update: { label: "Absen QR Diubah", variant: "info" },
-  branch_kiosk_reset: { label: "Link Kiosk Diganti", variant: "info" },
+  branch_kiosk_reset: { label: "Link & Kode Kiosk Diganti", variant: "info" },
 };
 
 export function AuditAksiBadge({ aksi }: { aksi: string }) {

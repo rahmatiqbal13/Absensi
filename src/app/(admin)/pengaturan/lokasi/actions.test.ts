@@ -7,20 +7,41 @@ const beforeRow: { data: unknown; error: unknown } = {
 };
 const updateResult: { error: unknown } = { error: null };
 const auditResult: { error: unknown } = { error: null };
+// Rows returned by `.update(...).eq(...).select("id")` — [] means "no such branch".
+const updateRows: { value: unknown[] } = { value: [{ id: "b1" }] };
 
-const updateMock = vi.fn((_v?: unknown) => ({ eq: () => Promise.resolve(updateResult) }));
 const beforeSelectMock = vi.fn(() => Promise.resolve(beforeRow));
+const updateSelectMock = vi.fn(() =>
+  Promise.resolve({ data: updateRows.value, error: updateResult.error }),
+);
+// `.eq()` is awaited directly by saveBranchLocation (no `.select()`), and chained
+// with `.select("id")` by setBranchQr / resetKioskKey.
+const updateEqMock = vi.fn(() => ({
+  error: updateResult.error,
+  select: updateSelectMock,
+}));
+const updateMock = vi.fn((_v?: unknown) => ({ eq: updateEqMock }));
 const auditInsertMock = vi.fn((_v?: unknown) => Promise.resolve(auditResult));
+
+const selectChain = () => ({
+  eq: () => ({
+    single: () => beforeSelectMock(),
+    maybeSingle: () => beforeSelectMock(),
+  }),
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: async () => ({
     from: () => ({
       update: (v: unknown) => updateMock(v),
-      select: () => ({ eq: () => ({ single: () => beforeSelectMock() }) }),
+      select: selectChain,
     }),
   }),
   createServiceRoleSupabaseClient: () => ({
-    from: () => ({ insert: (v: unknown) => auditInsertMock(v) }),
+    from: () => ({
+      select: selectChain,
+      insert: (v: unknown) => auditInsertMock(v),
+    }),
   }),
 }));
 vi.mock("@/lib/auth/session", () => ({
@@ -45,7 +66,10 @@ beforeEach(() => {
   beforeRow.error = null;
   updateResult.error = null;
   auditResult.error = null;
+  updateRows.value = [{ id: "b1" }];
   updateMock.mockClear();
+  updateEqMock.mockClear();
+  updateSelectMock.mockClear();
   beforeSelectMock.mockClear();
   auditInsertMock.mockClear();
   vi.mocked(revalidatePath).mockClear();
@@ -183,6 +207,14 @@ describe("setBranchQr", () => {
     expect(updateMock).toHaveBeenCalled();
     errSpy.mockRestore();
   });
+
+  it("returns \"Cabang tidak ditemukan.\" when the branch id matches no row", async () => {
+    beforeRow.data = { qr_secret: "existing-secret", kiosk_key: "existing-key" };
+    updateRows.value = [];
+    const r = await setBranchQr("nope", fd({ enabled: "true" }));
+    expect(r).toEqual({ ok: false, error: "Cabang tidak ditemukan." });
+    expect(auditInsertMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("resetKioskKey", () => {
@@ -193,17 +225,21 @@ describe("resetKioskKey", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("generates a fresh kiosk_key and writes a branch_kiosk_reset audit row", async () => {
+  it("regenerates BOTH qr_secret and kiosk_key and writes a branch_kiosk_reset audit row", async () => {
     const r1 = await resetKioskKey("b1");
     expect(r1).toEqual({ ok: true });
-    const first = (updateMock.mock.calls[0][0] as Record<string, unknown>).kiosk_key as string;
-    expect(typeof first).toBe("string");
-    expect(first.length).toBeGreaterThan(0);
-    expect(Object.keys(updateMock.mock.calls[0][0] as object)).toEqual(["kiosk_key"]);
+    const payload1 = updateMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(payload1)).toEqual(["qr_secret", "kiosk_key"]);
+    expect(/^[0-9a-f]{64}$/.test(payload1.qr_secret as string)).toBe(true);
+    const firstKey = payload1.kiosk_key as string;
+    const firstSecret = payload1.qr_secret as string;
+    expect(typeof firstKey).toBe("string");
+    expect(firstKey.length).toBeGreaterThan(0);
 
     await resetKioskKey("b1");
-    const second = (updateMock.mock.calls[1][0] as Record<string, unknown>).kiosk_key as string;
-    expect(second).not.toEqual(first);
+    const payload2 = updateMock.mock.calls[1][0] as Record<string, unknown>;
+    expect(payload2.kiosk_key).not.toEqual(firstKey);
+    expect(payload2.qr_secret).not.toEqual(firstSecret);
 
     expect(auditInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -214,5 +250,12 @@ describe("resetKioskKey", () => {
       }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/pengaturan/lokasi");
+  });
+
+  it("returns \"Cabang tidak ditemukan.\" when the branch id matches no row", async () => {
+    updateRows.value = [];
+    const r = await resetKioskKey("nope");
+    expect(r).toEqual({ ok: false, error: "Cabang tidak ditemukan." });
+    expect(auditInsertMock).not.toHaveBeenCalled();
   });
 });

@@ -49,7 +49,7 @@ describe("BranchQrSection", () => {
     );
   });
 
-  it("shows the kiosk URL and wires Salin link / Buka kiosk / Ganti link when QR is on", async () => {
+  it("shows the kiosk URL and wires Salin link / Buka kiosk / Ganti link & kode QR when QR is on", async () => {
     const resetKioskKey = vi.fn().mockResolvedValue({ ok: true });
     const url = "https://hr.example.com/kiosk/abc123";
     render(
@@ -73,11 +73,11 @@ describe("BranchQrSection", () => {
     expect(open).toHaveAttribute("href", url);
     expect(open).toHaveAttribute("target", "_blank");
 
-    fireEvent.click(screen.getByRole("button", { name: "Ganti link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ganti link & kode QR" }));
     await waitFor(() => expect(resetKioskKey).toHaveBeenCalledWith("b1"));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        "Link kiosk baru dibuat. Perbarui layar kiosk.",
+        "Link kiosk & kode QR baru dibuat. Perbarui layar kiosk.",
       ),
     );
   });
@@ -92,6 +92,27 @@ describe("BranchQrSection", () => {
       expect(toast.error).toHaveBeenCalledWith(
         "Gagal menyimpan pengaturan Absen QR.",
       ),
+    );
+  });
+
+  it("reverts the checkbox to the server state when setBranchQr fails", async () => {
+    const setBranchQr = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: "Gagal menyimpan pengaturan Absen QR." });
+    render(<BranchQrSection {...baseProps} qrEnabled={false} setBranchQr={setBranchQr} />);
+    const cb = screen.getByLabelText("Aktifkan Absen QR") as HTMLInputElement;
+    fireEvent.click(cb);
+    expect(cb.checked).toBe(true);
+    await waitFor(() => expect(cb.checked).toBe(false));
+  });
+
+  it("toasts a failure when the clipboard write rejects", async () => {
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    const url = "https://hr.example.com/kiosk/abc123";
+    render(<BranchQrSection {...baseProps} qrEnabled kioskUrl={url} />);
+    fireEvent.click(screen.getByRole("button", { name: "Salin link" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Gagal menyalin link."),
     );
   });
 });

@@ -79,11 +79,15 @@ export async function setBranchQr(
     String(formData.get("enabled") ?? "").toLowerCase(),
   );
 
-  const { data: current } = await db
+  // qr_secret / kiosk_key are not readable with the user-scoped client after
+  // migration 0031's column grant — read them with the service-role client
+  // (we are already behind the hr_admin/super_admin guard above).
+  const service = createServiceRoleSupabaseClient();
+  const { data: current } = await service
     .from("branches")
     .select("qr_secret, kiosk_key")
     .eq("id", branchId)
-    .single();
+    .maybeSingle();
 
   const patch: Record<string, unknown> = { qr_enabled: enabled };
   if (enabled && !current?.qr_secret) {
@@ -91,13 +95,19 @@ export async function setBranchQr(
     patch.kiosk_key = randomBytes(18).toString("base64url");
   }
 
-  const { error } = await db.from("branches").update(patch).eq("id", branchId);
+  const { data: updated, error } = await db
+    .from("branches")
+    .update(patch)
+    .eq("id", branchId)
+    .select("id");
   if (error) {
     console.error("setBranchQr: update failed", error);
     return { ok: false, error: "Gagal menyimpan pengaturan Absen QR." };
   }
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: "Cabang tidak ditemukan." };
+  }
 
-  const service = createServiceRoleSupabaseClient();
   const { error: auditErr } = await service.from("audit_logs").insert({
     actor_id: me.id,
     target_employee_id: null,
@@ -120,13 +130,22 @@ export async function resetKioskKey(branchId: string): Promise<Result> {
   }
   if (!branchId) return { ok: false, error: "Cabang tidak valid." };
 
-  const { error } = await db
+  // Rotate BOTH the kiosk URL segment and the token-minting secret: a leaked
+  // qr_secret is otherwise unresettable (setBranchQr only mints it when null).
+  const { data: updated, error } = await db
     .from("branches")
-    .update({ kiosk_key: randomBytes(18).toString("base64url") })
-    .eq("id", branchId);
+    .update({
+      qr_secret: randomBytes(32).toString("hex"),
+      kiosk_key: randomBytes(18).toString("base64url"),
+    })
+    .eq("id", branchId)
+    .select("id");
   if (error) {
     console.error("resetKioskKey: update failed", error);
     return { ok: false, error: "Gagal mengganti link kiosk." };
+  }
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: "Cabang tidak ditemukan." };
   }
 
   const service = createServiceRoleSupabaseClient();

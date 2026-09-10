@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -21,6 +21,13 @@ export function BranchQrSection({
   resetKioskKey: (branchId: string) => Promise<Result>;
 }) {
   const [busy, setBusy] = useState(false);
+  const checkboxRef = useRef<HTMLInputElement | null>(null);
+
+  // On any failure, snap the checkbox back to the server's known state so the UI
+  // never claims a setting that did not persist.
+  function revertCheckbox() {
+    if (checkboxRef.current) checkboxRef.current.checked = qrEnabled;
+  }
 
   async function toggleAction(fd: FormData) {
     const enabled = fd.get("enabled");
@@ -28,28 +35,31 @@ export function BranchQrSection({
     try {
       const r = await setBranchQr(branchId, fd);
       if (!r.ok) {
+        revertCheckbox();
         toast.error(r.error);
         return;
       }
       toast.success(enabled ? "Absen QR diaktifkan." : "Absen QR dimatikan.");
     } catch (e) {
       console.error(e);
+      revertCheckbox();
       toast.error("Terjadi kesalahan. Coba lagi.");
     } finally {
       setBusy(false);
     }
   }
 
-  function copyLink() {
-    if (
-      !kioskUrl ||
-      typeof navigator === "undefined" ||
-      !navigator.clipboard
-    ) {
+  async function copyLink() {
+    if (!kioskUrl || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
     }
-    navigator.clipboard.writeText(kioskUrl);
-    toast.success("Link disalin.");
+    try {
+      await navigator.clipboard.writeText(kioskUrl);
+      toast.success("Link disalin.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal menyalin link.");
+    }
   }
 
   async function regenerate() {
@@ -60,7 +70,7 @@ export function BranchQrSection({
         toast.error(r.error);
         return;
       }
-      toast.success("Link kiosk baru dibuat. Perbarui layar kiosk.");
+      toast.success("Link kiosk & kode QR baru dibuat. Perbarui layar kiosk.");
     } catch (e) {
       console.error(e);
       toast.error("Terjadi kesalahan. Coba lagi.");
@@ -74,6 +84,7 @@ export function BranchQrSection({
       <form action={toggleAction}>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input
+            ref={checkboxRef}
             type="checkbox"
             name="enabled"
             defaultChecked={qrEnabled}
@@ -116,7 +127,7 @@ export function BranchQrSection({
               disabled={busy}
               onClick={regenerate}
             >
-              Ganti link
+              Ganti link & kode QR
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">

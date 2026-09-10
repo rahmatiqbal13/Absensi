@@ -20,7 +20,7 @@ const AKSI_OPTIONS = [
   { value: "branch_updated", label: "Cabang Diubah" },
   { value: "branch_deleted", label: "Cabang Dihapus" },
   { value: "branch_qr_update", label: "Absen QR Diubah" },
-  { value: "branch_kiosk_reset", label: "Link Kiosk Diganti" },
+  { value: "branch_kiosk_reset", label: "Link & Kode Kiosk Diganti" },
 ];
 
 export function AuditFilters({
