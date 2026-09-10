@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { geofenceState } from "./geofencing";
+import { geofenceState, isGeofenceConfigured } from "./geofencing";
 import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
@@ -133,7 +133,9 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
   // GPS clock-in). Treat as "no fix": a verified QR already proves presence.
   const geo = hasCoords
     ? geofenceState(input.lat as number, input.long as number, branch, branch.radius_geofencing_meter)
-    : { configured: false, distanceMeters: null, withinRadius: false };
+    : // No fix: the branch geofence may still be configured, so a non-QR
+      // clock-in here must still be gated on a reason (not silently allowed).
+      { configured: isGeofenceConfigured(branch), distanceMeters: null, withinRadius: false };
   // A verified QR proves presence; the geofence and its reason gate are skipped.
   const withinRadius = qrVerified ? true : geo.withinRadius;
 

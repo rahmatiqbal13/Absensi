@@ -130,12 +130,13 @@ export async function deleteBranch(branchId: string): Promise<Result> {
     };
   }
 
-  // Read the full row for the audit before-image with the service-role client:
-  // migration 0031's column grant makes `select("*")` fail for the user-scoped
-  // client (qr_secret / kiosk_key are ungranted).
+  // Audit before-image via the service-role client (migration 0031's column
+  // grant blocks `qr_secret`/`kiosk_key` for the user-scoped client) — but only
+  // the non-secret identity columns: the deleted branch's QR secret has no
+  // forensic value and audit_logs is readable by every admin.
   const { data: branchRow, error: branchRowErr } = await createServiceRoleSupabaseClient()
     .from("branches")
-    .select("*")
+    .select("id, nama, alamat, lat, long, radius_geofencing_meter, qr_enabled")
     .eq("id", branchId)
     .single();
   if (branchRowErr) console.error("deleteBranch: before-read failed", branchRowErr);

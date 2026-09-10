@@ -508,6 +508,26 @@ describe("clockIn", () => {
       );
     });
 
+    it("still gates on a reason when QR is disabled, a qrToken is present, and there is no GPS fix", async () => {
+      const db = makeMockDb(); // BASE_BRANCH: qr_enabled false, geofence configured
+      const token = qrToken(QR_SECRET, QR_NOW.getTime());
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        // no lat/long — a stale-QR scan where getPosition() threw
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        qrToken: `branch-1|${token}`,
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+      });
+      expect(db.__insertMock).not.toHaveBeenCalled();
+    });
+
     it("pre-migration (qr columns missing): GPS path still succeeds and omits metode_masuk", async () => {
       const db = makeMockDb({
         qrColumnsError: { message: 'column branches.qr_enabled does not exist' },
