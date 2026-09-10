@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { KioskDisplay } from "./kiosk-display";
+
+// A leaked kiosk URL must not end up in a search index.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // A branch-entrance monitor loads /kiosk/<secret-key> with no login. The key is a
 // server-only secret: it is read here and passed to the client only so the client
@@ -11,11 +17,12 @@ export default async function KioskPage({
 }) {
   const { key } = await params;
   const db = createServiceRoleSupabaseClient();
-  const { data: branch } = await db
+  const { data: branch, error } = await db
     .from("branches")
     .select("nama, qr_enabled")
     .eq("kiosk_key", key)
     .maybeSingle();
+  if (error) console.error("kiosk page: branch lookup failed", error);
 
   if (!branch || !branch.qr_enabled) {
     return (
@@ -25,5 +32,5 @@ export default async function KioskPage({
     );
   }
 
-  return <KioskDisplay kioskKey={key} branchNama={branch.nama} />;
+  return <KioskDisplay kioskKey={key} branchNama={branch.nama ?? "Kiosk"} />;
 }

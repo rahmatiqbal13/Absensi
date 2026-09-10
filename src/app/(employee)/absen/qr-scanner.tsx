@@ -15,9 +15,11 @@ type Phase = "idle" | "starting" | "scanning" | "denied" | "done";
 
 export function QrScanner({
   onDecode,
+  onReset,
   className,
 }: {
   onDecode: (payload: string) => void;
+  onReset?: () => void;
   className?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -25,6 +27,7 @@ export function QrScanner({
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mountedRef = useRef(true);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -37,6 +40,15 @@ export function QrScanner({
 
   // Release the camera on unmount.
   useEffect(() => stopCamera, [stopCamera]);
+
+  // Track mount state so a getUserMedia promise that resolves after unmount
+  // stops the stream instead of leaking the camera.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const scanFrame = useCallback(() => {
     const video = videoRef.current;
@@ -65,6 +77,10 @@ export function QrScanner({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -104,13 +120,25 @@ export function QrScanner({
       )}
 
       {phase === "denied" && (
-        <p className="text-sm text-destructive">Izin kamera ditolak — pakai Lokasi GPS.</p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-destructive">Izin kamera ditolak — pakai Lokasi GPS.</p>
+          <Button type="button" size="sm" variant="secondary" onClick={start}>
+            <Camera className="size-4" aria-hidden="true" /> Coba lagi
+          </Button>
+        </div>
       )}
 
       {phase === "done" && (
         <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-500">
           <CheckCircle2 className="size-4" aria-hidden="true" /> QR terbaca.
-          <button type="button" className="ml-1 underline" onClick={() => setPhase("idle")}>
+          <button
+            type="button"
+            className="ml-1 underline"
+            onClick={() => {
+              onReset?.();
+              setPhase("idle");
+            }}
+          >
             Scan ulang
           </button>
         </p>

@@ -91,12 +91,29 @@ describe("QrScanner", () => {
     expect(onDecode).not.toHaveBeenCalled();
   });
 
-  it("shows the denied state when camera permission is refused", async () => {
+  it("shows the denied state with a retry button when camera permission is refused", async () => {
     installCamera(false);
     render(<QrScanner onDecode={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /buka kamera/i }));
     await waitFor(() =>
       expect(screen.getByText(/izin kamera ditolak/i)).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: /coba lagi/i })).toBeInTheDocument();
+  });
+
+  it("calls onReset when 'Scan ulang' is clicked after a decode", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    installCamera(true);
+    jsQRMock.mockReturnValue({ data: VALID_PAYLOAD });
+    const onReset = vi.fn();
+    render(<QrScanner onDecode={vi.fn()} onReset={onReset} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /buka kamera/i }));
+    await waitFor(() => expect(screen.getByText(/arahkan ke qr/i)).toBeInTheDocument());
+    await vi.advanceTimersByTimeAsync(300);
+    await waitFor(() => expect(screen.getByText(/qr terbaca/i)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /scan ulang/i }));
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 });

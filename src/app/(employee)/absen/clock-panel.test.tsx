@@ -305,6 +305,41 @@ describe("ClockPanel", () => {
       expect(fd.get("photo")).toBeInstanceOf(File);
     });
 
+    it("QR method: a successful clock-out threads the qrToken in the FormData", async () => {
+      renderPanel({
+        qrEnabled: true,
+        todaysAttendance: {
+          jamMasuk: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+          jamPulang: null,
+          status: "tepat_waktu",
+        },
+      });
+      attachPhoto();
+      await decodeQr(QR_PAYLOAD);
+
+      fireEvent.click(screen.getByRole("button", { name: /absen pulang/i }));
+      await waitFor(() => expect(mockSubmitClockOut).toHaveBeenCalled());
+
+      const fd = mockSubmitClockOut.mock.calls[0][0] as FormData;
+      expect(fd.get("qrToken")).toBe(QR_PAYLOAD);
+      expect(fd.get("photo")).toBeInstanceOf(File);
+    });
+
+    it("QR method: a server out-of-radius rejection flips to GPS and reveals the reason field", async () => {
+      mockSubmitClockIn.mockResolvedValue({
+        ok: false,
+        error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+      });
+      renderPanel({ qrEnabled: true });
+      attachPhoto();
+      await decodeQr(QR_PAYLOAD);
+
+      expect(screen.queryByLabelText(/alasan/i)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+
+      expect(await screen.findByLabelText(/alasan/i)).toBeInTheDocument();
+    });
+
     it("QR method: switching to 'Lokasi GPS' restores the geofence flow", async () => {
       renderPanel({ qrEnabled: true });
       await userEvent.click(screen.getByRole("tab", { name: /lokasi gps/i }));

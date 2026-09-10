@@ -160,6 +160,10 @@ export function ClockPanel({
       const result = await action(formData);
       if (!result.ok) {
         setError(result.error);
+        // The server rejected a QR submit for out-of-radius (QR was disabled
+        // server-side mid-session). Flip to the GPS tab so the reason textarea —
+        // which only renders off the QR method — becomes reachable.
+        if (result.error === OUT_OF_RADIUS_MESSAGE) setMethod("gps");
       } else {
         setPhoto(null);
         setReason("");
@@ -229,7 +233,12 @@ export function ClockPanel({
           {qrEnabled && (
             <Tabs
               value={method}
-              onValueChange={(value) => setMethod(value === "qr" ? "qr" : "gps")}
+              onValueChange={(value) => {
+                setMethod(value === "qr" ? "qr" : "gps");
+                // Drop any decoded payload so a stale QR can't be submitted from
+                // the other tab.
+                setQrPayload(null);
+              }}
             >
               <TabsList className="w-full">
                 <TabsTrigger value="qr">
@@ -244,7 +253,7 @@ export function ClockPanel({
 
           {scanning ? (
             <div className="flex flex-col items-center gap-2">
-              <QrScanner onDecode={setQrPayload} />
+              <QrScanner onDecode={setQrPayload} onReset={() => setQrPayload(null)} />
               {qrPayload && (
                 <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-500">
                   <CheckCircle2 className="size-4" aria-hidden="true" /> Lokasi terverifikasi via QR

@@ -18,6 +18,7 @@ export async function getKioskQr(key: string): Promise<KioskResult> {
     .eq("kiosk_key", key)
     .maybeSingle();
 
+  if (error) console.error("getKioskQr: branch lookup failed", error);
   if (error || !branch || !branch.qr_enabled || !branch.qr_secret) return { ok: false };
 
   const payload = `${branch.id}|${qrToken(branch.qr_secret)}`;
