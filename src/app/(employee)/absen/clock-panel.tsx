@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, QrCode, MapPin } from "lucide-react";
 import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import type { AttendanceStatus } from "@/lib/attendance/status";
@@ -10,7 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProximityPanel, type BranchGeofence } from "./proximity-panel";
+import { QrScanner } from "./qr-scanner";
 import { PhotoCaptureButton } from "./photo-capture-button";
 import { TodayTimeline, formatClockTime } from "./today-timeline";
 
@@ -57,12 +59,14 @@ export function ClockPanel({
   todaysAttendance,
   office,
   shift,
+  qrEnabled,
   submitClockIn,
   submitClockOut,
 }: {
   todaysAttendance: TodaysAttendance;
   office: BranchGeofence;
   shift: WorkShift;
+  qrEnabled: boolean;
   submitClockIn: (formData: FormData) => Promise<ActionResult>;
   submitClockOut: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -71,6 +75,8 @@ export function ClockPanel({
   const [submitting, setSubmitting] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [reason, setReason] = useState("");
+  const [method, setMethod] = useState<"qr" | "gps">(qrEnabled ? "qr" : "gps");
+  const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [geo, setGeo] = useState<GeoSummary>({
     status: "prompt",
     configured: !(office.lat === 0 && office.long === 0),
@@ -95,23 +101,31 @@ export function ClockPanel({
     return () => clearInterval(id);
   }, [clockedIn]);
 
+  const scanning = qrEnabled && method === "qr";
+
   const reasonRequired =
-    (geo.configured && geo.hasFix && !geo.withinRadius) ||
-    geo.status === "denied" ||
-    geo.status === "unavailable" ||
-    error === OUT_OF_RADIUS_MESSAGE;
+    !scanning &&
+    ((geo.configured && geo.hasFix && !geo.withinRadius) ||
+      geo.status === "denied" ||
+      geo.status === "unavailable" ||
+      error === OUT_OF_RADIUS_MESSAGE);
 
   const reasonHelp =
     geo.status === "denied" || geo.status === "unavailable"
       ? "Lokasi tidak terbaca. Isi alasan untuk tetap absen."
       : "Anda terdeteksi di luar radius kantor. Jelaskan alasannya.";
 
-  const submitDisabled = submitting || !photo || (reasonRequired && !reason.trim());
+  const submitDisabled =
+    submitting ||
+    !photo ||
+    (scanning ? !qrPayload : reasonRequired && !reason.trim());
   const disabledHint = !photo
     ? "Ambil foto selfie dulu."
-    : reasonRequired && !reason.trim()
-      ? "Isi alasan dulu."
-      : null;
+    : scanning && !qrPayload
+      ? "Scan QR di layar kantor dulu."
+      : reasonRequired && !reason.trim()
+        ? "Isi alasan dulu."
+        : null;
 
   async function handleClock(kind: "masuk" | "pulang") {
     // Capture before clearing: on a resubmit after a server out-of-radius
@@ -121,10 +135,23 @@ export function ClockPanel({
     setError(null);
     setSubmitting(true);
     try {
-      const position = await getPosition();
       const formData = new FormData();
-      formData.set("lat", String(position.coords.latitude));
-      formData.set("long", String(position.coords.longitude));
+      if (scanning && qrPayload) {
+        formData.set("qrToken", qrPayload);
+        // Best effort — a coarse fix is still worth recording, but never block
+        // the QR path on it.
+        try {
+          const position = await getPosition();
+          formData.set("lat", String(position.coords.latitude));
+          formData.set("long", String(position.coords.longitude));
+        } catch {
+          /* GPS is optional on the QR path */
+        }
+      } else {
+        const position = await getPosition();
+        formData.set("lat", String(position.coords.latitude));
+        formData.set("long", String(position.coords.longitude));
+      }
       if (photo) formData.set("photo", photo);
       const catatan = reason.trim();
       if (catatan && sendReason) formData.set("catatan", catatan);
@@ -136,6 +163,7 @@ export function ClockPanel({
       } else {
         setPhoto(null);
         setReason("");
+        setQrPayload(null);
         // Re-fetch the server tree so the panel advances to the next state
         // (clocked-in / done) immediately, alongside the action's revalidatePath.
         router.refresh();
@@ -198,7 +226,34 @@ export function ClockPanel({
             </div>
           )}
 
-          <ProximityPanel office={office} onGeoChange={onGeoChange} />
+          {qrEnabled && (
+            <Tabs
+              value={method}
+              onValueChange={(value) => setMethod(value === "qr" ? "qr" : "gps")}
+            >
+              <TabsList className="w-full">
+                <TabsTrigger value="qr">
+                  <QrCode aria-hidden="true" /> Scan QR
+                </TabsTrigger>
+                <TabsTrigger value="gps">
+                  <MapPin aria-hidden="true" /> Lokasi GPS
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+
+          {scanning ? (
+            <div className="flex flex-col items-center gap-2">
+              <QrScanner onDecode={setQrPayload} />
+              {qrPayload && (
+                <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-500">
+                  <CheckCircle2 className="size-4" aria-hidden="true" /> Lokasi terverifikasi via QR
+                </p>
+              )}
+            </div>
+          ) : (
+            <ProximityPanel office={office} onGeoChange={onGeoChange} />
+          )}
 
           <PhotoCaptureButton disabled={submitting} photo={photo} onPhotoChange={setPhoto} />
 

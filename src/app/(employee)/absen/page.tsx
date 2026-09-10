@@ -25,6 +25,15 @@ export default async function AbsenPage() {
     .single();
   if (branchErr) console.error("absen: branch query failed", branchErr);
 
+  // Separate query so a pre-migration project (no qr_enabled column) still
+  // renders the GPS flow instead of erroring the whole branch lookup.
+  const { data: qrRow } = await db
+    .from("branches")
+    .select("qr_enabled")
+    .eq("id", employee.branchId)
+    .maybeSingle();
+  const qrEnabled = qrRow?.qr_enabled ?? false;
+
   const { data: schedule, error: scheduleErr } = await db
     .from("work_schedules")
     .select("jam_masuk, toleransi_terlambat_menit")
@@ -73,6 +82,7 @@ export default async function AbsenPage() {
             ? { jamMasuk: schedule.jam_masuk.slice(0, 5), toleransiMenit: schedule.toleransi_terlambat_menit }
             : null
         }
+        qrEnabled={qrEnabled}
         submitClockIn={submitClockIn}
         submitClockOut={submitClockOut}
       />
