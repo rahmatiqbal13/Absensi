@@ -11,6 +11,9 @@ export function qrToken(secret: string, now: number = Date.now()): string {
 }
 
 export function verifyQrToken(secret: string, token: string, now: number = Date.now()): boolean {
+  // A short or missing secret is never a real minted secret (setBranchQr /
+  // resetKioskKey write 64 hex chars) — reject rather than HMAC with weak keying.
+  if (!secret || secret.length < 32) return false;
   if (!/^[0-9a-f]{16}$/.test(token)) return false;
   const win = Math.floor(now / QR_WINDOW_MS);
   const candidates = [tokenForWindow(secret, win), tokenForWindow(secret, win - 1)];

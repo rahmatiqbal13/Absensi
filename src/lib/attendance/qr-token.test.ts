@@ -40,6 +40,16 @@ describe("verifyQrToken", () => {
     expect(verifyQrToken(SECRET, "abcd", T0)).toBe(false);
     expect(verifyQrToken(SECRET, "ABCDEF0123456789", T0)).toBe(false); // uppercase
   });
+
+  it("rejects a too-short or missing secret", () => {
+    const token = qrToken(SECRET, T0);
+    expect(verifyQrToken("", token, T0)).toBe(false);
+    expect(verifyQrToken("short-secret", token, T0)).toBe(false);
+    expect(verifyQrToken("x".repeat(31), token, T0)).toBe(false);
+    // Exactly the 32-char floor still verifies (token minted with the same key).
+    const k32 = "y".repeat(32);
+    expect(verifyQrToken(k32, qrToken(k32, T0), T0)).toBe(true);
+  });
 });
 
 describe("windowRemainingMs", () => {

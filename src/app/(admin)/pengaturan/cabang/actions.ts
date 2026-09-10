@@ -130,7 +130,10 @@ export async function deleteBranch(branchId: string): Promise<Result> {
     };
   }
 
-  const { data: branchRow, error: branchRowErr } = await db
+  // Read the full row for the audit before-image with the service-role client:
+  // migration 0031's column grant makes `select("*")` fail for the user-scoped
+  // client (qr_secret / kiosk_key are ungranted).
+  const { data: branchRow, error: branchRowErr } = await createServiceRoleSupabaseClient()
     .from("branches")
     .select("*")
     .eq("id", branchId)

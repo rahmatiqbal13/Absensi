@@ -30,6 +30,8 @@ function makeMockDb(
     consentRows?: any[];
     insertError?: { message: string; code?: string } | null;
     branch?: any;
+    /** Error from the separate qr_enabled/qr_secret lookup — pre-migration. */
+    qrColumnsError?: { message: string; code?: string } | null;
   } = {},
 ) {
   const {
@@ -38,6 +40,7 @@ function makeMockDb(
     consentRows = [{ id: "consent-1" }],
     insertError = null,
     branch = BASE_BRANCH,
+    qrColumnsError = null,
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -72,7 +75,17 @@ function makeMockDb(
     },
     branches: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: branch, error: null }) }),
+        eq: () => ({
+          // Main branch query (id, lat, long, radius_geofencing_meter).
+          single: () => Promise.resolve({ data: branch, error: null }),
+          // Separate migration-tolerant qr_enabled/qr_secret lookup.
+          maybeSingle: () =>
+            Promise.resolve(
+              qrColumnsError
+                ? { data: null, error: qrColumnsError }
+                : { data: branch, error: null },
+            ),
+        }),
       }),
     },
     work_schedules: {
@@ -369,9 +382,11 @@ describe("clockIn", () => {
   });
 
   describe("QR path", () => {
-    const QR_SECRET = "kiosk-secret-branch-1";
+    const QR_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const QR_NOW = new Date("2026-09-01T08:58:00+07:00");
-    const QR_BRANCH = { ...BASE_BRANCH, qr_enabled: true, qr_secret: QR_SECRET };
+    // Real branch ids are uuids; the QR payload validator requires that shape.
+    const QR_BRANCH_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const QR_BRANCH = { ...BASE_BRANCH, id: QR_BRANCH_ID, qr_enabled: true, qr_secret: QR_SECRET };
     const FAR = { lat: -6.9175, long: 107.6191 };
 
     it("accepts a valid scanned QR with far coords, no geofence gate, and records metode_masuk qr", async () => {
@@ -384,7 +399,7 @@ describe("clockIn", () => {
         long: FAR.long,
         photoPath: "employee-1/masuk-1.jpg",
         photoExpiresAt: "2026-12-01T00:00:00.000Z",
-        qrToken: `branch-1|${token}`,
+        qrToken: `${QR_BRANCH_ID}|${token}`,
         now: QR_NOW,
       });
 
@@ -394,23 +409,23 @@ describe("clockIn", () => {
       );
     });
 
-    it("accepts a valid scanned QR even with absent (zero) coords", async () => {
+    it("accepts a valid scanned QR with absent coords and stores lokasi_masuk null", async () => {
       const db = makeMockDb({ branch: QR_BRANCH });
       const token = qrToken(QR_SECRET, QR_NOW.getTime());
 
       const result = await clockIn(db as any, {
         employeeId: "employee-1",
-        lat: 0,
-        long: 0,
+        lat: undefined,
+        long: undefined,
         photoPath: "employee-1/masuk-1.jpg",
         photoExpiresAt: "2026-12-01T00:00:00.000Z",
-        qrToken: `branch-1|${token}`,
+        qrToken: `${QR_BRANCH_ID}|${token}`,
         now: QR_NOW,
       });
 
       expect(result.ok).toBe(true);
       expect(db.__insertMock).toHaveBeenCalledWith(
-        expect.objectContaining({ metode_masuk: "qr" }),
+        expect.objectContaining({ metode_masuk: "qr", lokasi_masuk: null }),
       );
     });
 
@@ -423,7 +438,7 @@ describe("clockIn", () => {
         long: FAR.long,
         photoPath: "employee-1/masuk-1.jpg",
         photoExpiresAt: "2026-12-01T00:00:00.000Z",
-        qrToken: "branch-1|deadbeefdeadbeef",
+        qrToken: `${QR_BRANCH_ID}|deadbeefdeadbeef`,
         now: QR_NOW,
       });
 
@@ -444,7 +459,7 @@ describe("clockIn", () => {
         long: FAR.long,
         photoPath: "employee-1/masuk-1.jpg",
         photoExpiresAt: "2026-12-01T00:00:00.000Z",
-        qrToken: `branch-999|${token}`,
+        qrToken: `99999999-8888-7777-6666-555555555555|${token}`,
         now: QR_NOW,
       });
 
@@ -491,6 +506,26 @@ describe("clockIn", () => {
       expect(db.__insertMock).toHaveBeenCalledWith(
         expect.objectContaining({ metode_masuk: "gps" }),
       );
+    });
+
+    it("pre-migration (qr columns missing): GPS path still succeeds and omits metode_masuk", async () => {
+      const db = makeMockDb({
+        qrColumnsError: { message: 'column branches.qr_enabled does not exist' },
+      });
+
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: -6.2,
+        long: 106.8,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        now: QR_NOW,
+      });
+
+      expect(result).toEqual({ ok: true, attendanceId: "attendance-1", status: "tepat_waktu" });
+      const payload = db.__insertMock.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty("metode_masuk");
+      expect(payload.lokasi_masuk).toBe("(-6.2,106.8)");
     });
   });
 
