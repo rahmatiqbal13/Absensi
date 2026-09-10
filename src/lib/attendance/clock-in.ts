@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { geofenceState } from "./geofencing";
+import { geofenceState, isGeofenceConfigured } from "./geofencing";
+import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
@@ -10,13 +11,19 @@ import { hasActiveConsent } from "@/lib/consent/consent";
 const PG_UNIQUE_VIOLATION = "23505";
 const DUPLICATE_CLOCK_IN_MESSAGE = "Anda sudah absen masuk hari ini.";
 
+// The kiosk QR payload is "<branchId uuid>|<16 lowercase hex token>". Validate
+// the whole shape before trusting `.split("|")`.
+const QR_PAYLOAD_RE = /^[0-9a-f-]{36}\|[0-9a-f]{16}$/;
+
 export type ClockInInput = {
   employeeId: string;
-  lat: number;
-  long: number;
+  // Optional: absent on a QR clock-in with no GPS fix. Never fabricate (0,0).
+  lat?: number;
+  long?: number;
   photoPath: string;
   photoExpiresAt: string;
   catatan?: string;
+  qrToken?: string;
   now?: Date;
 };
 
@@ -68,6 +75,19 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     return { ok: false, error: branchErr?.message ?? "Data cabang tidak ditemukan." };
   }
 
+  // Separate, migration-tolerant lookup for the QR columns: pre-0031 the columns
+  // don't exist, so selecting them in the main query above would error the whole
+  // branch lookup and break every clock-in. When qrErr is truthy, treat QR as
+  // unavailable and omit metode_masuk from the insert.
+  const { data: qrRow, error: qrErr } = await db
+    .from("branches")
+    .select("qr_enabled, qr_secret")
+    .eq("id", employee.branch_id)
+    .maybeSingle();
+  const qrColumnsExist = !qrErr;
+  const branchQrEnabled = qrRow?.qr_enabled ?? false;
+  const branchQrSecret = typeof qrRow?.qr_secret === "string" ? qrRow.qr_secret : null;
+
   const { data: schedule, error: scheduleErr } = await db
     .from("work_schedules")
     .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
@@ -83,15 +103,48 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }
 
-  const geo = geofenceState(input.lat, input.long, branch, branch.radius_geofencing_meter);
-  const withinRadius = geo.withinRadius;
+  // A scanned kiosk QR is an admin-enabled alternative to the GPS geofence. When
+  // one is presented and the branch has QR enabled, it must verify or the
+  // clock-in is rejected outright — it never falls through to the GPS path.
+  let metode: "gps" | "qr" = "gps";
+  let qrVerified = false;
+  if (input.qrToken !== undefined && branchQrEnabled) {
+    if (!QR_PAYLOAD_RE.test(String(input.qrToken))) {
+      return { ok: false, error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang." };
+    }
+    const [payloadBranchId, payloadToken] = String(input.qrToken).split("|");
+    const okQr =
+      payloadBranchId === branch.id &&
+      typeof branchQrSecret === "string" &&
+      verifyQrToken(branchQrSecret, payloadToken ?? "", now.getTime());
+    if (!okQr) {
+      return { ok: false, error: "QR tidak valid atau sudah kedaluwarsa. Coba scan ulang." };
+    }
+    qrVerified = true;
+    metode = "qr";
+  }
+
+  const hasCoords =
+    typeof input.lat === "number" &&
+    typeof input.long === "number" &&
+    Number.isFinite(input.lat) &&
+    Number.isFinite(input.long);
+  // Absent coords only reach here on the QR path (the action rejects a coordless
+  // GPS clock-in). Treat as "no fix": a verified QR already proves presence.
+  const geo = hasCoords
+    ? geofenceState(input.lat as number, input.long as number, branch, branch.radius_geofencing_meter)
+    : // No fix: the branch geofence may still be configured, so a non-QR
+      // clock-in here must still be gated on a reason (not silently allowed).
+      { configured: isGeofenceConfigured(branch), distanceMeters: null, withinRadius: false };
+  // A verified QR proves presence; the geofence and its reason gate are skipped.
+  const withinRadius = qrVerified ? true : geo.withinRadius;
 
   // A whitespace-only catatan is not a reason — treat it as absent.
   const catatan = input.catatan?.trim() || null;
 
   // Only force a reason when the branch geofence is actually configured. If an
   // admin has not set the office point yet, do not block the employee for it.
-  if (geo.configured && !withinRadius && !catatan) {
+  if (!qrVerified && geo.configured && !withinRadius && !catatan) {
     return { ok: false, error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan." };
   }
 
@@ -102,18 +155,22 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     withinRadius,
   });
 
+  const insertPayload: Record<string, unknown> = {
+    employee_id: input.employeeId,
+    tanggal,
+    jam_masuk: now.toISOString(),
+    lokasi_masuk: hasCoords ? `(${input.lat},${input.long})` : null,
+    foto_masuk_url: input.photoPath,
+    foto_masuk_expires_at: input.photoExpiresAt,
+    status,
+    catatan,
+  };
+  // metode_masuk only exists post-0031.
+  if (qrColumnsExist) insertPayload.metode_masuk = metode;
+
   const { data: inserted, error: insertErr } = await db
     .from("attendances")
-    .insert({
-      employee_id: input.employeeId,
-      tanggal,
-      jam_masuk: now.toISOString(),
-      lokasi_masuk: `(${input.lat},${input.long})`,
-      foto_masuk_url: input.photoPath,
-      foto_masuk_expires_at: input.photoExpiresAt,
-      status,
-      catatan,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 

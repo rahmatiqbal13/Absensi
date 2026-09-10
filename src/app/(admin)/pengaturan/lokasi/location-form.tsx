@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, MapPin, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldSection } from "@/components/field-section";
 import { walkingMinutes } from "@/lib/geo/format-distance";
 import { cn } from "@/lib/utils";
+import { BranchQrSection } from "./branch-qr-section";
 
 const LocationMap = dynamic(
   () => import("@/components/location-map").then((m) => m.LocationMap),
@@ -36,10 +38,18 @@ export function LocationForm({
   branch,
   fallbackCenter,
   saveBranchLocation,
+  qrEnabled,
+  kioskUrl,
+  setBranchQr,
+  resetKioskKey,
 }: {
   branch: BranchLocation;
   fallbackCenter: { lat: number; lng: number };
   saveBranchLocation: (branchId: string, fd: FormData) => Promise<Result>;
+  qrEnabled: boolean;
+  kioskUrl: string | null;
+  setBranchQr: (branchId: string, fd: FormData) => Promise<Result>;
+  resetKioskKey: (branchId: string) => Promise<Result>;
 }) {
   const configured = !(branch.lat === 0 && branch.long === 0);
   const [initialMarker] = useState(() =>
@@ -125,97 +135,106 @@ export function LocationForm({
           <p className="text-sm text-muted-foreground">{branch.alamat}</p>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <form action={action} className="space-y-4">
-          <LocationMap
-            mode="edit"
-            center={initialMarker}
-            marker={marker}
-            radiusMeters={radius}
-            recenterKey={recenterKey}
-            onMarkerChange={setMarker}
-          />
+          <FieldSection icon={MapPin} title="Titik & Radius">
+            <div className="space-y-4">
+              <LocationMap
+                mode="edit"
+                center={initialMarker}
+                marker={marker}
+                radiusMeters={radius}
+                recenterKey={recenterKey}
+                onMarkerChange={setMarker}
+              />
 
-          <div className="space-y-1.5">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={useMyLocation}
-            >
-              <LocateFixed className="size-4" aria-hidden="true" />
-              Pakai lokasi saya sekarang
-            </Button>
-            <p className="font-mono text-sm text-foreground">
-              {marker.lat.toFixed(6)}, {marker.lng.toFixed(6)}
-            </p>
-            <details className="text-sm">
-              <summary className="cursor-pointer text-muted-foreground">
-                Edit manual
-              </summary>
-              <div className="mt-2 flex flex-wrap gap-3">
-                <Input
-                  type="number"
-                  step="any"
-                  aria-label="Lintang"
-                  value={marker.lat}
-                  onChange={(e) => {
-                    if (e.target.value === "") return;
-                    const n = Number(e.target.value);
-                    if (Number.isFinite(n)) setMarker({ ...marker, lat: n });
-                  }}
-                  className="w-40"
-                />
-                <Input
-                  type="number"
-                  step="any"
-                  aria-label="Bujur"
-                  value={marker.lng}
-                  onChange={(e) => {
-                    if (e.target.value === "") return;
-                    const n = Number(e.target.value);
-                    if (Number.isFinite(n)) setMarker({ ...marker, lng: n });
-                  }}
-                  className="w-40"
-                />
+              <div className="space-y-1.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={useMyLocation}
+                >
+                  <LocateFixed className="size-4" aria-hidden="true" />
+                  Pakai lokasi saya sekarang
+                </Button>
+                <p className="font-mono text-sm text-foreground">
+                  {marker.lat.toFixed(6)}, {marker.lng.toFixed(6)}
+                </p>
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    Edit manual
+                  </summary>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <Input
+                      type="number"
+                      step="any"
+                      aria-label="Lintang"
+                      value={marker.lat}
+                      onChange={(e) => {
+                        if (e.target.value === "") return;
+                        const n = Number(e.target.value);
+                        if (Number.isFinite(n)) setMarker({ ...marker, lat: n });
+                      }}
+                      className="w-40"
+                    />
+                    <Input
+                      type="number"
+                      step="any"
+                      aria-label="Bujur"
+                      value={marker.lng}
+                      onChange={(e) => {
+                        if (e.target.value === "") return;
+                        const n = Number(e.target.value);
+                        if (Number.isFinite(n)) setMarker({ ...marker, lng: n });
+                      }}
+                      className="w-40"
+                    />
+                  </div>
+                </details>
               </div>
-            </details>
-          </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">Radius</span>
-              <span className="text-sm text-muted-foreground">{radius} m</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">
+                    Radius
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {radius} m
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={20}
+                    max={500}
+                    step={5}
+                    aria-label="Radius"
+                    value={radius}
+                    onChange={(e) => setRadius(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <Input
+                    type="number"
+                    min={20}
+                    max={5000}
+                    aria-label="Radius dalam meter"
+                    value={radius}
+                    onChange={(e) => {
+                      if (e.target.value === "") return;
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n)) setRadius(n);
+                    }}
+                    className="w-24"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Karyawan di luar radius tetap bisa absen, tapi wajib mengisi
+                  alasan.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={20}
-                max={500}
-                step={5}
-                aria-label="Radius"
-                value={radius}
-                onChange={(e) => setRadius(Number(e.target.value))}
-                className="flex-1 accent-primary"
-              />
-              <Input
-                type="number"
-                min={20}
-                max={5000}
-                aria-label="Radius dalam meter"
-                value={radius}
-                onChange={(e) => {
-                  if (e.target.value === "") return;
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n)) setRadius(n);
-                }}
-                className="w-24"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Karyawan di luar radius tetap bisa absen, tapi wajib mengisi alasan.
-            </p>
-          </div>
+          </FieldSection>
 
           {error && (
             <Alert variant="destructive">
@@ -227,6 +246,16 @@ export function LocationForm({
             Simpan
           </Button>
         </form>
+
+        <FieldSection icon={QrCode} title="Absen QR">
+          <BranchQrSection
+            branchId={branch.id}
+            qrEnabled={qrEnabled}
+            kioskUrl={kioskUrl}
+            setBranchQr={setBranchQr}
+            resetKioskKey={resetKioskKey}
+          />
+        </FieldSection>
       </CardContent>
     </Card>
   );

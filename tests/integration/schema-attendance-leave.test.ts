@@ -36,12 +36,20 @@ describe("attendance & leave schema", () => {
 
   it("enforces one attendance row per employee per day", async () => {
     const db = createServiceRoleSupabaseClient();
-    const { error: firstErr } = await db.from("attendances").insert({
-      employee_id: employeeId,
-      tanggal: "2026-09-01",
-      status: "tepat_waktu",
-    });
+    const { data: first, error: firstErr } = await db
+      .from("attendances")
+      .insert({
+        employee_id: employeeId,
+        tanggal: "2026-09-01",
+        status: "tepat_waktu",
+        metode_masuk: "qr",
+        metode_pulang: "gps",
+      })
+      .select()
+      .single();
     expect(firstErr).toBeNull();
+    expect(first.metode_masuk).toBe("qr");
+    expect(first.metode_pulang).toBe("gps");
 
     const { error: dupErr } = await db.from("attendances").insert({
       employee_id: employeeId,
@@ -49,6 +57,17 @@ describe("attendance & leave schema", () => {
       status: "terlambat",
     });
     expect(dupErr).not.toBeNull();
+  });
+
+  it("rejects an attendance metode outside ('gps','qr')", async () => {
+    const db = createServiceRoleSupabaseClient();
+    const { error } = await db.from("attendances").insert({
+      employee_id: employeeId,
+      tanggal: "2026-09-02",
+      status: "tepat_waktu",
+      metode_masuk: "manual",
+    });
+    expect(error).not.toBeNull();
   });
 
   it("computes saldo_sisa as a generated column", async () => {

@@ -81,7 +81,13 @@ vi.mock("@/lib/supabase/server", () => ({
     },
   }),
   createServiceRoleSupabaseClient: () => ({
-    from: () => ({ insert: (v: unknown) => auditInsertMock(v) }),
+    from: (table: string) => {
+      // deleteBranch reads the full row for the audit before-image with the
+      // service-role client (0031's column grant blocks select("*") for the
+      // user client).
+      if (table === "branches") return { select: (cols: string) => branchSelectMock(cols) };
+      return { insert: (v: unknown) => auditInsertMock(v) };
+    },
   }),
 }));
 vi.mock("@/lib/auth/session", () => ({

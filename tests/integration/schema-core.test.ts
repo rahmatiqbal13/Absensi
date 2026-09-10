@@ -12,6 +12,9 @@ describe("core entity schema", () => {
       .single();
     expect(branchErr).toBeNull();
     expect(branch.radius_geofencing_meter).toBe(100);
+    expect(branch.qr_enabled).toBe(false);
+    expect(branch.qr_secret).toBeNull();
+    expect(branch.kiosk_key).toBeNull();
 
     const { data: dept, error: deptErr } = await db
       .from("departments")

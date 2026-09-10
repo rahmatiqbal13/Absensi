@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ComponentProps } from "react";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ClockPanel } from "./clock-panel";
 
 type GeoSummary = {
@@ -24,11 +25,27 @@ vi.mock("./proximity-panel", () => ({
   },
 }));
 
+// Mock QrScanner so tests can push a decoded payload without a real camera.
+vi.mock("./qr-scanner", () => ({
+  QrScanner: ({ onDecode }: { onDecode: (p: string) => void }) => {
+    (globalThis as unknown as { __decodeQr: (p: string) => void }).__decodeQr = onDecode;
+    return <div data-testid="qr-scanner" />;
+  },
+}));
+
 function pushGeo(g: GeoSummary) {
   return act(async () => {
     (globalThis as unknown as { __pushGeo: (g: GeoSummary) => void }).__pushGeo(g);
   });
 }
+
+function decodeQr(payload: string) {
+  return act(async () => {
+    (globalThis as unknown as { __decodeQr: (p: string) => void }).__decodeQr(payload);
+  });
+}
+
+const QR_PAYLOAD = "11111111-2222-3333-4444-555555555555|0123456789abcdef";
 
 const OFFICE = { lat: -6.2, long: 106.8, radius: 100 };
 const UNCONFIGURED_OFFICE = { lat: 0, long: 0, radius: 100 };
@@ -68,6 +85,7 @@ describe("ClockPanel", () => {
         todaysAttendance={null}
         office={OFFICE}
         shift={null}
+        qrEnabled={false}
         submitClockIn={mockSubmitClockIn}
         submitClockOut={mockSubmitClockOut}
         {...overrides}
@@ -242,5 +260,93 @@ describe("ClockPanel", () => {
   it("renders the shift line when a shift is provided", () => {
     renderPanel({ shift: { jamMasuk: "08:00", toleransiMenit: 15 } });
     expect(screen.getByText(/masuk 08:00 · toleransi 15 mnt/i)).toBeInTheDocument();
+  });
+
+  describe("QR method", () => {
+    it("qrEnabled=false: no method switcher, GPS flow as before", async () => {
+      renderPanel({ qrEnabled: false });
+      await pushGeo(IN_RADIUS);
+      expect(screen.queryByRole("tab", { name: /scan qr/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId("proximity")).toBeInTheDocument();
+    });
+
+    it("qrEnabled=true: shows a Scan QR / Lokasi GPS switcher, defaults to the scanner and hides the reason field", async () => {
+      renderPanel({ qrEnabled: true });
+      expect(screen.getByRole("tab", { name: /scan qr/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /lokasi gps/i })).toBeInTheDocument();
+      expect(screen.getByTestId("qr-scanner")).toBeInTheDocument();
+      expect(screen.queryByTestId("proximity")).not.toBeInTheDocument();
+      // No reason field ever on the QR method, even with no fix.
+      expect(screen.queryByLabelText(/alasan/i)).not.toBeInTheDocument();
+    });
+
+    it("QR method: submit disabled until a photo AND a decoded payload", async () => {
+      renderPanel({ qrEnabled: true });
+      const button = screen.getByRole("button", { name: /absen masuk/i });
+
+      attachPhoto();
+      expect(button).toBeDisabled();
+
+      await decodeQr(QR_PAYLOAD);
+      expect(screen.getByText(/terverifikasi via qr/i)).toBeInTheDocument();
+      expect(button).not.toBeDisabled();
+    });
+
+    it("QR method: a successful clock-in sends the qrToken in the FormData", async () => {
+      renderPanel({ qrEnabled: true });
+      attachPhoto();
+      await decodeQr(QR_PAYLOAD);
+
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+      await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+
+      const fd = mockSubmitClockIn.mock.calls[0][0] as FormData;
+      expect(fd.get("qrToken")).toBe(QR_PAYLOAD);
+      expect(fd.get("photo")).toBeInstanceOf(File);
+    });
+
+    it("QR method: a successful clock-out threads the qrToken in the FormData", async () => {
+      renderPanel({
+        qrEnabled: true,
+        todaysAttendance: {
+          jamMasuk: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+          jamPulang: null,
+          status: "tepat_waktu",
+        },
+      });
+      attachPhoto();
+      await decodeQr(QR_PAYLOAD);
+
+      fireEvent.click(screen.getByRole("button", { name: /absen pulang/i }));
+      await waitFor(() => expect(mockSubmitClockOut).toHaveBeenCalled());
+
+      const fd = mockSubmitClockOut.mock.calls[0][0] as FormData;
+      expect(fd.get("qrToken")).toBe(QR_PAYLOAD);
+      expect(fd.get("photo")).toBeInstanceOf(File);
+    });
+
+    it("QR method: a server out-of-radius rejection flips to GPS and reveals the reason field", async () => {
+      mockSubmitClockIn.mockResolvedValue({
+        ok: false,
+        error: "Anda berada di luar radius kantor. Wajib isi catatan/alasan.",
+      });
+      renderPanel({ qrEnabled: true });
+      attachPhoto();
+      await decodeQr(QR_PAYLOAD);
+
+      expect(screen.queryByLabelText(/alasan/i)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+
+      expect(await screen.findByLabelText(/alasan/i)).toBeInTheDocument();
+    });
+
+    it("QR method: switching to 'Lokasi GPS' restores the geofence flow", async () => {
+      renderPanel({ qrEnabled: true });
+      await userEvent.click(screen.getByRole("tab", { name: /lokasi gps/i }));
+      await waitFor(() => expect(screen.getByTestId("proximity")).toBeInTheDocument());
+
+      await pushGeo(OUT_OF_RADIUS);
+      expect(await screen.findByLabelText(/alasan/i)).toBeInTheDocument();
+    });
   });
 });

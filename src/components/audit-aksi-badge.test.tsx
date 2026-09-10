@@ -16,6 +16,14 @@ describe("AuditAksiBadge", () => {
     expect(screen.getByText("Cuti Disetujui")).toBeInTheDocument();
     expect(screen.getByText("Cuti Disetujui")).toHaveAttribute("data-variant", "success");
   });
+  it("labels the QR / kiosk branch actions", () => {
+    render(<AuditAksiBadge aksi="branch_qr_update" />);
+    expect(screen.getByText("Absen QR Diubah")).toHaveAttribute("data-variant", "info");
+  });
+  it("labels the kiosk reset action", () => {
+    render(<AuditAksiBadge aksi="branch_kiosk_reset" />);
+    expect(screen.getByText("Link & Kode Kiosk Diganti")).toHaveAttribute("data-variant", "info");
+  });
   it("falls back to the raw value for an unknown action", () => {
     render(<AuditAksiBadge aksi="something_new" />);
     expect(screen.getByText("something_new")).toBeInTheDocument();

@@ -17,7 +17,13 @@ const ROOTS = [
 // Deliberate exception: brand-preview.tsx renders literal light/dark preview
 // swatches (bg-white + `dark bg-neutral-950`) so a super_admin sees their accent
 // on both backgrounds regardless of the current theme.
-const ALLOWLIST = new Set(["(admin)/pengaturan/instansi/brand-preview.tsx"]);
+// Deliberate exception: the kiosk is a full-bleed dark screen — a monitor bolted
+// at a branch door, not an in-app surface — so it owns its own neutral-950 palette.
+const ALLOWLIST = new Set([
+  "(admin)/pengaturan/instansi/brand-preview.tsx",
+  "kiosk/[key]/page.tsx",
+  "kiosk/[key]/kiosk-display.tsx",
+]);
 
 const GRAYS = "neutral|gray|slate|zinc|stone";
 const BANNED: [RegExp, string][] = [
