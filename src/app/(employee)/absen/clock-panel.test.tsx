@@ -192,6 +192,16 @@ describe("ClockPanel", () => {
     await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
   });
 
+  it("announces a successful clock-in through a polite status region", async () => {
+    renderPanel();
+    await pushGeo(IN_RADIUS);
+    attachPhoto();
+
+    expect(screen.getByRole("status")).toHaveTextContent("");
+    fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Absen masuk berhasil."));
+  });
+
   it("reveals the reason textarea when the server rejects for out-of-radius (client fix looked in-radius)", async () => {
     mockSubmitClockIn.mockResolvedValue({
       ok: false,

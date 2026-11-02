@@ -19,11 +19,15 @@ export default async function JadwalPage() {
     .from("work_schedules")
     .select("branch_id, jam_masuk, jam_pulang, hari_kerja, toleransi_terlambat_menit");
   if (schedErr) console.error("jadwal: schedules query failed", schedErr);
+  // Separate, migration-tolerant read: pre-0032 the column doesn't exist.
+  const { data: fines, error: finesErr } = await db.from("work_schedules").select("branch_id, potong_terlambat");
+  if (finesErr) console.error("jadwal: potong_terlambat query failed", finesErr);
+  const fineByBranch = new Map((fines ?? []).map((f) => [f.branch_id, f.potong_terlambat === true]));
 
   const byBranch = new Map(
     (schedules ?? []).map((s) => [
       s.branch_id,
-      { jamMasuk: s.jam_masuk.slice(0, 5), jamPulang: s.jam_pulang.slice(0, 5), hariKerja: s.hari_kerja, toleransiMenit: s.toleransi_terlambat_menit },
+      { jamMasuk: s.jam_masuk.slice(0, 5), jamPulang: s.jam_pulang.slice(0, 5), hariKerja: s.hari_kerja, toleransiMenit: s.toleransi_terlambat_menit, potongTerlambat: fineByBranch.get(s.branch_id) ?? false },
     ]),
   );
 

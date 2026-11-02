@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computePayrollForBranch } from "./compute";
 
-const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, hariKerja: [1, 2, 3, 4, 5] };
+const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, hariKerja: [1, 2, 3, 4, 5], potongTerlambat: true };
 
 describe("computePayrollForBranch", () => {
   it("pays a full month with perfect attendance in full", () => {
@@ -105,5 +105,51 @@ describe("computePayrollForBranch", () => {
     // Aug 17..31 working days = 11; all alpa -> potongan 5_500_000
     expect(row.total_potongan_absensi).toBe(5_500_000);
     expect(row.gaji_akhir).toBe(5_000_000);
+  });
+
+  it("caps late/early fines at 50% of gaji_pokok, keeping rincian consistent", () => {
+    // Arrive 16:00 WIB every day: 405 late minutes -> ~421_875/day x 21 days,
+    // far above the 5_250_000 cap.
+    const attendance = new Map<string, { status: string; jam_masuk: string | null; jam_pulang: string | null }>();
+    for (const d of [
+      "03", "04", "05", "06", "07", "10", "11", "12", "13", "14",
+      "17", "18", "19", "20", "21", "24", "25", "26", "27", "28", "31",
+    ]) {
+      attendance.set(`2026-08-${d}`, {
+        status: "terlambat",
+        jam_masuk: `2026-08-${d}T09:00:00Z`,
+        jam_pulang: `2026-08-${d}T10:00:00Z`,
+      });
+    }
+    const [row] = computePayrollForBranch({
+      year: 2026, month: 8,
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-01-01" }],
+      schedule: SCHEDULE,
+      holidayDates: [],
+      attendancesByEmployee: new Map([["e1", attendance]]),
+      approvedLeavesByEmployee: new Map(),
+    });
+    expect(row.total_potongan_absensi).toBe(5_250_000);
+    expect(row.gaji_akhir).toBe(5_250_000);
+    const sum = row.rincian_harian.reduce((a, r) => a + r.potongan, 0);
+    expect(Math.round(sum * 100) / 100).toBe(5_250_000);
+    expect(row.rincian_harian.at(-1)?.potongan).toBe(0);
+    expect(row.rincian_harian.some((r) => r.catatan?.includes("dibatasi 50%"))).toBe(true);
+  });
+
+  it("does not deduct late minutes when the branch has not opted in", () => {
+    const attendance = new Map([
+      ["2026-08-03", { status: "terlambat", jam_masuk: "2026-08-03T03:00:00Z", jam_pulang: "2026-08-03T10:00:00Z" }],
+    ]);
+    const [row] = computePayrollForBranch({
+      year: 2026, month: 8,
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-03" }],
+      schedule: { ...SCHEDULE, potongTerlambat: false },
+      holidayDates: [],
+      attendancesByEmployee: new Map([["e1", attendance]]),
+      approvedLeavesByEmployee: new Map(),
+    });
+    expect(row.rincian_harian[0].menit_terlambat).toBe(45);
+    expect(row.rincian_harian[0].potongan).toBe(0);
   });
 });

@@ -11,6 +11,10 @@ export type ScheduleLite = {
   jamMasuk: string;
   jamPulang: string;
   toleransiMenit: number;
+  // Per-minute late / early-leave deductions are a fine (denda), which needs a
+  // written basis in the PK/PP/PKB — so this is opt-in per branch. When false,
+  // minutes are still recorded on the payslip but cost nothing.
+  potongTerlambat: boolean;
 };
 
 export type RincianHarianEntry = {
@@ -95,6 +99,8 @@ export function dayDeduction(params: {
       : "jadwal kerja tidak valid";
   }
 
-  entry.potongan = round2(round2(potonganMasuk) + round2(potonganPulang));
+  entry.potongan = schedule.potongTerlambat
+    ? round2(round2(potonganMasuk) + round2(potonganPulang))
+    : 0;
   return entry;
 }

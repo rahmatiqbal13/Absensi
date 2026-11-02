@@ -19,6 +19,23 @@ describe("ScheduleForm", () => {
     expect(fd.get("jamMasuk")).toBe("09:00");
     expect(fd.getAll("hariKerja")).toEqual(["1", "2", "3", "4", "5"]);
     expect(fd.get("toleransiMenit")).toBe("15");
+    expect(fd.get("potongTerlambat")).toBeNull(); // off by default
+  });
+
+  it("submits the late-deduction opt-in when checked", async () => {
+    const saveSchedule = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <ScheduleForm
+        branchId="b1"
+        branchNama="Kantor Pusat"
+        defaults={{ jamMasuk: "09:00", jamPulang: "17:00", hariKerja: [1], toleransiMenit: 15, potongTerlambat: true }}
+        saveSchedule={saveSchedule}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /potong gaji per menit/i })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
+    await waitFor(() => expect(saveSchedule).toHaveBeenCalled());
+    expect((saveSchedule.mock.calls[0][1] as FormData).get("potongTerlambat")).toBe("on");
   });
 
   it("shows an error from a failed save", async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { dayDeduction, leaveCoversDate } from "./deduction";
 
-const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15 }; // 480 work minutes
+const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, potongTerlambat: true }; // 480 work minutes
 const WAGE = 480_000; // -> Rp 1_000 per work minute
 
 describe("leaveCoversDate", () => {
@@ -77,6 +77,28 @@ describe("dayDeduction", () => {
     expect(r.potongan).toBe(30_000);
   });
 
+  it("late/early deduction disabled -> minutes recorded, no potongan", () => {
+    const r = dayDeduction({
+      ...base,
+      schedule: { ...SCHEDULE, potongTerlambat: false },
+      attendanceRow: { status: "terlambat", jam_masuk: "2026-08-14T02:25:00Z", jam_pulang: "2026-08-14T09:30:00Z" },
+      leave: { covered: false },
+    });
+    expect(r.menit_terlambat).toBe(10);
+    expect(r.menit_pulang_cepat).toBe(30);
+    expect(r.potongan).toBe(0);
+  });
+
+  it("late/early deduction disabled -> alpa still unpaid", () => {
+    const r = dayDeduction({
+      ...base,
+      schedule: { ...SCHEDULE, potongTerlambat: false },
+      attendanceRow: null,
+      leave: { covered: false },
+    });
+    expect(r.potongan).toBe(WAGE);
+  });
+
   it("missing clock-out -> leave side zero, flagged", () => {
     const r = dayDeduction({
       ...base,
@@ -91,7 +113,7 @@ describe("dayDeduction", () => {
   it("inverted schedule -> zero deduction, flagged as invalid", () => {
     const r = dayDeduction({
       ...base,
-      schedule: { jamMasuk: "17:00", jamPulang: "09:00", toleransiMenit: 15 },
+      schedule: { jamMasuk: "17:00", jamPulang: "09:00", toleransiMenit: 15, potongTerlambat: true },
       attendanceRow: { status: "terlambat", jam_masuk: "2026-08-14T12:00:00Z", jam_pulang: "2026-08-14T13:00:00Z" },
       leave: { covered: false },
     });

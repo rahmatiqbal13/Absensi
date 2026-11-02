@@ -85,7 +85,9 @@ export function KioskDisplay({
         )}
       </div>
 
-      <div className="h-1 w-[320px] overflow-hidden rounded-full bg-neutral-800">
+      {/* A countdown bar collapsed to an instant animation would just vanish —
+          hide it under reduced motion; the caption below still says it rotates. */}
+      <div className="h-1 w-[320px] overflow-hidden rounded-full bg-neutral-800 motion-reduce:hidden">
         {dataUrl && (
           <div
             key={dataUrl}

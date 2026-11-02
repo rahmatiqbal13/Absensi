@@ -72,6 +72,9 @@ export function ClockPanel({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // Errors render in a role="alert" Alert; success has no visible message (the
+  // panel just advances), so it is announced through this polite live region.
+  const [announcement, setAnnouncement] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [reason, setReason] = useState("");
@@ -133,6 +136,7 @@ export function ClockPanel({
     // to be reset and the client geo fix may read in-radius.
     const sendReason = reasonRequired;
     setError(null);
+    setAnnouncement("");
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -168,6 +172,7 @@ export function ClockPanel({
         setPhoto(null);
         setReason("");
         setQrPayload(null);
+        setAnnouncement(kind === "masuk" ? "Absen masuk berhasil." : "Absen pulang berhasil.");
         // Re-fetch the server tree so the panel advances to the next state
         // (clocked-in / done) immediately, alongside the action's revalidatePath.
         router.refresh();
@@ -186,9 +191,19 @@ export function ClockPanel({
     </p>
   ) : null;
 
+  // Kept as the first child of both return branches so React reuses the same
+  // node across the clocked-in -> done transition; a freshly mounted live
+  // region is not reliably announced.
+  const liveRegion = (
+    <p role="status" aria-live="polite" className="sr-only">
+      {announcement}
+    </p>
+  );
+
   if (done && todaysAttendance) {
     return (
       <div className="space-y-4">
+        {liveRegion}
         {shiftLine}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
@@ -216,6 +231,7 @@ export function ClockPanel({
 
   return (
     <div className="space-y-4">
+      {liveRegion}
       {shiftLine}
 
       <Card>

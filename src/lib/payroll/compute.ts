@@ -19,7 +19,30 @@ export type PayrollSchedule = {
   jamPulang: string;
   toleransiMenit: number;
   hariKerja: number[];
+  potongTerlambat: boolean;
 };
+
+// PP 36/2021 caps the total of wage deductions (pemotongan) at 50% of each wage
+// payment. An unworked day (alpa) is unpaid wage, not a pemotongan, so only the
+// late / early-leave fines draw from this budget.
+export const MAX_FINE_RATIO = 0.5;
+const CAPPED_NOTE = "potongan dibatasi 50% upah";
+
+// Clamp the fine-type entries (jenis "kerja") against a running budget so the
+// per-day rincian still sums to the capped total.
+function capFines(rincian: RincianHarianEntry[], gajiPokok: number): RincianHarianEntry[] {
+  let budget = round2(gajiPokok * MAX_FINE_RATIO);
+  return rincian.map((r) => {
+    if (r.jenis !== "kerja" || r.potongan <= 0) return r;
+    if (r.potongan <= budget) {
+      budget = round2(budget - r.potongan);
+      return r;
+    }
+    const potongan = budget;
+    budget = 0;
+    return { ...r, potongan, catatan: r.catatan ? `${r.catatan}; ${CAPPED_NOTE}` : CAPPED_NOTE };
+  });
+}
 
 export type ApprovedLeave = { tanggalMulai: string; tanggalSelesai: string; jenis: string };
 
@@ -56,14 +79,17 @@ export function computePayrollForBranch(input: {
     const attendance = attendancesByEmployee.get(emp.id) ?? new Map<string, AttendanceRowLite>();
     const leaves = approvedLeavesByEmployee.get(emp.id) ?? [];
 
-    const rincian_harian = accrualDays.map((tanggal) =>
-      dayDeduction({
-        tanggal,
-        attendanceRow: attendance.get(tanggal) ?? null,
-        schedule,
-        dailyWage: wage,
-        leave: leaveCoversDate(leaves, tanggal),
-      }),
+    const rincian_harian = capFines(
+      accrualDays.map((tanggal) =>
+        dayDeduction({
+          tanggal,
+          attendanceRow: attendance.get(tanggal) ?? null,
+          schedule,
+          dailyWage: wage,
+          leave: leaveCoversDate(leaves, tanggal),
+        }),
+      ),
+      emp.gajiPokok,
     );
 
     const total_potongan_absensi = round2(

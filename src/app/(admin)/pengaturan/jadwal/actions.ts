@@ -37,6 +37,16 @@ export async function saveSchedule(branchId: string, formData: FormData): Promis
     console.error("saveSchedule: upsert failed", error);
     return { ok: false, error: "Gagal menyimpan jadwal kerja." };
   }
+
+  // Written separately so a pre-0032 database still saves the schedule itself.
+  const { error: fineErr } = await db
+    .from("work_schedules")
+    .update({ potong_terlambat: formData.get("potongTerlambat") === "on" })
+    .eq("branch_id", branchId);
+  if (fineErr) {
+    console.error("saveSchedule: potong_terlambat update failed", fineErr);
+    return { ok: false, error: "Jadwal tersimpan, tetapi pengaturan potongan terlambat gagal disimpan." };
+  }
   revalidatePath("/pengaturan/jadwal");
   return { ok: true };
 }

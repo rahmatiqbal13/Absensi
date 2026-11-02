@@ -104,6 +104,16 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
   }
 
+  // Separate, migration-tolerant lookup: pre-0032 the column doesn't exist, and
+  // the fail-safe for a fine is "not charged", never "charged".
+  const { data: fineRow, error: fineErr } = await db
+    .from("work_schedules")
+    .select("potong_terlambat")
+    .eq("branch_id", period.branch_id)
+    .maybeSingle();
+  if (fineErr) console.error("generatePayroll: potong_terlambat lookup failed", fineErr);
+  const potongTerlambat = !fineErr && fineRow?.potong_terlambat === true;
+
   const employees = (employeesRes.data ?? []) as {
     id: string;
     gaji_pokok: number;
@@ -181,6 +191,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
       jamPulang: scheduleRes.data.jam_pulang,
       toleransiMenit: Number(scheduleRes.data.toleransi_terlambat_menit),
       hariKerja: scheduleRes.data.hari_kerja,
+      potongTerlambat,
     },
     holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal),
     attendancesByEmployee,

@@ -7,7 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type ScheduleDefaults = { jamMasuk: string; jamPulang: string; hariKerja: number[]; toleransiMenit: number } | null;
+type ScheduleDefaults = {
+  jamMasuk: string;
+  jamPulang: string;
+  hariKerja: number[];
+  toleransiMenit: number;
+  potongTerlambat?: boolean;
+} | null;
 type Result = { ok: true } | { ok: false; error: string };
 
 const DAYS = [
@@ -77,6 +83,21 @@ export function ScheduleForm({
               </label>
             ))}
           </fieldset>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                name="potongTerlambat"
+                defaultChecked={defaults?.potongTerlambat ?? false}
+                className="size-4 rounded border-input accent-primary"
+              />
+              Potong gaji per menit untuk terlambat / pulang cepat
+            </label>
+            <p className="text-sm text-muted-foreground">
+              Aktifkan hanya bila diatur di perjanjian kerja, peraturan perusahaan, atau PKB. Total potongan
+              dibatasi 50% gaji pokok. Ketidakhadiran tanpa izin tetap tidak dibayar.
+            </p>
+          </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           {msg && <Alert><AlertDescription>{msg}</AlertDescription></Alert>}
           <Button type="submit" disabled={busy}>Simpan</Button>

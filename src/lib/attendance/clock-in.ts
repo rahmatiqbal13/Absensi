@@ -92,11 +92,8 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     .from("work_schedules")
     .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
     .eq("branch_id", employee.branch_id)
-    // work_schedules has no unique constraint on branch_id alone (a branch may
-    // have several rows for different hari_kerja patterns), so .single() would
-    // error with PGRST116 as soon as a second row exists. Taking the first row
-    // keeps this path working; picking the row matching today's hari_kerja is
-    // deliberately out of scope here.
+    // work_schedules is one row per branch (unique (branch_id) since 0024);
+    // .limit(1).maybeSingle() just turns "no schedule yet" into null, not an error.
     .limit(1)
     .maybeSingle();
   if (scheduleErr || !schedule) {
