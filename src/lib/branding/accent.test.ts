@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveAccent, deriveAccentDark, contrastRatio, accentWarning, normalizeHex } from "./accent";
+import { deriveAccent, deriveAccentDark, deriveBrandText, contrastRatio, accentWarning, normalizeHex } from "./accent";
 
 describe("normalizeHex", () => {
   it("upper-cases and keeps the hash", () => {
@@ -46,7 +46,7 @@ describe("deriveAccentDark", () => {
   it("lightens a dark accent until it reads on the dark surface", () => {
     const d = deriveAccentDark("#1E3A5F"); // navy
     expect(d.primary).not.toBe("#1E3A5F");
-    expect(contrastRatio(d.primary, "#1C1C1C")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(d.primary, "#151411")).toBeGreaterThanOrEqual(4.5);
   });
   it("gives a lightened accent a dark foreground", () => {
     expect(deriveAccentDark("#1B4332").primaryForeground).toBe("#0A0A0A");
@@ -64,5 +64,16 @@ describe("accentWarning", () => {
   it("warns for a mid-tone where neither text colour clears 4.5:1", () => {
     // #787878: vs white=4.42, vs black=4.48, both < 4.5
     expect(accentWarning("#787878")).toMatch(/kontras/i);
+  });
+});
+
+describe("deriveBrandText", () => {
+  it("darkens a brand colour that falls just short of 4.5:1 on paper", () => {
+    const t = deriveBrandText("#C63B22");
+    expect(t).not.toBe("#C63B22");
+    expect(contrastRatio(t, "#F2EEE5")).toBeGreaterThanOrEqual(4.5);
+  });
+  it("passes an already-dark brand colour through unchanged", () => {
+    expect(deriveBrandText("#1E3A5F")).toBe("#1E3A5F");
   });
 });

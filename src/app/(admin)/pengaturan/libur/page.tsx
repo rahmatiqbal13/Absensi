@@ -46,6 +46,7 @@ export default async function LiburPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title={`Hari Libur ${tahun}`}
         description="Dipakai payroll untuk menghitung hari kerja efektif."
       />

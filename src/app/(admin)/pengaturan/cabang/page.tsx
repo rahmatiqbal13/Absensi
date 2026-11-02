@@ -32,7 +32,8 @@ export default async function CabangPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Cabang" description="Kelola kantor cabang: nama dan alamat." />
+      <PageHeader
+        eyebrow="Pengaturan" title="Cabang" description="Kelola kantor cabang: nama dan alamat." />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>Gagal memuat daftar cabang.</AlertDescription>

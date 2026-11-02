@@ -5,11 +5,11 @@ export type LeaveStatus = "pending" | "approved" | "rejected";
 
 const CONFIG: Record<
   LeaveStatus,
-  { label: string; variant: "warning" | "success" | "destructive"; Icon: typeof Clock }
+  { label: string; variant: "warning" | "success" | "danger"; Icon: typeof Clock }
 > = {
   pending: { label: "Menunggu", variant: "warning", Icon: Clock },
   approved: { label: "Disetujui", variant: "success", Icon: CheckCircle2 },
-  rejected: { label: "Ditolak", variant: "destructive", Icon: XCircle },
+  rejected: { label: "Ditolak", variant: "danger", Icon: XCircle },
 };
 
 export function LeaveStatusBadge({ status }: { status: LeaveStatus }) {

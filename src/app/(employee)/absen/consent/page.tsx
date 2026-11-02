@@ -22,7 +22,7 @@ export default async function ConsentPage({
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
       <Card className="w-full max-w-sm">
         <CardContent className="flex flex-col items-center gap-4 py-8 text-center">
-          <MapPin className="size-9 text-primary" aria-hidden="true" />
+          <MapPin className="size-9 text-brand" aria-hidden="true" />
           <h1 className="text-xl font-semibold text-foreground">Persetujuan Lokasi &amp; Foto</h1>
           <p className="text-sm text-muted-foreground">
             Untuk mencatat absensi, aplikasi ini perlu mengakses lokasi GPS dan mengambil foto

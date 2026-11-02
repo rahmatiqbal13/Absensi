@@ -73,6 +73,7 @@ export default async function KaryawanDetailPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Orang"
         title={emp.nama}
         description={emp.email}
         actions={

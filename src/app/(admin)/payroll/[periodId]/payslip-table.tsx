@@ -153,7 +153,7 @@ export function PayslipTable({
                         >
                           {expanded === row.id ? "Tutup" : "Rincian"}
                         </Button>
-                        <a href={`/slip-gaji/${row.id}/pdf`} className="ml-3 text-xs text-primary hover:underline">
+                        <a href={`/slip-gaji/${row.id}/pdf`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
                           PDF
                         </a>
                       </TableCell>
@@ -217,7 +217,7 @@ export function PayslipTable({
                     >
                       {expanded === row.id ? "Tutup" : "Rincian"}
                     </Button>
-                    <a href={`/slip-gaji/${row.id}/pdf`} className="self-center text-xs text-primary hover:underline">PDF</a>
+                    <a href={`/slip-gaji/${row.id}/pdf`} className="self-center text-xs font-medium text-brand-text hover:underline">PDF</a>
                   </div>
                   {expanded === row.id && (
                     <ul className="space-y-1 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">

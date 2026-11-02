@@ -26,8 +26,8 @@ export default async function KioskPage({
 
   if (!branch || !branch.qr_enabled) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 p-8 text-center">
-        <p className="text-lg text-neutral-400">Kiosk tidak aktif.</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#1c1b18] p-8 text-center">
+        <p className="text-lg text-[#f2eee5]/70">Kiosk tidak aktif.</p>
       </main>
     );
   }

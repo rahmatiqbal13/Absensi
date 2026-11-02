@@ -33,6 +33,7 @@ export default async function PersetujuanCutiPage() {
     return (
       <div className="space-y-4">
         <PageHeader
+        eyebrow="Kotak masuk"
           title="Persetujuan Cuti"
           description="Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan."
         />
@@ -66,6 +67,7 @@ export default async function PersetujuanCutiPage() {
   return (
     <div className="space-y-4">
       <PageHeader
+        eyebrow="Kotak masuk"
         title="Persetujuan Cuti"
         description="Tinjau dan proses pengajuan cuti karyawan yang menunggu persetujuan."
       />

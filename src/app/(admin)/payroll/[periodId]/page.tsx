@@ -66,6 +66,7 @@ export default async function PayrollPeriodPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Payroll"
         title={`${(period.branches as unknown as { nama: string } | null)?.nama ?? "-"} — ${monthLabel(period.bulan)} ${period.tahun}`}
         description="Slip gaji periode ini."
         actions={<PayrollStatusBadge status={period.status as PayrollStatus} />}

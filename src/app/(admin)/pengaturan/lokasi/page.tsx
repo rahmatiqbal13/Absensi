@@ -81,6 +81,7 @@ export default async function LokasiPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title="Lokasi Kantor"
         description="Titik kantor dan radius geofence dipakai untuk memvalidasi absensi karyawan."
       />

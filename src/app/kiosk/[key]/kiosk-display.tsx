@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { QR_WINDOW_MS } from "@/lib/attendance/qr-token";
+import { formatJakartaLong, jakartaClock, useNow } from "@/lib/time/use-now";
 import { getKioskQr } from "./actions";
 
 const FAILURE_RETRY_MS = 5000;
@@ -19,6 +20,9 @@ export function KioskDisplay({
 }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [inactive, setInactive] = useState(false);
+  // When the current QR stops verifying, for the countdown ring.
+  const [deadline, setDeadline] = useState<number | null>(null);
+  const now = useNow(250);
   const failureCountRef = useRef(0);
 
   useEffect(() => {
@@ -34,6 +38,7 @@ export function KioskDisplay({
           failureCountRef.current = 0;
           setInactive(false);
           setDataUrl(result.dataUrl);
+          setDeadline(Date.now() + result.remainingMs);
           nextDelay = Math.max(result.remainingMs, MIN_REFRESH_MS);
         } else {
           // A returned { ok: false } is definitive (disabled branch / rotated
@@ -62,46 +67,63 @@ export function KioskDisplay({
 
   if (inactive) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 p-8 text-center">
-        <p className="text-lg text-neutral-400">Kiosk tidak aktif.</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#1c1b18] p-8 text-center">
+        <p className="text-lg text-[#f2eee5]/70">Kiosk tidak aktif.</p>
       </main>
     );
   }
 
+  const clock = now ? jakartaClock(now) : null;
+  const leftSec =
+    deadline && now ? Math.max(0, Math.ceil((deadline - now.getTime()) / 1000)) : null;
+  const windowSec = QR_WINDOW_MS / 1000;
+  const ringDeg = leftSec != null ? (leftSec / windowSec) * 360 : 0;
+
+  // The kiosk is a fixed dark wall display regardless of the viewer's theme.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-neutral-950 p-8 text-center text-neutral-100">
-      <style>{`@keyframes kiosk-countdown { from { width: 100%; } to { width: 0%; } }`}</style>
-      <h1 className="text-2xl font-semibold">{branchNama}</h1>
-
-      <div className="rounded-2xl bg-white p-4">
-        {dataUrl ? (
-          // A rotating base64 QR — next/image optimization does not apply.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={dataUrl} width={320} height={320} alt="QR absen" />
-        ) : (
-          <div className="flex h-[320px] w-[320px] items-center justify-center text-neutral-500">
-            Memuat…
-          </div>
-        )}
+    <main className="grid min-h-screen grid-cols-1 items-center gap-12 bg-[#1c1b18] p-8 text-[#f2eee5] md:p-12 lg:grid-cols-2">
+      <div className="flex flex-col gap-4.5">
+        <span className="font-mono text-[0.8rem] tracking-[0.12em] text-[#f2eee5]/65 uppercase">
+          Kiosk · {branchNama}
+        </span>
+        <span
+          className="text-[min(16vw,10rem)] leading-[0.85] font-semibold tracking-[-0.05em] tabular-nums"
+          aria-label={clock ? `Pukul ${clock.hm} WIB` : undefined}
+        >
+          {clock?.hm ?? "--:--"}
+        </span>
+        {now && <span className="font-mono text-sm text-[#f2eee5]/65">{formatJakartaLong(now)}</span>}
+        <p className="max-w-[460px] text-[1.375rem] leading-snug text-[#f2eee5]/85">
+          Buka aplikasi Absensi, pilih <b className="text-[#f2eee5]">Scan QR</b>, lalu arahkan kamera ke kode ini.
+        </p>
       </div>
 
-      {/* A countdown bar collapsed to an instant animation would just vanish —
-          hide it under reduced motion; the caption below still says it rotates. */}
-      <div className="h-1 w-[320px] overflow-hidden rounded-full bg-neutral-800 motion-reduce:hidden">
-        {dataUrl && (
-          <div
-            key={dataUrl}
-            className="h-full bg-neutral-100"
-            style={{
-              animation: `kiosk-countdown ${QR_WINDOW_MS}ms linear forwards`,
-            }}
-          />
-        )}
-      </div>
+      <div className="flex flex-col items-center gap-5.5">
+        <div className="rounded-3xl bg-[#fffdf8] p-5.5">
+          {dataUrl ? (
+            // A rotating base64 QR — next/image optimization does not apply.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={dataUrl} width={360} height={360} alt="QR absen" className="size-[min(70vw,360px)]" />
+          ) : (
+            <div className="grid size-[min(70vw,360px)] place-items-center text-[#5e5a51]">Memuat…</div>
+          )}
+        </div>
 
-      <p className="text-sm text-neutral-400">
-        Scan dengan aplikasi absensi. Kode berganti otomatis.
-      </p>
+        <div className="flex items-center gap-3.5">
+          {/* A rotating ring would be pure decoration under reduced motion; the
+              number inside still counts down. */}
+          <span
+            aria-hidden="true"
+            className="grid size-11 place-items-center rounded-full"
+            style={{ background: `conic-gradient(#e0482a ${ringDeg}deg, rgb(242 238 229 / 0.15) 0)` }}
+          >
+            <span className="grid size-[34px] place-items-center rounded-full bg-[#1c1b18] font-mono text-[0.8rem] font-semibold">
+              {leftSec ?? "–"}
+            </span>
+          </span>
+          <span className="text-[0.95rem] text-[#f2eee5]/80">Kode berganti otomatis setiap {windowSec} detik.</span>
+        </div>
+      </div>
     </main>
   );
 }

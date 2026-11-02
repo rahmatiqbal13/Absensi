@@ -11,19 +11,14 @@ import { getTodayExceptions } from "@/lib/dashboard/today-exceptions";
 import { getRecentActivity } from "@/lib/dashboard/recent-activity";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
-import { ResponsiveTable } from "@/components/responsive-table";
+import { Button } from "@/components/ui/button";
 import { AttendanceTrendChart } from "@/components/attendance-trend-chart";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { DashboardControls } from "./dashboard-controls";
-
-function pct(n: number, total: number): string {
-  if (total <= 0) return "0%";
-  return `${Math.round((n / total) * 100)}%`;
-}
+import { BranchBars, TodayBoard } from "./today-board";
 
 function InlineError({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-destructive">{children}</p>;
@@ -82,10 +77,15 @@ export default async function DashboardPage({
   const twoColRow = showBranchBreakdown && showExceptionsCard;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <PageHeader
-        title="Dashboard"
-        description={`Ringkasan kehadiran hari ini${branchName ? ` · ${branchName}` : ""}`}
+        eyebrow={`Papan hari ini${branchName ? ` · ${branchName}` : ""}`}
+        title={new Intl.DateTimeFormat("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          timeZone: "Asia/Jakarta",
+        }).format(new Date())}
         actions={<DashboardControls branches={branchList} selectedBranch={branchId ?? ""} />}
       />
 
@@ -96,16 +96,9 @@ export default async function DashboardPage({
         </Alert>
       )}
 
-      {/* stat row */}
+      {/* who's in */}
       {summary.ok ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Hadir" value={summary.summary.hadir} sublabel={pct(summary.summary.hadir, summary.summary.total)} />
-          <StatCard label="Terlambat" value={summary.summary.terlambat} tone="warning" />
-          <StatCard label="Pulang Cepat" value={summary.summary.pulangCepat} />
-          <StatCard label="Di Luar Lokasi" value={summary.summary.diLuarLokasi} />
-          <StatCard label="Alpa" value={summary.summary.alpa} tone="destructive" />
-          <StatCard label="Cuti" value={summary.summary.cuti} />
-        </div>
+        <TodayBoard summary={summary.summary} />
       ) : (
         <Alert variant="destructive">
           <AlertTriangle className="size-4" />
@@ -117,7 +110,7 @@ export default async function DashboardPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Tren Kehadiran Bulan Ini</CardTitle>
+            <CardTitle className="text-[1.05rem]">Tren kehadiran bulan ini</CardTitle>
             <CardDescription>Jumlah hadir dan terlambat per hari.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -125,13 +118,22 @@ export default async function DashboardPage({
           </CardContent>
         </Card>
         {approvals.ok ? (
-          <StatCard
-            label="Menunggu persetujuan"
-            value={approvals.count}
-            sublabel="Tinjau pengajuan cuti →"
-            tone="accent"
-            href="/persetujuan-cuti"
-          />
+          <section className="flex flex-col gap-4 rounded-[18px] bg-sidebar p-6 text-sidebar-foreground">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-[1.05rem] font-semibold">Menunggu persetujuan</h2>
+              <span className="text-[2.75rem] leading-none font-semibold tracking-[-0.04em] tabular-nums">
+                {approvals.count}
+              </span>
+            </div>
+            <p className="text-sm text-sidebar-muted">
+              {approvals.count === 0
+                ? "Kotak masuk bersih. Tidak ada pengajuan cuti yang menunggu."
+                : "Pengajuan cuti menunggu keputusan Anda."}
+            </p>
+            <Button asChild variant="brand" className="mt-auto h-11">
+              <Link href="/persetujuan-cuti">Tinjau semua pengajuan</Link>
+            </Button>
+          </section>
         ) : (
           <Card size="sm"><CardContent><InlineError>{approvals.error}</InlineError></CardContent></Card>
         )}
@@ -142,21 +144,14 @@ export default async function DashboardPage({
         <div className={`grid gap-4 ${twoColRow ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
           {showBranchBreakdown && (
             <Card>
-              <CardHeader><CardTitle>Per Cabang · hari ini</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-[1.05rem]">Per cabang · hari ini</CardTitle></CardHeader>
               <CardContent>
                 {breakdown && breakdown.ok ? (
-                  <ResponsiveTable
-                    caption="Ringkasan kehadiran per cabang hari ini"
-                    columns={[
-                      { key: "nama", header: "Cabang", cell: (r) => r.nama },
-                      { key: "hadir", header: "Hadir", align: "right", cell: (r) => r.hadir },
-                      { key: "terlambat", header: "Terlambat", align: "right", cell: (r) => r.terlambat },
-                      { key: "alpa", header: "Alpa", align: "right", cell: (r) => r.alpa },
-                    ]}
-                    rows={breakdown.rows}
-                    rowKey={(r) => r.branchId}
-                    emptyState={<p className="text-sm text-muted-foreground">Belum ada cabang.</p>}
-                  />
+                  breakdown.rows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Belum ada cabang.</p>
+                  ) : (
+                    <BranchBars rows={breakdown.rows} />
+                  )
                 ) : (
                   <InlineError>{breakdown?.ok === false ? breakdown.error : "Gagal memuat."}</InlineError>
                 )}
@@ -165,7 +160,7 @@ export default async function DashboardPage({
           )}
           {showExceptionsCard && (
             <Card>
-              <CardHeader><CardTitle>Perlu perhatian · hari ini</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-[1.05rem]">Perlu perhatian</CardTitle></CardHeader>
               <CardContent>
                 {exceptions.ok ? (
                   exceptions.nonWorkingDay ? (
@@ -173,10 +168,25 @@ export default async function DashboardPage({
                   ) : exceptions.rows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Semua karyawan hadir tepat waktu.</p>
                   ) : (
-                    <ul className="space-y-2 text-sm">
+                    <ul className="flex flex-col text-sm">
                       {exceptions.rows.slice(0, 8).map((r) => (
-                        <li key={r.employeeId} className="flex items-center justify-between gap-2">
-                          <span className="text-foreground">{r.nama}</span>
+                        <li
+                          key={r.employeeId}
+                          className="flex min-h-11 items-center justify-between gap-3 border-t border-hairline first:border-t-0"
+                        >
+                          <span className="flex min-w-0 items-center gap-2.5">
+                            <span
+                              aria-hidden="true"
+                              className="grid size-7 shrink-0 place-items-center rounded-full bg-secondary text-[0.7rem] font-semibold"
+                            >
+                              {r.nama
+                                .split(/\s+/)
+                                .slice(0, 2)
+                                .map((w) => w[0]?.toUpperCase() ?? "")
+                                .join("")}
+                            </span>
+                            <span className="truncate text-foreground">{r.nama}</span>
+                          </span>
                           <AttendanceStatusBadge status={r.status} />
                         </li>
                       ))}
@@ -200,10 +210,10 @@ export default async function DashboardPage({
       {isHrAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle>Aktivitas Terakhir</CardTitle>
+            <CardTitle className="text-[1.05rem]">Aktivitas terakhir</CardTitle>
             <CardAction>
-              <Link href="/pengaturan/audit" className="text-xs text-primary hover:underline">
-                Lihat semua
+              <Link href="/pengaturan/audit" className="text-xs font-medium text-brand-text hover:underline">
+                Lihat log audit
               </Link>
             </CardAction>
           </CardHeader>
@@ -212,17 +222,23 @@ export default async function DashboardPage({
               activity.rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Belum ada aktivitas.</p>
               ) : (
-                <ul className="space-y-1.5 text-sm">
+                <ul className="flex flex-col text-sm">
                   {activity.rows.map((a) => (
-                    <li key={a.id} className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
-                      <span className="text-foreground">{a.actorNama}</span>
-                      <span>{a.aksi}</span>
-                      <span className="text-xs">
+                    <li
+                      key={a.id}
+                      className="grid grid-cols-[110px_1fr] gap-3.5 border-t border-hairline py-2.5 first:border-t-0"
+                    >
+                      <span className="font-mono text-[0.8rem] text-muted-foreground">
                         {new Intl.DateTimeFormat("id-ID", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
                           timeZone: "Asia/Jakarta",
                         }).format(new Date(a.waktu))}
+                      </span>
+                      <span className="text-muted-foreground">
+                        <b className="font-semibold text-foreground">{a.actorNama}</b> {a.aksi}
                       </span>
                     </li>
                   ))}

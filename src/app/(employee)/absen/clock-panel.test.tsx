@@ -269,7 +269,7 @@ describe("ClockPanel", () => {
 
   it("renders the shift line when a shift is provided", () => {
     renderPanel({ shift: { jamMasuk: "08:00", toleransiMenit: 15 } });
-    expect(screen.getByText(/masuk 08:00 · toleransi 15 mnt/i)).toBeInTheDocument();
+    expect(screen.getByText(/08:00 masuk · toleransi 15 mnt/i)).toBeInTheDocument();
   });
 
   describe("QR method", () => {

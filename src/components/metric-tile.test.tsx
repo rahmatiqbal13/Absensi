@@ -14,7 +14,7 @@ describe("MetricTile", () => {
   it("applies the status color to the value, not a background", () => {
     render(<MetricTile label="Status" value="Dalam radius" status="good" icon={MapPin} />);
     const value = screen.getByText("Dalam radius");
-    expect(value.className).toMatch(/text-emerald/);
-    expect(value.className).not.toMatch(/bg-emerald/);
+    expect(value.className).toMatch(/text-success-foreground/);
+    expect(value.className).not.toMatch(/bg-success\b/);
   });
 });

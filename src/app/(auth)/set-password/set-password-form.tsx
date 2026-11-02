@@ -68,7 +68,7 @@ export function SetPasswordForm({
           value={pw}
           onChange={(e) => setPw(e.target.value)}
           autoComplete="new-password"
-          className="h-11 text-base"
+          className="h-12 text-base"
         />
       </Field>
       <Field id="confirm" label="Konfirmasi Kata Sandi">
@@ -78,10 +78,10 @@ export function SetPasswordForm({
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"
-          className="h-11 text-base"
+          className="h-12 text-base"
         />
       </Field>
-      <Button type="submit" disabled={busy} className="h-11 w-full text-base">
+      <Button type="submit" disabled={busy} className="h-[50px] w-full rounded-xl text-[0.95rem]">
         {busy ? "Menyimpan…" : "Simpan"}
       </Button>
     </form>

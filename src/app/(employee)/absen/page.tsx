@@ -36,7 +36,7 @@ export default async function AbsenPage() {
 
   const { data: schedule, error: scheduleErr } = await db
     .from("work_schedules")
-    .select("jam_masuk, toleransi_terlambat_menit")
+    .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
     .eq("branch_id", employee.branchId)
     .limit(1)
     .maybeSingle();
@@ -64,11 +64,26 @@ export default async function AbsenPage() {
     year: "numeric",
   });
 
+  const firstName = employee.nama.split(/\s+/)[0] ?? employee.nama;
+  const initials = employee.nama
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
-    <main className="mx-auto max-w-md p-4 pt-8">
-      <div className="mb-6">
-        <p className="text-sm text-muted-foreground">{formattedToday}</p>
-        <h1 className="text-2xl font-semibold text-foreground">Halo, {employee.nama}</h1>
+    <main className="mx-auto flex max-w-md flex-col gap-5 px-5 pt-4 pb-7">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <p className="font-mono text-xs text-muted-foreground">{formattedToday}</p>
+          <h1 className="text-xl font-semibold tracking-[-0.01em] text-foreground">Halo, {firstName}</h1>
+        </div>
+        <span
+          aria-hidden="true"
+          className="grid size-10 place-items-center rounded-full bg-secondary text-sm font-semibold"
+        >
+          {initials}
+        </span>
       </div>
       <ClockPanel
         todaysAttendance={todaysAttendance}
@@ -79,10 +94,15 @@ export default async function AbsenPage() {
         }}
         shift={
           schedule
-            ? { jamMasuk: schedule.jam_masuk.slice(0, 5), toleransiMenit: schedule.toleransi_terlambat_menit }
+            ? {
+                jamMasuk: schedule.jam_masuk.slice(0, 5),
+                jamPulang: schedule.jam_pulang.slice(0, 5),
+                toleransiMenit: schedule.toleransi_terlambat_menit,
+              }
             : null
         }
         qrEnabled={qrEnabled}
+        firstName={firstName}
         submitClockIn={submitClockIn}
         submitClockOut={submitClockOut}
       />

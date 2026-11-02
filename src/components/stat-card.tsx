@@ -7,9 +7,9 @@ type StatCardTone = "default" | "warning" | "destructive" | "accent";
 
 const VALUE_TONE: Record<StatCardTone, string> = {
   default: "text-foreground",
-  warning: "text-amber-600 dark:text-amber-500",
+  warning: "text-warning-foreground",
   destructive: "text-destructive",
-  accent: "text-primary",
+  accent: "text-brand-text",
 };
 
 export function StatCard({
@@ -33,7 +33,7 @@ export function StatCard({
         {Icon ? <Icon className="size-3.5" aria-hidden="true" /> : null}
         <span>{label}</span>
         {href && tone === "accent" ? (
-          <ArrowRight className="ml-auto size-4 text-primary" aria-hidden="true" />
+          <ArrowRight className="ml-auto size-4 text-brand-text" aria-hidden="true" />
         ) : null}
       </div>
       <div className={cn("text-2xl font-semibold tabular-nums", VALUE_TONE[tone])}>{value}</div>
@@ -43,9 +43,9 @@ export function StatCard({
 
   const cardClass = cn(
     "gap-1 px-4",
-    tone === "accent" && "ring-primary/30",
+    tone === "accent" && "ring-brand/40",
     href && "transition-colors hover:bg-muted/40",
-    href && tone === "accent" && "hover:ring-primary/50",
+    href && tone === "accent" && "hover:ring-brand/60",
   );
 
   if (href) {

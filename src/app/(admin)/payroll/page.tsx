@@ -44,6 +44,7 @@ export default async function PayrollPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Angka"
         title="Payroll"
         description="Buat periode, generate slip gaji, lalu finalisasi."
       />

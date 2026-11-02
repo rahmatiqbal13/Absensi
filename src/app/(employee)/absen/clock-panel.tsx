@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, QrCode, MapPin } from "lucide-react";
+import { CheckCircle2, QrCode, MapPin } from "lucide-react";
 import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import type { AttendanceStatus } from "@/lib/attendance/status";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProximityPanel, type BranchGeofence } from "./proximity-panel";
 import { QrScanner } from "./qr-scanner";
 import { PhotoCaptureButton } from "./photo-capture-button";
-import { TodayTimeline, formatClockTime } from "./today-timeline";
+import { formatClockTime } from "./today-timeline";
+import { ShiftRibbon } from "./shift-ribbon";
+import { HoldButton } from "./hold-button";
+import { jakartaClock, useNow } from "@/lib/time/use-now";
 
 export type TodaysAttendance = {
   jamMasuk: string;
@@ -22,7 +23,7 @@ export type TodaysAttendance = {
   status: AttendanceStatus;
 } | null;
 
-export type WorkShift = { jamMasuk: string; toleransiMenit: number } | null;
+export type WorkShift = { jamMasuk: string; jamPulang?: string; toleransiMenit: number } | null;
 
 type ActionResult = { ok: true; status: AttendanceStatus } | { ok: false; error: string };
 
@@ -33,12 +34,10 @@ type GeoSummary = {
   hasFix: boolean;
 };
 
-/** Elapsed time since `startIso` as "3j 20m" (hours dropped when 0, e.g. "12m"). */
-function computeDuration(startIso: string): string {
-  const totalMinutes = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(startIso).getTime()) / 60_000),
-  );
+/** Time from `startIso` to `endIso` (or now) as "3j 20m" (hours dropped when 0, e.g. "12m"). */
+function computeDuration(startIso: string, endIso: string | null): string {
+  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const totalMinutes = Math.max(0, Math.floor((end - new Date(startIso).getTime()) / 60_000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return hours > 0 ? `${hours}j ${minutes}m` : `${minutes}m`;
@@ -60,10 +59,12 @@ export function ClockPanel({
   office,
   shift,
   qrEnabled,
+  firstName,
   submitClockIn,
   submitClockOut,
 }: {
   todaysAttendance: TodaysAttendance;
+  firstName?: string;
   office: BranchGeofence;
   shift: WorkShift;
   qrEnabled: boolean;
@@ -185,10 +186,13 @@ export function ClockPanel({
   }
 
   const shiftLine = shift ? (
-    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <Clock className="size-3.5" aria-hidden="true" />
-      Masuk {shift.jamMasuk} · toleransi {shift.toleransiMenit} mnt
-    </p>
+    <ShiftRibbon
+      jamMasuk={shift.jamMasuk}
+      jamPulang={shift.jamPulang ?? null}
+      toleransiMenit={shift.toleransiMenit}
+      clockIn={todaysAttendance?.jamMasuk ?? null}
+      clockOut={todaysAttendance?.jamPulang ?? null}
+    />
   ) : null;
 
   // Kept as the first child of both return branches so React reuses the same
@@ -200,29 +204,42 @@ export function ClockPanel({
     </p>
   );
 
+  const summary = (
+    <dl className="grid grid-cols-3 border-t border-border pt-3.5">
+      {[
+        { label: "Masuk", value: formatClockTime(todaysAttendance?.jamMasuk ?? null) },
+        { label: "Pulang", value: formatClockTime(todaysAttendance?.jamPulang ?? null) },
+        {
+          label: "Durasi",
+          value: todaysAttendance?.jamMasuk
+            ? computeDuration(todaysAttendance.jamMasuk, todaysAttendance.jamPulang)
+            : "—",
+        },
+      ].map((item) => (
+        <div key={item.label} className="flex flex-col gap-1">
+          <dt className="text-xs text-muted-foreground">{item.label}</dt>
+          <dd className="font-mono text-lg font-semibold tabular-nums">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+
   if (done && todaysAttendance) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-5">
         {liveRegion}
+        <BigClock />
         {shiftLine}
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-            <CheckCircle2
-              className="size-10 text-emerald-600 dark:text-emerald-500"
-              aria-hidden="true"
-            />
-            <p className="text-base font-medium text-foreground">Absensi hari ini selesai.</p>
-            <AttendanceStatusBadge status={todaysAttendance.status} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-5">
-            <TodayTimeline
-              jamMasuk={todaysAttendance.jamMasuk}
-              jamPulang={todaysAttendance.jamPulang}
-            />
-          </CardContent>
-        </Card>
+        <section className="flex flex-col gap-3.5 rounded-[20px] bg-primary p-5.5 text-primary-foreground">
+          <span className="font-mono text-xs tracking-[0.08em] text-success-solid uppercase">
+            Absensi hari ini selesai.
+          </span>
+          <p className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em]">
+            Terima kasih{firstName ? `, ${firstName}` : ""}. Sampai besok.
+          </p>
+          <AttendanceStatusBadge status={todaysAttendance.status} />
+        </section>
+        {summary}
       </div>
     );
   }
@@ -230,102 +247,105 @@ export function ClockPanel({
   const label = clockedIn ? "Absen Pulang" : "Absen Masuk";
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-5">
       {liveRegion}
+      <BigClock />
       {shiftLine}
 
-      <Card>
-        <CardContent className="flex flex-col gap-5 py-6">
-          {clockedIn && todaysAttendance && (
-            <div className="flex flex-col items-center gap-2">
-              <AttendanceStatusBadge status={todaysAttendance.status} />
-              <p className="text-sm text-muted-foreground">
-                {formatClockTime(todaysAttendance.jamMasuk)} · sudah{" "}
-                {computeDuration(todaysAttendance.jamMasuk)}
-              </p>
-            </div>
+      {clockedIn && todaysAttendance && (
+        <div className="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-card px-4 py-3.5">
+          <AttendanceStatusBadge status={todaysAttendance.status} />
+          <p className="font-mono text-[0.8rem] text-foreground">
+            {formatClockTime(todaysAttendance.jamMasuk)} · sudah{" "}
+            {computeDuration(todaysAttendance.jamMasuk, null)}
+          </p>
+        </div>
+      )}
+
+      {qrEnabled && (
+        <Tabs
+          value={method}
+          onValueChange={(value) => {
+            setMethod(value === "qr" ? "qr" : "gps");
+            // Drop any decoded payload so a stale QR can't be submitted from
+            // the other tab.
+            setQrPayload(null);
+          }}
+        >
+          <TabsList className="h-12 w-full rounded-xl bg-secondary p-1">
+            <TabsTrigger value="qr" className="h-10 rounded-[9px] font-semibold data-active:bg-card">
+              <QrCode aria-hidden="true" /> Scan QR
+            </TabsTrigger>
+            <TabsTrigger value="gps" className="h-10 rounded-[9px] font-semibold data-active:bg-card">
+              <MapPin aria-hidden="true" /> Lokasi GPS
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
+      {scanning ? (
+        <div className="flex flex-col items-center gap-3 rounded-[20px] bg-primary p-5 text-primary-foreground">
+          <QrScanner onDecode={setQrPayload} onReset={() => setQrPayload(null)} />
+          {qrPayload && (
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-success-solid">
+              <CheckCircle2 className="size-4" aria-hidden="true" /> Lokasi terverifikasi via QR
+            </p>
           )}
+        </div>
+      ) : (
+        <ProximityPanel office={office} onGeoChange={onGeoChange} />
+      )}
 
-          {qrEnabled && (
-            <Tabs
-              value={method}
-              onValueChange={(value) => {
-                setMethod(value === "qr" ? "qr" : "gps");
-                // Drop any decoded payload so a stale QR can't be submitted from
-                // the other tab.
-                setQrPayload(null);
-              }}
-            >
-              <TabsList className="w-full">
-                <TabsTrigger value="qr">
-                  <QrCode aria-hidden="true" /> Scan QR
-                </TabsTrigger>
-                <TabsTrigger value="gps">
-                  <MapPin aria-hidden="true" /> Lokasi GPS
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
+      <PhotoCaptureButton disabled={submitting} photo={photo} onPhotoChange={setPhoto} />
 
-          {scanning ? (
-            <div className="flex flex-col items-center gap-2">
-              <QrScanner onDecode={setQrPayload} onReset={() => setQrPayload(null)} />
-              {qrPayload && (
-                <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-500">
-                  <CheckCircle2 className="size-4" aria-hidden="true" /> Lokasi terverifikasi via QR
-                </p>
-              )}
-            </div>
-          ) : (
-            <ProximityPanel office={office} onGeoChange={onGeoChange} />
-          )}
-
-          <PhotoCaptureButton disabled={submitting} photo={photo} onPhotoChange={setPhoto} />
-
-          {reasonRequired && (
-            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 space-y-1.5">
-              <label htmlFor="clock-reason" className="text-sm font-medium text-foreground">
-                Alasan
-              </label>
-              <Textarea
-                id="clock-reason"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Tulis alasan Anda…"
-              />
-              <p className="text-xs text-muted-foreground">{reasonHelp}</p>
-            </div>
-          )}
-
-          <div className="flex flex-col items-center gap-1.5">
-            <Button
-              type="button"
-              size="lg"
-              disabled={submitDisabled}
-              onClick={() => handleClock(clockedIn ? "pulang" : "masuk")}
-              className="min-h-16 w-full text-lg"
-            >
-              {label}
-            </Button>
-            {disabledHint && <p className="text-xs text-muted-foreground">{disabledHint}</p>}
-          </div>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="py-5">
-          <TodayTimeline
-            jamMasuk={todaysAttendance?.jamMasuk ?? null}
-            jamPulang={todaysAttendance?.jamPulang ?? null}
+      {reasonRequired && (
+        <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 flex flex-col gap-1.5">
+          <label htmlFor="clock-reason" className="text-[0.8rem] font-semibold text-foreground">
+            Alasan
+          </label>
+          <Textarea
+            id="clock-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Contoh: kunjungan klien di Kuningan"
+            className="min-h-24"
           />
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">{reasonHelp} Atasan Anda akan melihat catatan ini.</p>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center gap-2">
+        <HoldButton
+          label={label}
+          disabled={submitDisabled}
+          busy={submitting}
+          onConfirm={() => handleClock(clockedIn ? "pulang" : "masuk")}
+        />
+        <p className="text-sm text-muted-foreground">{disabledHint ?? "Tahan 1 detik sampai penuh."}</p>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {summary}
     </div>
+  );
+}
+
+function BigClock() {
+  const now = useNow();
+  const c = now ? jakartaClock(now) : null;
+  return (
+    <p className="flex items-baseline gap-1.5" aria-label={c ? `Pukul ${c.hm} WIB` : undefined}>
+      <span className="text-[5.25rem] leading-[0.9] font-semibold tracking-[-0.05em] tabular-nums">
+        {c?.hm ?? "--:--"}
+      </span>
+      <span className="font-mono text-xl text-muted-foreground tabular-nums" aria-hidden="true">
+        {c?.s ?? "--"}
+      </span>
+    </p>
   );
 }

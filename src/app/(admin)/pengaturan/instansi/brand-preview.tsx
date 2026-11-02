@@ -25,7 +25,7 @@ export function BrandPreview({ hex, namaSingkat }: { hex: string; namaSingkat: s
           style={vars}
           className={`${mode === "dark" ? "dark bg-neutral-950" : "bg-white"} flex items-center gap-3 rounded-xl border border-border p-4`}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary font-semibold text-primary-foreground">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand font-semibold text-brand-foreground">
             {initial}
           </div>
           <Button size="sm">Tombol</Button>

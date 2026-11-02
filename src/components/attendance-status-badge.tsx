@@ -6,14 +6,14 @@ const CONFIG: Record<
   AttendanceStatus,
   {
     label: string;
-    variant: "success" | "warning" | "info" | "destructive" | "neutral";
+    variant: "success" | "warning" | "info" | "early" | "danger" | "neutral";
     Icon: typeof Clock;
   }
 > = {
   tepat_waktu: { label: "Tepat Waktu", variant: "success", Icon: CheckCircle2 },
   terlambat: { label: "Terlambat", variant: "warning", Icon: Clock },
-  pulang_cepat: { label: "Pulang Cepat", variant: "neutral", Icon: LogOut },
-  alpa: { label: "Alpa", variant: "destructive", Icon: XCircle },
+  pulang_cepat: { label: "Pulang Cepat", variant: "early", Icon: LogOut },
+  alpa: { label: "Alpa", variant: "danger", Icon: XCircle },
   di_luar_lokasi: { label: "Di Luar Lokasi", variant: "info", Icon: MapPin },
 };
 

@@ -32,7 +32,7 @@ describe("ScheduleForm", () => {
         saveSchedule={saveSchedule}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /potong gaji per menit/i })).toBeChecked();
+    expect(screen.getByRole("switch", { name: /potong gaji per menit/i })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
     await waitFor(() => expect(saveSchedule).toHaveBeenCalled());
     expect((saveSchedule.mock.calls[0][1] as FormData).get("potongTerlambat")).toBe("on");

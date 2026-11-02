@@ -5,49 +5,108 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --chart-grid: #e1e0d9;
-  --chart-axis: #898781;
-  --chart-dot-halo: #fcfcfb;
+  /* Paper & ink palette ("Absensi" design). Brand accent (--brand) is the
+     tenant's warna_aksen, injected by <BrandStyle />; primary stays ink. */
+  --background: #f2eee5;
+  --foreground: #1c1b18;
+  --card: #fbf9f4;
+  --card-foreground: #1c1b18;
+  --popover: #fffdf8;
+  --popover-foreground: #1c1b18;
+  --primary: #1c1b18;
+  --primary-foreground: #f2eee5;
+  --secondary: #e6dfd0;
+  --secondary-foreground: #1c1b18;
+  --muted: #ece6da;
+  --muted-foreground: #5e5a51;
+  --accent: #ece6da;
+  --accent-foreground: #1c1b18;
+  --destructive: #a3261b;
+  --border: #e2dccf;
+  --hairline: #ece6da;
+  /* Field outline: 3.3:1 against --field (WCAG 1.4.11). */
+  --input: #948c7e;
+  --field: #fffdf8;
+  --ring: var(--brand);
+  --brand: #c63b22;
+  --brand-foreground: #fffdf8;
+  --brand-text: #b8351e;
+  /* Status pairs — bg/fg each >= 5.5:1. */
+  --success: #e3f0e6;
+  --success-foreground: #22613b;
+  --success-solid: #3e8e5e;
+  --warning: #f6e7cc;
+  --warning-foreground: #7e520a;
+  --warning-solid: #d69a2d;
+  --info: #dcedee;
+  --info-foreground: #1a5e66;
+  --info-solid: #2f8a93;
+  --leave: #e1e6f0;
+  --leave-foreground: #34507f;
+  --leave-solid: #8ea1c6;
+  --early: #f3e3d3;
+  --early-foreground: #81431a;
+  --early-solid: #c07a45;
+  --danger: #f7dcd6;
+  --danger-foreground: #a3261b;
+  --danger-solid: #c63b22;
+  --neutral: #ece6da;
+  --neutral-foreground: #4a463e;
+  --chart-1: #1c1b18;
+  --chart-2: #d69a2d;
+  --chart-3: #2f8a93;
+  --chart-4: #c63b22;
+  --chart-5: #8ea1c6;
+  --chart-grid: #e2dccf;
+  --chart-axis: #5e5a51;
+  --chart-dot-halo: #fbf9f4;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* The admin sidebar is ink in both themes. */
+  --sidebar: #1c1b18;
+  --sidebar-foreground: #f2eee5;
+  --sidebar-muted: rgb(242 238 229 / 0.72);
+  --sidebar-faint: rgb(242 238 229 / 0.55);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: rgb(242 238 229 / 0.12);
+  --sidebar-accent-foreground: #fffdf8;
+  --sidebar-border: rgb(242 238 229 / 0.1);
+  --sidebar-ring: var(--brand);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-sans: var(--font-schibsted);
+  --font-mono: var(--font-jetbrains);
+  --font-heading: var(--font-schibsted);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
+  --color-hairline: var(--hairline);
+  --color-field: var(--field);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-solid: var(--success-solid);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-solid: var(--warning-solid);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-solid: var(--info-solid);
+  --color-leave: var(--leave);
+  --color-leave-foreground: var(--leave-foreground);
+  --color-leave-solid: var(--leave-solid);
+  --color-early: var(--early);
+  --color-early-foreground: var(--early-foreground);
+  --color-early-solid: var(--early-solid);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-solid: var(--danger-solid);
+  --color-neutral: var(--neutral);
+  --color-neutral-foreground: var(--neutral-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-faint: var(--sidebar-faint);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -87,44 +146,58 @@
 }
 
 body {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --chart-grid: oklch(1 0 0 / 12%);
-  --chart-axis: oklch(0.708 0 0);
-  --chart-dot-halo: oklch(0.205 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #151411;
+  --foreground: #f2eee5;
+  --card: #1f1d19;
+  --card-foreground: #f2eee5;
+  --popover: #24221e;
+  --popover-foreground: #f2eee5;
+  --primary: #f2eee5;
+  --primary-foreground: #1c1b18;
+  --secondary: #2a2824;
+  --secondary-foreground: #f2eee5;
+  --muted: #2a2824;
+  --muted-foreground: #aba597;
+  --accent: #2a2824;
+  --accent-foreground: #f2eee5;
+  --destructive: #f29c8b;
+  --border: rgb(242 238 229 / 0.12);
+  --hairline: rgb(242 238 229 / 0.08);
+  --input: #77736a;
+  --field: #1a1916;
+  --success: #1e3326;
+  --success-foreground: #8fd3a6;
+  --success-solid: #6fcf97;
+  --warning: #3a2e17;
+  --warning-foreground: #e8c27a;
+  --warning-solid: #e0a93f;
+  --info: #173337;
+  --info-foreground: #86cbd3;
+  --info-solid: #4fb3bd;
+  --leave: #222b3d;
+  --leave-foreground: #a9bce4;
+  --leave-solid: #8ea1c6;
+  --early: #3a2618;
+  --early-foreground: #e5a97e;
+  --early-solid: #d08a55;
+  --danger: #3d1c17;
+  --danger-foreground: #f29c8b;
+  --danger-solid: #e8664d;
+  --neutral: #2a2824;
+  --neutral-foreground: #c9c3b6;
+  --chart-1: #f2eee5;
+  --chart-2: #e0a93f;
+  --chart-3: #4fb3bd;
+  --chart-4: #e8664d;
+  --chart-5: #a9bce4;
+  --chart-grid: rgb(242 238 229 / 0.12);
+  --chart-axis: #aba597;
+  --chart-dot-halo: #1f1d19;
+  --sidebar: #0f0e0c;
 }
 
 @layer base {
@@ -137,6 +210,16 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* Small uppercase mono label that sits above page titles and section heads. */
+@utility eyebrow {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
 

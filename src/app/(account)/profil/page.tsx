@@ -40,7 +40,8 @@ export default async function ProfilPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 p-4">
-      <PageHeader title="Profil" description="Data diri dan pengaturan akun Anda." />
+      <PageHeader
+        eyebrow="Akun" title="Profil" description="Data diri dan pengaturan akun Anda." />
 
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3 rounded-xl border border-border bg-card p-4 text-sm">
         {[

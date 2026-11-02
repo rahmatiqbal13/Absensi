@@ -98,13 +98,13 @@ export function InstansiForm({
               <input
                 type="color"
                 aria-label="Pemilih warna"
-                value={HEX_RE.test(hex) ? hex : "#2563EB"}
+                value={HEX_RE.test(hex) ? hex : "#C63B22"}
                 onChange={(e) => setHex(e.target.value.toUpperCase())}
                 className="mb-1 h-9 w-9 shrink-0 rounded border border-input"
               />
             </div>
             {warning && (
-              <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+              <p role="status" className="text-xs text-warning-foreground">
                 {warning}
               </p>
             )}

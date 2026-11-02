@@ -33,6 +33,7 @@ export default async function DepartemenPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title="Departemen"
         description="Kelompokkan karyawan per departemen di tiap cabang."
       />

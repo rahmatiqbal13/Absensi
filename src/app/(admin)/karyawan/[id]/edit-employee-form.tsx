@@ -130,7 +130,7 @@ export function EditEmployeeForm({
               <Button
                 type="button"
                 variant="outline"
-                className="border-emerald-500/40 text-emerald-600 dark:text-emerald-500"
+                className="border-success-foreground/40 text-success-foreground"
                 disabled={busy}
                 onClick={() => run(() => setStatus(employeeId, "aktif"), "Karyawan diaktifkan kembali.")}
               >

@@ -24,12 +24,25 @@ export default async function Layout({ children }: { children: React.ReactNode }
 
   const avatarUrl = await signProfilePhotoUrl(db, employee.fotoPath);
 
+  // Same visibility rule as the /persetujuan-cuti inbox: HR sees every pending
+  // request, an atasan only the ones routed to them. head:true = count only.
+  let pendingQuery = db
+    .from("leave_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (employee.role !== "hr_admin" && employee.role !== "super_admin") {
+    pendingQuery = pendingQuery.eq("approver_id", employee.id);
+  }
+  const { count: pendingLeave, error: pendingErr } = await pendingQuery;
+  if (pendingErr) console.error("admin layout: pending leave count failed", pendingErr);
+
   return (
     <AdminShell
       employee={employee}
       avatarUrl={avatarUrl ?? undefined}
-      brand={<BrandMark size="md" />}
+      brand={<BrandMark size="md" tone="inverse" />}
       footer={<AppFooter />}
+      pendingLeave={pendingLeave ?? 0}
     >
       {children}
     </AdminShell>

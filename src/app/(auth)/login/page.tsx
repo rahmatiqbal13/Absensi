@@ -11,10 +11,10 @@ export default async function LoginPage({
 }) {
   const { error, reason } = await searchParams;
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Masuk</h1>
-        <p className="text-sm text-muted-foreground">Sistem Absensi HR</p>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1.5">
+        <span className="eyebrow">Sistem Absensi HR</span>
+        <h1 className="text-[2.125rem] leading-none font-semibold tracking-[-0.03em] text-foreground">Masuk</h1>
       </div>
 
       {reason === "nonaktif" && (
@@ -28,9 +28,9 @@ export default async function LoginPage({
         </Alert>
       )}
 
-      <form action={login} className="space-y-4">
+      <form action={login} className="flex flex-col gap-4.5">
         <Field id="email" label="Email">
-          <Input id="email" name="email" type="email" required autoComplete="email" className="h-11 text-base" />
+          <Input id="email" name="email" type="email" required autoComplete="email" className="h-12 text-base" />
         </Field>
         <Field id="password" label="Kata Sandi">
           <Input
@@ -39,10 +39,11 @@ export default async function LoginPage({
             type="password"
             required
             autoComplete="current-password"
-            className="h-11 text-base"
+            placeholder="Minimal 8 karakter"
+            className="h-12 text-base"
           />
         </Field>
-        <Button type="submit" className="h-11 w-full text-base">
+        <Button type="submit" className="h-[50px] w-full rounded-xl text-[0.95rem]">
           Masuk
         </Button>
       </form>

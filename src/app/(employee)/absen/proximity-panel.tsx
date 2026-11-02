@@ -100,7 +100,7 @@ export function ProximityPanel({
       )}
 
       {lowAccuracy && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+        <p className="flex items-center gap-1.5 text-xs text-warning-foreground">
           <TriangleAlert className="size-3 shrink-0" aria-hidden="true" />
           Sinyal GPS lemah — coba ke area terbuka.
         </p>

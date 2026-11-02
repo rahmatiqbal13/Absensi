@@ -55,8 +55,11 @@ export default function SetPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Buat Kata Sandi</h1>
+      <div className="flex flex-col gap-1.5">
+        <span className="eyebrow">Undangan dari HR</span>
+        <h1 className="text-[1.875rem] leading-tight font-semibold tracking-[-0.02em] text-foreground">
+          Buat kata sandi Anda
+        </h1>
         <p className="text-sm text-muted-foreground">Tetapkan kata sandi untuk akun Anda.</p>
       </div>
       {fatal ? (

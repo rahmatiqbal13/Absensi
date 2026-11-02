@@ -8,7 +8,7 @@ describe("AuditAksiBadge", () => {
     expect(screen.getByText("Karyawan Dinonaktifkan")).toBeInTheDocument();
     expect(screen.getByText("Karyawan Dinonaktifkan")).toHaveAttribute(
       "data-variant",
-      "destructive",
+      "danger",
     );
   });
   it("labels leave actions", () => {

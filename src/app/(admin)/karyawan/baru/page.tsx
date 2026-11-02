@@ -28,6 +28,7 @@ export default async function KaryawanBaruPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Orang"
         title="Tambah Karyawan"
         description="Buat akun, lalu kirim link set-password ke karyawan."
       />

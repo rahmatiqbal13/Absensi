@@ -11,7 +11,7 @@ vi.mock("@/lib/branding/get-app-settings", () => ({
 import { BrandStyle } from "./brand-style";
 
 describe("BrandStyle", () => {
-  it("emits a style tag with :root keeping the raw accent and .dark lightening it", async () => {
+  it("emits --brand on :root (raw accent) and a lightened --brand for .dark", async () => {
     const ui = await BrandStyle();
     const { container } = render(ui);
     const style = container.querySelector("style");
@@ -21,10 +21,13 @@ describe("BrandStyle", () => {
     expect(css).toContain(".dark");
     const root = css.match(/:root\{([^}]*)\}/)![1];
     const dark = css.match(/\.dark\{([^}]*)\}/)![1];
-    expect(root).toContain("--primary: #0F766E");
+    expect(root).toContain("--brand: #0F766E");
     // #0F766E is dark -> white foreground
-    expect(root).toContain("--primary-foreground: #FFFFFF");
+    expect(root).toContain("--brand-foreground: #FFFFFF");
+    expect(root).toContain("--brand-text:");
+    // primary stays ink — the accent no longer recolours every button
+    expect(root).not.toContain("--primary");
     // dark surface needs a lighter accent than the raw teal-700
-    expect(dark).not.toContain("--primary: #0F766E");
+    expect(dark).not.toContain("--brand: #0F766E");
   });
 });

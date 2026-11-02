@@ -57,7 +57,8 @@ export default async function PengaturanPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Pengaturan" description="Konfigurasi dan status sistem." />
+      <PageHeader
+        eyebrow="Sistem" title="Pengaturan" description="Konfigurasi dan status sistem." />
 
       {superAdminCount === null ? (
         <Alert>

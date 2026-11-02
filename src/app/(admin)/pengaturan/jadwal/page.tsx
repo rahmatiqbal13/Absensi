@@ -34,6 +34,7 @@ export default async function JadwalPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title="Jadwal Kerja"
         description="Satu jadwal per cabang — dipakai untuk status terlambat dan perhitungan payroll."
       />

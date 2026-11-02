@@ -4,10 +4,10 @@ import type { Role } from "@/lib/auth/route-access";
 
 const CONFIG: Record<
   Role,
-  { label: string; variant: "default" | "info" | "secondary" | "neutral"; Icon: typeof User }
+  { label: string; variant: "default" | "info" | "leave" | "neutral"; Icon: typeof User }
 > = {
   karyawan: { label: "Karyawan", variant: "neutral", Icon: User },
-  atasan: { label: "Atasan", variant: "secondary", Icon: Users },
+  atasan: { label: "Atasan", variant: "leave", Icon: Users },
   hr_admin: { label: "HR Admin", variant: "info", Icon: ShieldCheck },
   super_admin: { label: "Super Admin", variant: "default", Icon: Crown },
 };

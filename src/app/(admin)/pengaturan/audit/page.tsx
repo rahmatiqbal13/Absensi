@@ -54,6 +54,7 @@ export default async function AuditPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title="Log Audit"
         description="Riwayat perubahan data karyawan dan persetujuan cuti."
       />

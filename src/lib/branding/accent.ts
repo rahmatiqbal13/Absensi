@@ -39,8 +39,10 @@ export function deriveAccent(hex: string): DerivedAccent {
   return { primary, primaryForeground, ring: primary };
 }
 
-// Approximates the .dark theme surface (--background: oklch(0.145 0 0)).
-const DARK_SURFACE = "#1C1C1C";
+// The .dark theme surface (--background in globals.css).
+const DARK_SURFACE = "#151411";
+// The light theme paper surface (--background in globals.css).
+const PAPER_SURFACE = "#F2EEE5";
 
 function mixToward(hex: string, target: string, t: number): string {
   const a = normalizeHex(hex);
@@ -74,4 +76,15 @@ export function accentWarning(hex: string): string | null {
   return best < 4.5
     ? "Warna ini kontras rendah dengan teks — tombol mungkin sulit dibaca."
     : null;
+}
+
+// Brand-coloured text (links, inline accents) must clear 4.5:1 on the paper
+// background; the brand fill itself can stay as chosen. Darken toward ink only
+// as far as needed.
+export function deriveBrandText(hex: string): string {
+  let text = normalizeHex(hex);
+  for (let i = 0; i < 12 && contrastRatio(text, PAPER_SURFACE) < 4.5; i++) {
+    text = mixToward(text, NEAR_BLACK, 0.08);
+  }
+  return text;
 }

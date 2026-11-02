@@ -66,6 +66,7 @@ export default async function KaryawanPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Orang"
         title="Karyawan"
         description="Kelola data karyawan dan onboarding."
         actions={

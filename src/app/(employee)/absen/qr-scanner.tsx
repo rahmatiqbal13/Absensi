@@ -129,7 +129,7 @@ export function QrScanner({
       )}
 
       {phase === "done" && (
-        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-500">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-success-foreground">
           <CheckCircle2 className="size-4" aria-hidden="true" /> QR terbaca.
           <button
             type="button"

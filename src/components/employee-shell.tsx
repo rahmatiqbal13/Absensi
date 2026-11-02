@@ -26,19 +26,19 @@ export function EmployeeShell({
   const pathname = usePathname();
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur">
+      <header className="flex h-14 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
         {brand}
         <ThemeToggle />
       </header>
 
-      <div className="flex flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))]">
+      <div className="flex flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))]">
         <main className="flex-1">{children}</main>
         {footer}
       </div>
 
       <nav
         aria-label="Navigasi bawah"
-        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-background/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md"
       >
         {NAV.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
@@ -48,11 +48,18 @@ export function EmployeeShell({
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 whitespace-nowrap py-2 text-xs font-medium",
+                "group flex min-h-13 flex-col items-center justify-center gap-1 rounded-lg text-[0.72rem] font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} aria-hidden="true" />
+              <span
+                className={cn(
+                  "grid h-7 w-11 place-items-center rounded-full transition-colors",
+                  active ? "bg-secondary" : "group-hover:bg-muted",
+                )}
+              >
+                <Icon className="size-5" strokeWidth={1.8} aria-hidden="true" />
+              </span>
               {label}
             </Link>
           );

@@ -102,6 +102,7 @@ export default async function LaporanPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Angka"
         title="Laporan Kehadiran"
         description="Rekap per karyawan untuk rentang tanggal terpilih."
         actions={

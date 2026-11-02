@@ -5,8 +5,8 @@ export type MetricStatus = "neutral" | "good" | "warn" | "bad";
 
 const STATUS_COLOR: Record<MetricStatus, string> = {
   neutral: "text-foreground",
-  good: "text-emerald-600 dark:text-emerald-500",
-  warn: "text-amber-600 dark:text-amber-500",
+  good: "text-success-foreground",
+  warn: "text-warning-foreground",
   bad: "text-destructive",
 };
 

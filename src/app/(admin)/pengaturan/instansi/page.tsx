@@ -17,6 +17,7 @@ export default async function InstansiPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pengaturan"
         title="Instansi"
         description="Identitas organisasi yang tampil di seluruh aplikasi, login, dan dokumen."
       />
