@@ -21,7 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: s.namaInstansi, template: `%s · ${s.namaInstansi}` },
     description: s.tagline ?? "Sistem absensi, cuti, dan payroll karyawan",
-    icons: s.logoUrl ? { icon: s.logoUrl } : undefined,
+    // Product mark by default; an uploaded instansi logo (Pengaturan → Instansi)
+    // replaces the tab icon. Kept here, not as app/icon.* files, because file
+    // conventions would override this per-tenant choice.
+    icons: s.logoUrl
+      ? { icon: s.logoUrl, apple: s.logoUrl }
+      : {
+          icon: [
+            { url: "/icon.svg", type: "image/svg+xml" },
+            { url: "/favicon.ico", sizes: "32x32 48x48" },
+          ],
+          apple: "/apple-icon.png",
+        },
   };
 }
 

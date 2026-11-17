@@ -4,6 +4,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { loadRecap } from "@/lib/laporan/load-recap";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
+import { productLogoDataUrl } from "@/lib/branding/product-logo-data-url";
 import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
 import { RecapDocument } from "@/components/recap-document";
 
@@ -48,7 +49,8 @@ export async function GET(request: Request) {
   }
 
   const { namaInstansi, logoUrl } = await getAppSettings();
-  const orgLogoUrl = await fetchLogoDataUrl(logoUrl);
+  // Instansi logo when uploaded, otherwise the product mark.
+  const orgLogoUrl = (await fetchLogoDataUrl(logoUrl)) ?? (await productLogoDataUrl());
 
   try {
     const buffer = await renderToBuffer(
