@@ -13,6 +13,8 @@ const AKSI_OPTIONS = [
   { value: "employee_deactivated", label: "Karyawan Dinonaktifkan" },
   { value: "employee_reactivated", label: "Karyawan Diaktifkan" },
   { value: "employee_deleted", label: "Karyawan Dihapus" },
+  { value: "attendance_correction_approved", label: "Koreksi Absensi Disetujui" },
+  { value: "attendance_correction_rejected", label: "Koreksi Absensi Ditolak" },
   { value: "password_reset_link", label: "Link Reset Sandi Dibuat" },
   { value: "leave_approved", label: "Cuti Disetujui" },
   { value: "leave_rejected", label: "Cuti Ditolak" },

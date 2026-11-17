@@ -9,6 +9,7 @@ const ADMIN_PATH_PREFIXES = [
   "/dashboard",
   "/karyawan",
   "/persetujuan-cuti",
+  "/persetujuan-koreksi",
   "/laporan",
   "/pengaturan",
   "/payroll",

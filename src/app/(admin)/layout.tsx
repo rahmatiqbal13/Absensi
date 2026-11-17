@@ -34,8 +34,19 @@ export default async function Layout({ children }: { children: React.ReactNode }
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") {
     pendingQuery = pendingQuery.eq("approver_id", employee.id);
   }
-  const { count: pendingLeave, error: pendingErr } = await pendingQuery;
+  // Corrections: same rule, minus the viewer's own requests (never decidable by them).
+  let correctionQuery = db
+    .from("attendance_corrections")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .neq("employee_id", employee.id);
+  if (employee.role !== "hr_admin" && employee.role !== "super_admin") {
+    correctionQuery = correctionQuery.eq("approver_id", employee.id);
+  }
+  const [{ count: pendingLeave, error: pendingErr }, { count: pendingCorrection, error: corrErr }] =
+    await Promise.all([pendingQuery, correctionQuery]);
   if (pendingErr) console.error("admin layout: pending leave count failed", pendingErr);
+  if (corrErr) console.error("admin layout: pending correction count failed", corrErr);
 
   return (
     <AdminShell
@@ -51,6 +62,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       }
       footer={<AppFooter />}
       pendingLeave={pendingLeave ?? 0}
+      pendingCorrection={pendingCorrection ?? 0}
     >
       {children}
     </AdminShell>

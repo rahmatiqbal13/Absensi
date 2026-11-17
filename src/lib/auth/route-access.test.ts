@@ -11,6 +11,11 @@ describe("resolveRouteAccess", () => {
     expect(resolveRouteAccess("/login", null)).toBe("allow");
   });
 
+  it("keeps karyawan out of /persetujuan-koreksi but lets atasan in", () => {
+    expect(resolveRouteAccess("/persetujuan-koreksi", "karyawan")).toBe("redirect-employee-home");
+    expect(resolveRouteAccess("/persetujuan-koreksi", "atasan")).toBe("allow");
+  });
+
   it("allows the public /lupa-password route without a role", () => {
     expect(resolveRouteAccess("/lupa-password", null)).toBe("allow");
   });

@@ -22,6 +22,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AttendanceCorrectionDialog } from "@/components/attendance-correction-dialog";
+import { toJakartaHHMM } from "@/lib/attendance/correction";
+import { hrCorrectAttendanceAction } from "../../../persetujuan-koreksi/actions";
+
+const HR_CORRECTION_COPY = {
+  title: "Koreksi absensi",
+  description:
+    "Perubahan langsung diterapkan tanpa persetujuan dan tercatat di audit log. Status dihitung ulang dari jadwal kerja karyawan.",
+  submitLabel: "Simpan koreksi",
+  successMessage: "Absensi dikoreksi.",
+};
 
 const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const ATT_STATUSES = new Set(["tepat_waktu", "terlambat", "pulang_cepat", "di_luar_lokasi", "alpa"]);
@@ -64,6 +75,9 @@ export default async function LaporanKaryawanPage({
   if (res && !res.ok && res.status === 404) notFound();
 
   const report = res?.ok ? res.report : null;
+  // HR only, and never on one's own record (that goes through the approval flow).
+  const canCorrect = (viewer.role === "hr_admin" || viewer.role === "super_admin") && viewer.id !== id;
+  const correct = hrCorrectAttendanceAction.bind(null, id);
   const summary = report ? summarizeDaily(report.rows) : null;
   const qs = new URLSearchParams({ dari, sampai }).toString();
   const sched = report?.schedule;
@@ -97,11 +111,22 @@ export default async function LaporanKaryawanPage({
         }
         actions={
           report ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={`/laporan/karyawan/${id}/csv?${qs}`}>
-                <Download className="size-4" /> Unduh CSV
-              </a>
-            </Button>
+            <>
+              {canCorrect && (
+                <AttendanceCorrectionDialog
+                  action={correct}
+                  defaults={{ tanggal: today }}
+                  maxDate={today}
+                  triggerLabel="Koreksi absensi"
+                  {...HR_CORRECTION_COPY}
+                />
+              )}
+              <Button asChild variant="outline" size="sm">
+                <a href={`/laporan/karyawan/${id}/csv?${qs}`}>
+                  <Download className="size-4" /> Unduh CSV
+                </a>
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -181,6 +206,29 @@ export default async function LaporanKaryawanPage({
                     <span className="text-muted-foreground">—</span>
                   ),
               },
+              ...(canCorrect
+                ? [
+                    {
+                      key: "aksi",
+                      header: "",
+                      cell: (r: DailyRow) =>
+                        r.tanggal <= today && r.kind !== "cuti" ? (
+                          <AttendanceCorrectionDialog
+                            action={correct}
+                            defaults={{
+                              tanggal: r.tanggal,
+                              jamMasuk: toJakartaHHMM(r.jamMasuk),
+                              jamPulang: toJakartaHHMM(r.jamPulang),
+                            }}
+                            maxDate={today}
+                            trigger="link"
+                            triggerLabel="Koreksi"
+                            {...HR_CORRECTION_COPY}
+                          />
+                        ) : null,
+                    },
+                  ]
+                : []),
             ]}
             rows={report.rows}
             rowKey={(r) => r.tanggal}

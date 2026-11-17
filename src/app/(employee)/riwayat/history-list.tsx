@@ -40,7 +40,14 @@ function formatDate(dateOnly: string): string {
   });
 }
 
-export function HistoryList({ records }: { records: AttendanceRecord[] }) {
+export function HistoryList({
+  records,
+  rowAction,
+}: {
+  records: AttendanceRecord[];
+  /** Optional per-day control, e.g. "Ajukan koreksi". */
+  rowAction?: (record: AttendanceRecord) => React.ReactNode;
+}) {
   if (records.length === 0) {
     return <EmptyState icon={ClipboardList} message="Belum ada riwayat absensi." />;
   }
@@ -63,6 +70,7 @@ export function HistoryList({ records }: { records: AttendanceRecord[] }) {
                   {record.catatan}
                 </p>
               )}
+              {rowAction?.(record)}
             </CardContent>
           </Card>
         </li>

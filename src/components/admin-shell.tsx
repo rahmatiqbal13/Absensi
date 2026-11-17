@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   CalendarCheck,
+  ClipboardCheck,
   LayoutDashboard,
   Menu,
   Settings,
@@ -44,7 +45,7 @@ type NavItem = {
   /** Icon tint on the navy sidebar (redesign: one hue per area). */
   tint: string;
   hrAdminOnly?: boolean;
-  countKey?: "pendingLeave";
+  countKey?: "pendingLeave" | "pendingCorrection";
 };
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -53,6 +54,13 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, tint: "#A5B4FC" },
       { href: "/persetujuan-cuti", label: "Persetujuan cuti", Icon: CalendarCheck, tint: "#C4B5FD", countKey: "pendingLeave" },
+      {
+        href: "/persetujuan-koreksi",
+        label: "Koreksi absensi",
+        Icon: ClipboardCheck,
+        tint: "#C4B5FD",
+        countKey: "pendingCorrection",
+      },
     ],
   },
   { title: "Orang", items: [{ href: "/karyawan", label: "Karyawan", Icon: Users, tint: "#7DD3FC", hrAdminOnly: true }] },
@@ -79,10 +87,12 @@ function initialsOf(nama: string) {
 function AdminNav({
   role,
   pendingLeave,
+  pendingCorrection,
   onNavigate,
 }: {
   role: CurrentEmployee["role"];
   pendingLeave: number;
+  pendingCorrection: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -99,7 +109,8 @@ function AdminNav({
           <span className="eyebrow px-2.5 pb-1.5 text-[0.65rem] text-sidebar-faint">{g.title}</span>
           {g.items.map(({ href, label, Icon, tint, countKey }) => {
             const active = pathname === href || pathname?.startsWith(`${href}/`);
-            const count = countKey === "pendingLeave" ? pendingLeave : 0;
+            const count =
+              countKey === "pendingLeave" ? pendingLeave : countKey === "pendingCorrection" ? pendingCorrection : 0;
             return (
               <Link
                 key={href}
@@ -190,19 +201,26 @@ function SidebarBody({
   avatarUrl,
   brand,
   pendingLeave,
+  pendingCorrection,
   onNavigate,
 }: {
   employee: CurrentEmployee;
   avatarUrl?: string;
   brand: React.ReactNode;
   pendingLeave: number;
+  pendingCorrection: number;
   onNavigate?: () => void;
 }) {
   return (
     <div className="flex h-full flex-col gap-6 px-3.5 py-5">
       <div className="px-2">{brand}</div>
       <ClockCard />
-      <AdminNav role={employee.role} pendingLeave={pendingLeave} onNavigate={onNavigate} />
+      <AdminNav
+        role={employee.role}
+        pendingLeave={pendingLeave}
+        pendingCorrection={pendingCorrection}
+        onNavigate={onNavigate}
+      />
       <div className="mt-auto flex items-center gap-1 border-t border-sidebar-border pt-3.5">
         <div className="min-w-0 flex-1">
           <UserMenu employee={employee} avatarUrl={avatarUrl} />
@@ -219,6 +237,7 @@ export function AdminShell({
   brand,
   footer,
   pendingLeave = 0,
+  pendingCorrection = 0,
   children,
 }: {
   employee: CurrentEmployee;
@@ -226,6 +245,7 @@ export function AdminShell({
   brand: React.ReactNode;
   footer: React.ReactNode;
   pendingLeave?: number;
+  pendingCorrection?: number;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -233,7 +253,13 @@ export function AdminShell({
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <aside className="hidden w-[248px] shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground lg:sticky lg:top-0 lg:block lg:h-screen">
-        <SidebarBody employee={employee} avatarUrl={avatarUrl} brand={brand} pendingLeave={pendingLeave} />
+        <SidebarBody
+          employee={employee}
+          avatarUrl={avatarUrl}
+          brand={brand}
+          pendingLeave={pendingLeave}
+          pendingCorrection={pendingCorrection}
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -263,6 +289,7 @@ export function AdminShell({
                 avatarUrl={avatarUrl}
                 brand={brand}
                 pendingLeave={pendingLeave}
+                pendingCorrection={pendingCorrection}
                 onNavigate={() => setOpen(false)}
               />
             </SheetContent>
