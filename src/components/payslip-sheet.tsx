@@ -18,7 +18,7 @@ function Money({ value, className }: { value: number; className?: string }) {
 }
 
 /** The payslip as a document-like web view. Same content as the PDF. */
-export async function PayslipSheet({ slip }: { slip: PayslipDetail }) {
+export async function PayslipSheet({ slip, pdfHref }: { slip: PayslipDetail; pdfHref: string }) {
   const org = await getAppSettings();
   const r = slip.ringkasan;
   const potongan = deductionLines(slip);
@@ -153,7 +153,7 @@ export async function PayslipSheet({ slip }: { slip: PayslipDetail }) {
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/40 px-5 py-4 sm:px-7">
         <p className="text-xs text-muted-foreground">Dokumen dibuat otomatis oleh sistem · Rahasia</p>
         <Button asChild variant="brand" className="h-11 px-4">
-          <a href={`/slip-gaji/${slip.id}/pdf`}>
+          <a href={pdfHref}>
             <Download className="size-4" /> Unduh PDF
           </a>
         </Button>

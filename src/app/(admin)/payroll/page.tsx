@@ -1,3 +1,4 @@
+import { paths } from "@/lib/routing/paths";
 import { redirect } from "next/navigation";
 import { Wallet } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export default async function PayrollPage() {
 
   const { data: periods, error: periodErr } = await db
     .from("payroll_periods")
-    .select("id, bulan, tahun, status, branches(nama), payslips(gaji_akhir)")
+    .select("id, bulan, tahun, status, branches(nama, slug), payslips(gaji_akhir)")
     .order("tahun", { ascending: false })
     .order("bulan", { ascending: false });
 
@@ -105,7 +106,13 @@ export default async function PayrollPage() {
           ]}
           rows={periods ?? []}
           rowKey={(p) => p.id}
-          rowHref={(p) => `/payroll/${p.id}`}
+          rowHref={(p) =>
+            paths.payrollPeriod({
+              branchSlug: (p.branches as unknown as { slug: string } | null)?.slug ?? "",
+              bulan: p.bulan,
+              tahun: p.tahun,
+            })
+          }
           caption="Daftar periode payroll"
           emptyState={<EmptyState icon={Wallet} message="Belum ada periode payroll." />}
         />

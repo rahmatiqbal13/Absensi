@@ -7,22 +7,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { monthLabel } from "@/lib/format/month";
 import { PayslipTable, type PayslipView } from "./payslip-table";
-import { generatePayroll, finalizePayroll } from "../actions";
+import { generatePayroll, finalizePayroll } from "../../actions";
+import { paths, payrollPeriodId } from "@/lib/routing/paths";
 
 export default async function PayrollPeriodPage({
   params,
 }: {
-  params: Promise<{ periodId: string }>;
+  params: Promise<{ cabang: string; periode: string }>;
 }) {
-  const { periodId } = await params;
+  const { cabang, periode } = await params;
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
   if (!employee) redirect("/login");
   if (employee.role !== "hr_admin" && employee.role !== "super_admin") redirect("/dashboard");
 
+  const resolvedId = await payrollPeriodId(db, cabang, periode);
+  if (!resolvedId) notFound();
+  const periodId: string = resolvedId;
+
   const { data: period, error: periodErr } = await db
     .from("payroll_periods")
-    .select("id, bulan, tahun, status, branches(nama)")
+    .select("id, bulan, tahun, status, branches(nama, slug)")
     .eq("id", periodId)
     .maybeSingle();
   if (periodErr) {
@@ -37,7 +42,7 @@ export default async function PayrollPeriodPage({
   const { data: slips, error: slipErr } = await db
     .from("payslips")
     .select(
-      "id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, upah_lembur, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama)",
+      "id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, upah_lembur, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama, slug)",
     )
     .eq("payroll_period_id", periodId)
     .order("created_at", { ascending: true });
@@ -47,6 +52,7 @@ export default async function PayrollPeriodPage({
     : (slips ?? []).map((s) => ({
         id: s.id,
         nama: (s.employees as unknown as { nama: string } | null)?.nama ?? "-",
+        employeeSlug: (s.employees as unknown as { slug: string } | null)?.slug ?? "",
         gajiPokok: Number(s.gaji_pokok),
         hariKerjaEfektif: s.hari_kerja_efektif,
         totalPotongan: Number(s.total_potongan_absensi),
@@ -84,7 +90,7 @@ export default async function PayrollPeriodPage({
       )}
 
       <PayslipTable
-        periodId={periodId}
+        periodPath={paths.payrollPeriod({ branchSlug: cabang, bulan: period.bulan, tahun: period.tahun })}
         rows={rows}
         status={period.status as "draft" | "final"}
         onGenerate={onGenerate}

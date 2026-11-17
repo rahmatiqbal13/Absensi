@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { paths } from "@/lib/routing/paths";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
@@ -66,12 +67,12 @@ export default async function SlipGajiPage() {
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <Button asChild variant="outline" size="sm" className="min-h-11">
-                    <Link href={`/slip-gaji/${s.id}`}>
+                    <Link href={paths.slipGaji(p.bulan, p.tahun)}>
                       <Eye className="size-4" /> Lihat
                     </Link>
                   </Button>
                   <Button asChild variant="ghost" size="sm" className="min-h-11" aria-label={`Unduh PDF ${monthLabel(p.bulan)} ${p.tahun}`}>
-                    <a href={`/slip-gaji/${s.id}/pdf`}>
+                    <a href={paths.slipGajiPdf(p.bulan, p.tahun)}>
                       <Download className="size-4" /> PDF
                     </a>
                   </Button>

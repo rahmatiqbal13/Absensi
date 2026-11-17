@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { paths, routePatterns } from "@/lib/routing/paths";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
@@ -92,7 +94,7 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
 
   const { data: target } = await db
     .from("employees")
-    .select("role")
+    .select("role, nama, slug")
     .eq("id", id)
     .single();
   if (
@@ -129,8 +131,13 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
     console.error("updateEmployee: update failed", error);
     return { ok: false, error: "Gagal menyimpan perubahan karyawan." };
   }
-  revalidatePath(`/karyawan/${id}`);
+  revalidatePath(routePatterns.karyawan, "page");
   revalidatePath("/karyawan");
+  // A rename re-derives the URL slug (migration 0043); move the open page to it.
+  if (target && target.nama !== parsed.value.nama) {
+    const { data: renamed } = await db.from("employees").select("slug").eq("id", id).single();
+    if (renamed?.slug && renamed.slug !== target.slug) redirect(paths.karyawan(renamed.slug));
+  }
   return { ok: true };
 }
 
@@ -166,7 +173,7 @@ export async function setEmployeeStatus(
     console.error("setEmployeeStatus: update failed", error);
     return { ok: false, error: "Gagal mengubah status karyawan." };
   }
-  revalidatePath(`/karyawan/${id}`);
+  revalidatePath(routePatterns.karyawan, "page");
   revalidatePath("/karyawan");
   return { ok: true };
 }
@@ -202,6 +209,6 @@ export async function createPasswordResetLink(id: string): Promise<Result<{ url:
   });
   if (auditErr) console.error("createPasswordResetLink: audit insert failed", auditErr);
 
-  revalidatePath(`/karyawan/${id}`);
+  revalidatePath(routePatterns.karyawan, "page");
   return { ok: true, url: result.url };
 }

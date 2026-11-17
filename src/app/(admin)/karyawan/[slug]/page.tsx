@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/empty-state";
 import { AuditAksiBadge } from "@/components/audit-aksi-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Role } from "@/lib/auth/route-access";
+import { employeeIdBySlug, paths } from "@/lib/routing/paths";
 import { EditEmployeeForm } from "./edit-employee-form";
 import { KaryawanTabs } from "./karyawan-tabs";
 import { updateEmployee, setEmployeeStatus, createPasswordResetLink } from "../actions";
@@ -20,13 +21,19 @@ import { ResetPasswordLinkButton } from "./reset-password-link-button";
 export default async function KaryawanDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const db = await createServerSupabaseClient();
   const me = await getCurrentEmployee(db);
   if (!me) redirect("/login");
   if (me.role !== "hr_admin" && me.role !== "super_admin") redirect("/dashboard");
+
+  const found = await employeeIdBySlug(db, slug);
+  if (!found) notFound();
+  // Legacy UUID link, or a slug that changed after a rename -> canonical URL.
+  if (found.slug !== slug) redirect(paths.karyawan(found.slug));
+  const id = found.id;
 
   const { data: emp, error } = await db
     .from("employees")
@@ -84,7 +91,7 @@ export default async function KaryawanDetailPage({
             <RoleBadge role={emp.role as Role} />
             <StatusPill status={emp.status as "aktif" | "nonaktif"} />
             <Button asChild variant="outline" size="sm">
-              <Link href={`/laporan/karyawan/${emp.id}`}>
+              <Link href={paths.laporanKaryawan(found.slug)}>
                 <FileBarChart className="size-4" aria-hidden="true" /> Laporan kehadiran
               </Link>
             </Button>

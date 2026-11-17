@@ -1,25 +1,22 @@
 import { renderToBuffer } from "@react-pdf/renderer";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentEmployee } from "@/lib/auth/session";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CurrentEmployee } from "@/lib/auth/session";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
 import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
 import { loadPayslipDetail } from "@/lib/payroll/payslip-detail";
 import { payslipFileName, attachmentHeader } from "@/lib/payroll/payslip-filename";
 import { PayslipDocument } from "@/components/payslip-document";
 
-// @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
-// Node explicitly so this can never be moved onto the Edge runtime.
-export const runtime = "nodejs";
-
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ payslipId: string }> },
-) {
-  const { payslipId } = await params;
-  const db = await createServerSupabaseClient();
-  const viewer = await getCurrentEmployee(db);
-  if (!viewer) return new Response("Silakan masuk terlebih dahulu.", { status: 401 });
-
+/**
+ * The payslip PDF download, shared by the employee route (/slip-gaji/<YYYY-MM>/pdf)
+ * and the HR route (/payroll/<cabang>/<YYYY-MM>/<karyawan>/pdf). Access is
+ * checked by loadPayslipDetail (own slip, or HR).
+ */
+export async function payslipPdfResponse(
+  db: SupabaseClient,
+  viewer: CurrentEmployee,
+  payslipId: string,
+): Promise<Response> {
   const res = await loadPayslipDetail(db, viewer, payslipId);
   if (!res.ok) return new Response(res.error, { status: res.status });
 

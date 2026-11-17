@@ -45,7 +45,7 @@ export async function loadRecap(
 
   let employeeQuery = db
     .from("employees")
-    .select("id, nama, tanggal_mulai_kerja, department_id")
+    .select("id, nama, slug, tanggal_mulai_kerja, department_id")
     .eq("branch_id", branchId)
     .eq("status", "aktif")
     .order("nama");
@@ -74,7 +74,7 @@ export async function loadRecap(
   if (scheduleRes.data.length === 0) return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
 
   const employees = (employeesRes.data ?? []) as {
-    id: string; nama: string; tanggal_mulai_kerja: string | null; department_id: string | null;
+    id: string; nama: string; slug: string; tanggal_mulai_kerja: string | null; department_id: string | null;
   }[];
 
   if (lemburRes.error) logOptionalLookup("loadRecap: hitung_lembur", lemburRes.error, "0039");
@@ -136,7 +136,7 @@ export async function loadRecap(
       .flatMap(({ schedule, employees: members }) =>
         computeAttendanceRecap({
           from, to,
-          employees: members.map((e) => ({ id: e.id, nama: e.nama, tanggalMulaiKerja: e.tanggal_mulai_kerja })),
+          employees: members.map((e) => ({ id: e.id, nama: e.nama, slug: e.slug, tanggalMulaiKerja: e.tanggal_mulai_kerja })),
           schedule: {
             jamMasuk: schedule.jam_masuk,
             jamPulang: schedule.jam_pulang,

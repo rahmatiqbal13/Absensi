@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, Download, FileBarChart } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { employeeIdBySlug, paths } from "@/lib/routing/paths";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
 import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
@@ -56,15 +57,23 @@ export default async function LaporanKaryawanPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{ dari?: string; sampai?: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const sp = await searchParams;
   const db = await createServerSupabaseClient();
   const viewer = await getCurrentEmployee(db);
   if (!viewer) redirect("/login");
   if (viewer.role === "karyawan") redirect("/absen");
+
+  const found = await employeeIdBySlug(db, slug);
+  if (!found) notFound();
+  if (found.slug !== slug) {
+    const keep = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
+    redirect(paths.laporanKaryawan(found.slug) + (keep.size ? `?${keep}` : ""));
+  }
+  const id = found.id;
 
   const today = toJakartaDateOnly(new Date());
   const dari = sp.dari || `${today.slice(0, 7)}-01`;
@@ -122,7 +131,7 @@ export default async function LaporanKaryawanPage({
                 />
               )}
               <Button asChild variant="outline" size="sm">
-                <a href={`/laporan/karyawan/${id}/csv?${qs}`}>
+                <a href={`${paths.laporanKaryawan(slug)}/csv?${qs}`}>
                   <Download className="size-4" /> Unduh CSV
                 </a>
               </Button>

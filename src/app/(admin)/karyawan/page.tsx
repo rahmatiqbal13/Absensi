@@ -47,7 +47,7 @@ export default async function KaryawanPage({
 
   let query = db
     .from("employees")
-    .select("id, nama, jabatan, role, status, foto_profil_url, branches(nama)")
+    .select("id, nama, slug, jabatan, role, status, foto_profil_url, branches(nama)")
     .order("nama");
   if (sp.cabang) query = query.eq("branch_id", sp.cabang);
   if (sp.role) query = query.eq("role", sp.role);
@@ -130,7 +130,7 @@ export default async function KaryawanPage({
           ]}
           rows={rows ?? []}
           rowKey={(r) => r.id}
-          rowHref={(r) => `/karyawan/${r.id}`}
+          rowHref={(r) => `/karyawan/${r.slug}`}
           emptyState={
             <EmptyState icon={Users} message="Tidak ada karyawan yang cocok dengan filter." />
           }

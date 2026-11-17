@@ -220,7 +220,7 @@ export default async function LaporanPage({
           rowKey={(r) => r.employeeId}
           // Per-employee daily report (jam masuk / pulang), same date range.
           rowHref={(r) =>
-            `/laporan/karyawan/${r.employeeId}?${new URLSearchParams({ dari, sampai }).toString()}`
+            `/laporan/karyawan/${r.employeeSlug ?? r.employeeId}?${new URLSearchParams({ dari, sampai }).toString()}`
           }
           emptyState={<EmptyState icon={FileBarChart} message="Tidak ada karyawan aktif untuk filter ini." />}
           footer={

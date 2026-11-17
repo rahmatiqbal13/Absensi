@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
-import type { ActionResult } from "../actions";
+import type { ActionResult } from "../../actions";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { formatPersen } from "@/lib/payroll/pph21";
@@ -22,6 +22,7 @@ import {
 export type PayslipView = {
   id: string;
   nama: string;
+  employeeSlug: string;
   gajiPokok: number;
   hariKerjaEfektif: number;
   totalPotongan: number;
@@ -34,9 +35,10 @@ export type PayslipView = {
 };
 
 export function PayslipTable({
-  periodId, rows, status, onGenerate, onFinalize,
+  periodPath, rows, status, onGenerate, onFinalize,
 }: {
-  periodId: string;
+  /** e.g. /payroll/kantor-pusat/2026-11 — each slip lives at <periodPath>/<employee slug>. */
+  periodPath: string;
   rows: PayslipView[];
   status: "draft" | "final";
   onGenerate: () => Promise<ActionResult>;
@@ -173,10 +175,10 @@ export function PayslipTable({
                         >
                           {expanded === row.id ? "Tutup" : "Rincian"}
                         </Button>
-                        <Link href={`/payroll/${periodId}/slip/${row.id}`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
+                        <Link href={`${periodPath}/${row.employeeSlug}`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
                           Lihat slip
                         </Link>
-                        <a href={`/slip-gaji/${row.id}/pdf`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
+                        <a href={`${periodPath}/${row.employeeSlug}/pdf`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
                           PDF
                         </a>
                       </TableCell>
@@ -250,8 +252,8 @@ export function PayslipTable({
                     >
                       {expanded === row.id ? "Tutup" : "Rincian"}
                     </Button>
-                    <Link href={`/payroll/${periodId}/slip/${row.id}`} className="self-center text-xs font-medium text-brand-text hover:underline">Lihat slip</Link>
-                    <a href={`/slip-gaji/${row.id}/pdf`} className="self-center text-xs font-medium text-brand-text hover:underline">PDF</a>
+                    <Link href={`${periodPath}/${row.employeeSlug}`} className="self-center text-xs font-medium text-brand-text hover:underline">Lihat slip</Link>
+                    <a href={`${periodPath}/${row.employeeSlug}/pdf`} className="self-center text-xs font-medium text-brand-text hover:underline">PDF</a>
                   </div>
                   {expanded === row.id && (
                     <ul className="space-y-1 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">

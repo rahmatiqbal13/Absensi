@@ -2,13 +2,15 @@
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
 import { overtimeMinutes } from "@/lib/payroll/overtime";
 
-export type RecapEmployee = { id: string; nama: string; tanggalMulaiKerja: string | null };
+export type RecapEmployee = { id: string; nama: string; slug?: string; tanggalMulaiKerja: string | null };
 export type RecapAttendanceRow = { tanggal: string; status: string; jam_masuk: string | null; jam_pulang?: string | null };
 export type RecapLeave = { employeeId: string; tanggalMulai: string; tanggalSelesai: string };
 export type RecapSchedule = { jamMasuk: string; jamPulang: string; toleransiMenit: number; hariKerja: number[]; hitungLembur?: boolean };
 
 export type RecapRow = {
   employeeId: string;
+  /** URL slug (readable link to the per-employee report); falls back to the id. */
+  employeeSlug?: string;
   nama: string;
   hadir: number;
   terlambat: number;
@@ -58,7 +60,7 @@ export function computeAttendanceRecap(input: {
     const leaves = approvedLeavesByEmployee.get(emp.id) ?? [];
 
     const row: RecapRow = {
-      employeeId: emp.id, nama: emp.nama,
+      employeeId: emp.id, employeeSlug: emp.slug, nama: emp.nama,
       hadir: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0, alpa: 0, cuti: 0, lain: 0,
       totalMenitTerlambat: 0, menitLembur: 0, hariKerjaEfektif: 0,
     };

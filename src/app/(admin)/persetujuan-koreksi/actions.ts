@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { routePatterns } from "@/lib/routing/paths";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
@@ -49,6 +50,6 @@ export async function hrCorrectAttendanceAction(employeeId: string, formData: Fo
   if (!parsed.ok) return parsed;
 
   const r = await hrCorrectAttendance(createServiceRoleSupabaseClient(), me, employeeId, parsed.value);
-  if (r.ok) revalidatePath(`/laporan/karyawan/${employeeId}`);
+  if (r.ok) revalidatePath(routePatterns.laporanKaryawan, "page");
   return r;
 }

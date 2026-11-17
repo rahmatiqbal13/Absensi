@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { routePatterns } from "@/lib/routing/paths";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   computePayrollForBranch,
@@ -280,7 +281,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     return { ok: false, error: mapRpcError(rpcErr.message) };
   }
 
-  revalidatePath(`/payroll/${periodId}`);
+  revalidatePath(routePatterns.payrollPeriod, "page");
   return { ok: true, message: `${Number(count) || rows.length} slip gaji dibuat.` };
 }
 
@@ -290,7 +291,7 @@ export async function finalizePayroll(periodId: string): Promise<ActionResult> {
   if (error) {
     return { ok: false, error: mapRpcError(error.message) };
   }
-  revalidatePath(`/payroll/${periodId}`);
+  revalidatePath(routePatterns.payrollPeriod, "page");
   revalidatePath("/payroll");
   return { ok: true };
 }

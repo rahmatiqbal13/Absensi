@@ -3,12 +3,17 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
 import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
 import { employeeDailyToCsv } from "@/lib/laporan/employee-daily";
+import { employeeIdBySlug } from "@/lib/routing/paths";
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug: employeeSlug } = await params;
   const db = await createServerSupabaseClient();
   const me = await getCurrentEmployee(db);
   if (!me || me.role === "karyawan") return new Response("Tidak diizinkan.", { status: 403 });
+
+  const found = await employeeIdBySlug(db, employeeSlug);
+  if (!found) return new Response("Karyawan tidak ditemukan.", { status: 404 });
+  const id = found.id;
 
   const url = new URL(request.url);
   const range = validateRecapRange(url.searchParams.get("dari"), url.searchParams.get("sampai"));
