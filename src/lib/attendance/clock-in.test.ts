@@ -18,6 +18,7 @@ const BASE_BRANCH = {
 
 const BASE_SCHEDULE = {
   branch_id: "branch-1",
+  department_id: null,
   jam_masuk: "09:00:00",
   jam_pulang: "17:00:00",
   toleransi_terlambat_menit: 15,
@@ -25,6 +26,8 @@ const BASE_SCHEDULE = {
 
 function makeMockDb(
   opts: {
+    employee?: { id: string; branch_id: string; department_id?: string | null };
+    schedules?: any[];
     existingAttendance?: any[];
     existingAttendanceError?: { message: string; code?: string } | null;
     consentRows?: any[];
@@ -41,6 +44,8 @@ function makeMockDb(
     insertError = null,
     branch = BASE_BRANCH,
     qrColumnsError = null,
+    employee = BASE_EMPLOYEE,
+    schedules = [BASE_SCHEDULE],
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -61,16 +66,13 @@ function makeMockDb(
     }),
   });
 
-  const scheduleMaybeSingleMock = vi
-    .fn()
-    .mockResolvedValue({ data: BASE_SCHEDULE, error: null });
-  const scheduleLimitMock = vi.fn().mockReturnValue({ maybeSingle: scheduleMaybeSingleMock });
-  const scheduleEqMock = vi.fn().mockReturnValue({ limit: scheduleLimitMock });
+  // loadSchedules: .select(...).in("branch_id", [...]) -> every schedule row of the branch.
+  const scheduleInMock = vi.fn().mockResolvedValue({ data: schedules, error: null });
 
   const tables: Record<string, any> = {
     employees: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_EMPLOYEE, error: null }) }),
+        eq: () => ({ single: () => Promise.resolve({ data: employee, error: null }) }),
       }),
     },
     branches: {
@@ -89,7 +91,7 @@ function makeMockDb(
       }),
     },
     work_schedules: {
-      select: vi.fn().mockReturnValue({ eq: scheduleEqMock }),
+      select: vi.fn().mockReturnValue({ in: scheduleInMock }),
     },
     consents: {
       select: () => ({
@@ -109,9 +111,7 @@ function makeMockDb(
     __dupTanggalEqMock: dupTanggalEqMock,
     __dupLimitMock: dupLimitMock,
     __insertMock: insertMock,
-    __scheduleEqMock: scheduleEqMock,
-    __scheduleLimitMock: scheduleLimitMock,
-    __scheduleMaybeSingleMock: scheduleMaybeSingleMock,
+    __scheduleInMock: scheduleInMock,
   };
 }
 
@@ -348,21 +348,28 @@ describe("clockIn", () => {
     );
   });
 
-  it("takes the first work schedule row rather than erroring when a branch has several", async () => {
-    const db = makeMockDb();
-
-    await clockIn(db as any, {
+  it("uses the employee's department schedule over the branch default", async () => {
+    const input = {
       employeeId: "employee-1",
       lat: -6.2,
       long: 106.8,
       photoPath: "employee-1/masuk-1.jpg",
       photoExpiresAt: "2026-12-01T00:00:00.000Z",
       now: new Date("2026-09-01T08:58:00+07:00"),
-    });
+    };
+    const schedules = [
+      BASE_SCHEDULE,
+      { ...BASE_SCHEDULE, department_id: "dept-gudang", jam_masuk: "07:00:00", jam_pulang: "15:00:00" },
+    ];
 
-    expect(db.__scheduleEqMock).toHaveBeenCalledWith("branch_id", "branch-1");
-    expect(db.__scheduleLimitMock).toHaveBeenCalledWith(1);
-    expect(db.__scheduleMaybeSingleMock).toHaveBeenCalled();
+    // 08:58 is on time for the 09:00 branch default...
+    const office = makeMockDb({ schedules, employee: { ...BASE_EMPLOYEE, department_id: "dept-kantor" } });
+    expect(await clockIn(office as any, input)).toMatchObject({ ok: true, status: "tepat_waktu" });
+    expect(office.__scheduleInMock).toHaveBeenCalledWith("branch_id", ["branch-1"]);
+
+    // ...but late for the warehouse department's own 07:00 start.
+    const gudang = makeMockDb({ schedules, employee: { ...BASE_EMPLOYEE, department_id: "dept-gudang" } });
+    expect(await clockIn(gudang as any, input)).toMatchObject({ ok: true, status: "terlambat" });
   });
 
   it("returns a generic Indonesian message and logs the raw error when the insert fails", async () => {

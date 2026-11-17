@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { geofenceState, isGeofenceConfigured } from "./geofencing";
 import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
+import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
 
@@ -59,7 +60,7 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
 
   const { data: employee, error: employeeErr } = await db
     .from("employees")
-    .select("id, branch_id")
+    .select("id, branch_id, department_id")
     .eq("id", input.employeeId)
     .single();
   if (employeeErr || !employee) {
@@ -88,14 +89,10 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
   const branchQrEnabled = qrRow?.qr_enabled ?? false;
   const branchQrSecret = typeof qrRow?.qr_secret === "string" ? qrRow.qr_secret : null;
 
-  const { data: schedule, error: scheduleErr } = await db
-    .from("work_schedules")
-    .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
-    .eq("branch_id", employee.branch_id)
-    // work_schedules is one row per branch (unique (branch_id) since 0024);
-    // .limit(1).maybeSingle() just turns "no schedule yet" into null, not an error.
-    .limit(1)
-    .maybeSingle();
+  // The department's own schedule when it has one, else the branch default.
+  const { data: schedule, error: scheduleErr } = await loadEmployeeSchedule<{
+    jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
+  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branch_id, employee.department_id);
   if (scheduleErr || !schedule) {
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }

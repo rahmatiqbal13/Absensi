@@ -83,6 +83,8 @@ export async function getTodayExceptions(
     // Precedence (mirrors attendance-recap.ts): non-working branch, then leave,
     // then no-row/explicit-alpa, then late/dll/pc.
     if (!branchId && context.workingByBranch.get(empBranch) === false) continue;
+    // Own schedule (department or branch) says today is a day off.
+    if (context.offToday.has(id)) continue;
     if (context.onLeave.has(id)) continue;
 
     const status = byEmployee.get(id);

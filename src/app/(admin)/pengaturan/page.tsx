@@ -4,47 +4,18 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { countActiveSuperAdmins } from "@/lib/employees/super-admin-count";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Building,
-  Building2,
-  Network,
-  Clock,
-  CalendarOff,
-  MapPin,
-  ScrollText,
-  ChevronRight,
-  AlertTriangle,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 
-function HubCard({
-  href,
-  icon: Icon,
-  title,
-  desc,
-}: {
-  href: string;
-  icon: LucideIcon;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Link href={href} className="block">
-      <Card size="sm" className="transition-colors hover:bg-muted/40">
-        <CardContent className="flex items-start gap-3">
-          <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">{title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
-          </div>
-          <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
+const HUB = [
+  { href: "/pengaturan/instansi", title: "Instansi", desc: "Nama, logo, kontak, dan warna aksen aplikasi.", superOnly: true },
+  { href: "/pengaturan/libur", title: "Hari libur", desc: "Hari libur nasional dan cabang untuk perhitungan payroll." },
+  { href: "/pengaturan/audit", title: "Log audit", desc: "Riwayat perubahan data karyawan dan persetujuan cuti." },
+  { href: "/pengaturan/departemen", title: "Departemen", desc: "Kelompokkan karyawan per departemen di tiap cabang." },
+  { href: "/pengaturan/jadwal", title: "Jadwal kerja", desc: "Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." },
+  { href: "/pengaturan/cabang", title: "Cabang", desc: "Tambah, ubah nama atau alamat, hapus kantor cabang." },
+  { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence untuk absensi per cabang." },
+];
 
 export default async function PengaturanPage() {
   const db = await createServerSupabaseClient();
@@ -70,38 +41,47 @@ export default async function PengaturanPage() {
         superAdminCount < 2 && (
           <Alert variant="warning">
             <AlertTriangle className="size-4" />
-            <AlertDescription>
-              Peringatan: sistem ini hanya memiliki {superAdminCount} Super Admin aktif. Minimal 2
-              Super Admin diperlukan agar mekanisme persetujuan cuti berjenjang untuk HR/Super Admin
-              tetap berfungsi. Tambahkan Super Admin lain sesegera mungkin.
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                <b>Hanya {superAdminCount} Super Admin aktif.</b> Minimal 2 diperlukan agar
+                persetujuan cuti berjenjang untuk HR dan Super Admin tetap berjalan.
+              </span>
+              {(employee.role === "hr_admin" || employee.role === "super_admin") && (
+                <Link
+                  href="/karyawan/baru"
+                  className="inline-flex h-9 items-center rounded-full border border-current px-3.5 text-[0.85rem] font-semibold"
+                >
+                  Tambah Super Admin
+                </Link>
+              )}
             </AlertDescription>
           </Alert>
         )
       )}
 
       {(employee.role === "hr_admin" || employee.role === "super_admin") && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {employee.role === "super_admin" && (
-            <HubCard
-              href="/pengaturan/instansi"
-              icon={Building2}
-              title="Instansi"
-              desc="Nama, logo, kontak, dan warna aksen aplikasi."
-            />
-          )}
-          <HubCard href="/pengaturan/libur" icon={CalendarOff} title="Hari Libur"
-            desc="Kelola hari libur nasional & cabang untuk perhitungan payroll." />
-          <HubCard href="/pengaturan/audit" icon={ScrollText} title="Log Audit"
-            desc="Riwayat perubahan data karyawan & persetujuan cuti." />
-          <HubCard href="/pengaturan/departemen" icon={Network} title="Departemen"
-            desc="Kelompokkan karyawan per departemen di tiap cabang." />
-          <HubCard href="/pengaturan/jadwal" icon={Clock} title="Jadwal Kerja"
-            desc="Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." />
-          <HubCard href="/pengaturan/cabang" icon={Building} title="Cabang"
-            desc="Tambah, ubah nama/alamat, atau hapus kantor cabang." />
-          <HubCard href="/pengaturan/lokasi" icon={MapPin} title="Lokasi Kantor"
-            desc="Titik kantor & radius geofence untuk absensi per cabang." />
-        </div>
+        <ul className="grid border-t border-primary sm:grid-cols-2 sm:gap-x-8">
+          {HUB.filter((h) => !h.superOnly || employee.role === "super_admin").map((h, i) => (
+            <li key={h.href} className="border-b border-border">
+              <Link
+                href={h.href}
+                className="group grid grid-cols-[44px_1fr_20px] items-start gap-3 py-5.5 pr-2 outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="pt-0.5 pl-2 font-mono text-[0.8rem] text-brand-text">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="flex flex-col gap-1">
+                  <span className="text-[1.05rem] font-semibold">{h.title}</span>
+                  <span className="text-[0.85rem] leading-snug text-muted-foreground">{h.desc}</span>
+                </span>
+                <ChevronRight
+                  className="mt-1 size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

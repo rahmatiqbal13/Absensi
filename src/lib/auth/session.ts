@@ -8,6 +8,7 @@ export type CurrentEmployee = {
   email: string;
   role: Role;
   branchId: string;
+  departmentId: string | null;
   fotoPath: string | null;
 };
 
@@ -23,7 +24,7 @@ export const getCurrentEmployee = cache(async function getCurrentEmployee(
 
   const { data: employee, error } = await db
     .from("employees")
-    .select("id, nama, email, role, branch_id, status, foto_profil_url")
+    .select("id, nama, email, role, branch_id, department_id, status, foto_profil_url")
     .eq("id", userData.user.id)
     .single();
   if (error) {
@@ -37,6 +38,7 @@ export const getCurrentEmployee = cache(async function getCurrentEmployee(
     email: employee.email,
     role: employee.role,
     branchId: employee.branch_id,
+    departmentId: employee.department_id ?? null,
     fotoPath: employee.foto_profil_url ?? null,
   };
 });

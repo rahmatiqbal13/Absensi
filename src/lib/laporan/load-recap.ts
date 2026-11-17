@@ -1,5 +1,6 @@
 // src/lib/laporan/load-recap.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import {
   computeAttendanceRecap,
   type RecapRow,
@@ -41,16 +42,17 @@ export async function loadRecap(
 
   let employeeQuery = db
     .from("employees")
-    .select("id, nama, tanggal_mulai_kerja")
+    .select("id, nama, tanggal_mulai_kerja, department_id")
     .eq("branch_id", branchId)
     .eq("status", "aktif")
     .order("nama");
   if (departmentId) employeeQuery = employeeQuery.eq("department_id", departmentId);
 
   const [scheduleRes, employeesRes, holidaysRes] = await Promise.all([
-    db.from("work_schedules")
-      .select("jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja")
-      .eq("branch_id", branchId).limit(1).maybeSingle(),
+    // Branch default + department schedules; each employee picks theirs.
+    loadSchedules<{
+      id: string; jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number; hari_kerja: number[];
+    }>(db, "id, jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja", [branchId]),
     employeeQuery,
     db.from("holidays").select("tanggal")
       .or(`branch_id.is.null,branch_id.eq.${branchId}`)
@@ -63,9 +65,23 @@ export async function loadRecap(
     });
     return { ok: false, error: "Gagal memuat data laporan." };
   }
-  if (!scheduleRes.data) return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
+  if (scheduleRes.data.length === 0) return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
 
-  const employees = (employeesRes.data ?? []) as { id: string; nama: string; tanggal_mulai_kerja: string | null }[];
+  const employees = (employeesRes.data ?? []) as {
+    id: string; nama: string; tanggal_mulai_kerja: string | null; department_id: string | null;
+  }[];
+
+  type Schedule = (typeof scheduleRes.data)[number];
+  const groups = new Map<string, { schedule: Schedule; employees: typeof employees }>();
+  for (const e of employees) {
+    const schedule = pickSchedule(scheduleRes.data, branchId, e.department_id);
+    if (!schedule) {
+      return { ok: false, error: "Sebagian karyawan belum punya jadwal kerja. Atur jadwal cabang atau departemennya dulu." };
+    }
+    const g = groups.get(schedule.id) ?? { schedule, employees: [] };
+    g.employees.push(e);
+    groups.set(schedule.id, g);
+  }
   const employeeIds = employees.map((e) => e.id);
 
   const [attendanceRes, leaveRes] = await Promise.all([
@@ -103,19 +119,28 @@ export async function loadRecap(
     approvedLeavesByEmployee.set(r.employee_id, list);
   }
 
-  const rows = computeAttendanceRecap({
-    from, to,
-    employees: employees.map((e) => ({ id: e.id, nama: e.nama, tanggalMulaiKerja: e.tanggal_mulai_kerja })),
-    schedule: {
-      jamMasuk: scheduleRes.data.jam_masuk,
-      jamPulang: scheduleRes.data.jam_pulang,
-      toleransiMenit: scheduleRes.data.toleransi_terlambat_menit,
-      hariKerja: scheduleRes.data.hari_kerja,
-    },
-    holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal),
-    attendancesByEmployee,
-    approvedLeavesByEmployee,
-  });
+  const holidayDates = ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal);
+  const byId = new Map(
+    [...groups.values()]
+      .flatMap(({ schedule, employees: members }) =>
+        computeAttendanceRecap({
+          from, to,
+          employees: members.map((e) => ({ id: e.id, nama: e.nama, tanggalMulaiKerja: e.tanggal_mulai_kerja })),
+          schedule: {
+            jamMasuk: schedule.jam_masuk,
+            jamPulang: schedule.jam_pulang,
+            toleransiMenit: schedule.toleransi_terlambat_menit,
+            hariKerja: schedule.hari_kerja,
+          },
+          holidayDates,
+          attendancesByEmployee,
+          approvedLeavesByEmployee,
+        }),
+      )
+      .map((r) => [r.employeeId, r]),
+  );
+  // Keep the employee query's name order across schedule groups.
+  const rows = employees.map((e) => byId.get(e.id)).filter((r): r is RecapRow => !!r);
 
   return { ok: true, rows, branchNama: (branch as { nama: string }).nama };
 }

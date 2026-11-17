@@ -39,7 +39,7 @@ describe("generatePayroll", () => {
         case "employees":
           return q({ data: [{ id: "e1", gaji_pokok: 10_500_000, tanggal_mulai_kerja: "2026-01-01" }], error: null });
         case "work_schedules":
-          return q({ data: { jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }, error: null });
+          return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
         case "holidays":
           return q({ data: [], error: null });
         case "attendances":
@@ -70,7 +70,7 @@ describe("generatePayroll", () => {
           case "employees":
             return q({ data: [{ id: "e1", gaji_pokok: 10_500_000, tanggal_mulai_kerja: "2026-01-01" }], error: null });
           case "work_schedules":
-            return q({ data: { jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }, error: null });
+            return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
           case "holidays":
             return q({ data: [{ tanggal: "2026-08-17" }, { tanggal: "2026-08-20" }], error: null });
           default:
@@ -118,10 +118,59 @@ describe("generatePayroll", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("computes each employee against their department's schedule", async () => {
+    const sched = { branch_id: "b1", jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15 };
+    from.mockImplementation((table: string) => {
+      switch (table) {
+        case "payroll_periods":
+          return q({ data: periodRow(), error: null });
+        case "employees":
+          return q({
+            data: [
+              { id: "office", gaji_pokok: 10_000_000, tanggal_mulai_kerja: "2026-01-01", department_id: null },
+              { id: "shop", gaji_pokok: 10_000_000, tanggal_mulai_kerja: "2026-01-01", department_id: "d-shop" },
+            ],
+            error: null,
+          });
+        case "work_schedules":
+          return q({
+            data: [
+              { ...sched, id: "s1", department_id: null, hari_kerja: [1, 2, 3, 4, 5] },
+              { ...sched, id: "s2", department_id: "d-shop", hari_kerja: [1, 2, 3, 4, 5, 6] },
+            ],
+            error: null,
+          });
+        default:
+          return q({ data: [], error: null });
+      }
+    });
+    rpc.mockResolvedValue({ data: 2, error: null });
+
+    await generatePayroll("p1");
+    const rows = rpc.mock.calls[0][1].p_rows as { employee_id: string; rincian_harian: unknown[] }[];
+    const days = Object.fromEntries(rows.map((r) => [r.employee_id, r.rincian_harian.length]));
+    // August 2026: 21 weekdays; the shop also works its 5 Saturdays.
+    expect(days).toEqual({ office: 21, shop: 26 });
+  });
+
+  it("refuses to run when an employee has no schedule at all", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "payroll_periods") return q({ data: periodRow(), error: null });
+      if (table === "employees")
+        return q({ data: [{ id: "e1", gaji_pokok: 1, tanggal_mulai_kerja: null, department_id: "d-x" }], error: null });
+      if (table === "work_schedules")
+        return q({ data: [{ id: "s2", branch_id: "b1", department_id: "d-other", jam_masuk: "09:00", jam_pulang: "17:00", toleransi_terlambat_menit: 0, hari_kerja: [1] }], error: null });
+      return q({ data: [], error: null });
+    });
+    const result = await generatePayroll("p1");
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("belum punya jadwal kerja") });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("maps a finalized-period RPC error", async () => {
     from.mockImplementation((table: string) => {
       if (table === "payroll_periods") return q({ data: periodRow(), error: null });
-      if (table === "work_schedules") return q({ data: { jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1] }, error: null });
+      if (table === "work_schedules") return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1] }], error: null });
       return q({ data: [], error: null });
     });
     rpc.mockResolvedValue({ data: null, error: { message: "payroll period is finalized" } });

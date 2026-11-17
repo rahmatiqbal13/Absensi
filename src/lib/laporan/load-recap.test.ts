@@ -61,7 +61,7 @@ describe("loadRecap", () => {
   it("computes a recap for a happy path", async () => {
     const db = makeDb({
       branches: q({ data: { nama: "Kantor Pusat" }, error: null }),
-      work_schedules: q({ data: { jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }, error: null }),
+      work_schedules: q({ data: [{ id: "s1", branch_id: FILTERS.branchId, department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null }),
       employees: q({ data: [{ id: "e1", nama: "Budi", tanggal_mulai_kerja: "2026-01-01" }], error: null }),
       holidays: q({ data: [], error: null }),
       attendances: q({ data: [{ employee_id: "e1", tanggal: "2026-08-03", status: "tepat_waktu", jam_masuk: "2026-08-03T02:00:00Z" }], error: null }),
@@ -71,5 +71,42 @@ describe("loadRecap", () => {
     expect(result).toMatchObject({ ok: true, branchNama: "Kantor Pusat" });
     if (!result.ok) return;
     expect(result.rows[0]).toMatchObject({ nama: "Budi", hadir: 1, alpa: 4, hariKerjaEfektif: 5 });
+  });
+
+  it("applies each employee's department schedule and keeps name order", async () => {
+    const base = { branch_id: FILTERS.branchId, jam_pulang: "17:00:00", toleransi_terlambat_menit: 0 };
+    const db = makeDb({
+      branches: q({ data: { nama: "Kantor Pusat" }, error: null }),
+      work_schedules: q({
+        data: [
+          { ...base, id: "s1", department_id: null, jam_masuk: "09:00:00", hari_kerja: [1, 2, 3, 4, 5] },
+          // Warehouse starts at 07:00 and also works Saturday (not in this range).
+          { ...base, id: "s2", department_id: "gudang", jam_masuk: "07:00:00", hari_kerja: [1, 2, 3] },
+        ],
+        error: null,
+      }),
+      employees: q({
+        data: [
+          { id: "e1", nama: "Ani", tanggal_mulai_kerja: "2026-01-01", department_id: "gudang" },
+          { id: "e2", nama: "Budi", tanggal_mulai_kerja: "2026-01-01", department_id: null },
+        ],
+        error: null,
+      }),
+      holidays: q({ data: [], error: null }),
+      attendances: q({
+        data: [
+          // 08:00 WIB: an hour late against the warehouse's own 07:00 start.
+          { employee_id: "e1", tanggal: "2026-08-03", status: "terlambat", jam_masuk: "2026-08-03T01:00:00Z" },
+          { employee_id: "e2", tanggal: "2026-08-03", status: "tepat_waktu", jam_masuk: "2026-08-03T01:00:00Z" },
+        ],
+        error: null,
+      }),
+      leave_requests: q({ data: [], error: null }),
+    });
+    const result = await loadRecap(db, FILTERS);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.rows.map((r) => r.nama)).toEqual(["Ani", "Budi"]);
+    expect(result.rows[0]).toMatchObject({ hariKerjaEfektif: 3, terlambat: 1, totalMenitTerlambat: 60 });
+    expect(result.rows[1]).toMatchObject({ hariKerjaEfektif: 5, hadir: 1 });
   });
 });

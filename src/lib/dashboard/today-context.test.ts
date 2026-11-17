@@ -4,13 +4,15 @@ import { getTodayContext } from "./today-context";
 // A `from(table)` router. Each table resolves to its configured payload; the
 // builder is chainable (`.eq`/`.or`/`.lte`/`.gte`) and thenable.
 function makeDb(opts: {
-  schedules?: { branch_id: string; hari_kerja: number[] }[];
+  schedules?: { branch_id: string; department_id?: string | null; hari_kerja: number[] }[];
+  employees?: { id: string; branch_id: string; department_id: string | null }[];
   holidays?: { branch_id: string | null }[];
   leaves?: { employee_id: string }[];
   error?: unknown;
 }) {
   const payload = (table: string) => {
     if (table === "work_schedules") return { data: opts.schedules ?? [], error: opts.error ?? null };
+    if (table === "employees") return { data: opts.employees ?? [], error: opts.error ?? null };
     if (table === "holidays") return { data: opts.holidays ?? [], error: opts.error ?? null };
     return { data: opts.leaves ?? [], error: opts.error ?? null };
   };
@@ -20,7 +22,7 @@ function makeDb(opts: {
       const q: Record<string, unknown> = {
         then: (onFulfilled: (v: unknown) => unknown) => Promise.resolve(result).then(onFulfilled),
       };
-      for (const m of ["select", "eq", "or", "lte", "gte"]) q[m] = vi.fn(() => q);
+      for (const m of ["select", "eq", "in", "or", "lte", "gte"]) q[m] = vi.fn(() => q);
       return q;
     },
   } as never;
@@ -100,6 +102,42 @@ describe("getTodayContext", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect([...res.ctx.onLeave].sort()).toEqual(["e1", "e2"]);
+  });
+
+  it("marks a department off when its own schedule skips today, though the branch works", async () => {
+    const res = await getTodayContext(
+      makeDb({
+        schedules: [
+          { branch_id: "b1", department_id: null, hari_kerja: [TODAY_DOW] },
+          { branch_id: "b1", department_id: "shift-malam", hari_kerja: [OTHER_DOW] },
+        ],
+        employees: [
+          { id: "office", branch_id: "b1", department_id: null },
+          { id: "night", branch_id: "b1", department_id: "shift-malam" },
+        ],
+      }),
+    );
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ctx.workingByBranch.get("b1")).toBe(true);
+    expect([...res.ctx.offToday]).toEqual(["night"]);
+  });
+
+  it("keeps a branch working when only a department works today", async () => {
+    const res = await getTodayContext(
+      makeDb({
+        schedules: [
+          { branch_id: "b1", department_id: null, hari_kerja: [OTHER_DOW] },
+          { branch_id: "b1", department_id: "toko", hari_kerja: [TODAY_DOW] },
+        ],
+        employees: [
+          { id: "office", branch_id: "b1", department_id: null },
+          { id: "shop", branch_id: "b1", department_id: "toko" },
+        ],
+      }),
+    );
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ctx.workingByBranch.get("b1")).toBe(true);
+    expect([...res.ctx.offToday]).toEqual(["office"]);
   });
 
   it("returns an error result on a query error", async () => {

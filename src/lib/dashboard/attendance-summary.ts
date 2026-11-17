@@ -107,7 +107,12 @@ export async function getTodaySummary(
   const nonWorkingForBranch = branchId
     ? context.workingByBranch.get(branchId) === false
     : false;
-  const alpa = nonWorkingForBranch ? 0 : Math.max(alpaRows + noRecord - onLeaveCount, 0);
+  // Employees whose own (department) schedule has today off are not `alpa`
+  // either; skip those already counted as on leave.
+  const offTodayCount = [...context.offToday].filter((id) => !context.onLeave.has(id)).length;
+  const alpa = nonWorkingForBranch
+    ? 0
+    : Math.max(alpaRows + noRecord - onLeaveCount - offTodayCount, 0);
 
   const pulangCepat = rows.filter((row) => row.status === "pulang_cepat").length;
   const diLuarLokasi = rows.filter((row) => row.status === "di_luar_lokasi").length;

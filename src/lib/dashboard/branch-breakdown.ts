@@ -35,7 +35,8 @@ export async function getBranchBreakdown(
   for (const e of employeesRes.data ?? []) {
     const b = e.branch_id as string;
     headcount.set(b, (headcount.get(b) ?? 0) + 1);
-    if (context.onLeave.has(e.id as string)) {
+    // On leave, or off today per their own (department) schedule: not `alpa`.
+    if (context.onLeave.has(e.id as string) || context.offToday.has(e.id as string)) {
       onLeavePerBranch.set(b, (onLeavePerBranch.get(b) ?? 0) + 1);
     }
   }

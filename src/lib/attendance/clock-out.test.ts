@@ -11,7 +11,7 @@ const BASE_BRANCH = {
   qr_enabled: false,
   qr_secret: null,
 };
-const BASE_SCHEDULE = { branch_id: "branch-1", jam_masuk: "09:00:00", jam_pulang: "17:00:00" };
+const BASE_SCHEDULE = { branch_id: "branch-1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00" };
 
 type QueryResult = { data: any; error: { message: string; code?: string } | null };
 
@@ -28,6 +28,8 @@ const UPDATE_ZERO_ROWS: QueryResult = {
 
 function makeMockDb(
   opts: {
+    employee?: { id: string; branch_id: string; department_id?: string | null };
+    schedules?: any[];
     todaysAttendance?: any;
     todaysAttendanceError?: { message: string; code?: string } | null;
     updateError?: { message: string; code?: string } | null;
@@ -47,6 +49,8 @@ function makeMockDb(
     updateResults = [updateError ? { data: null, error: updateError } : UPDATE_OK],
     branch = BASE_BRANCH,
     qrColumnsError = null,
+    employee = BASE_EMPLOYEE,
+    schedules = [BASE_SCHEDULE],
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -66,14 +70,13 @@ function makeMockDb(
   const updateEqMock = vi.fn().mockReturnValue({ is: updateIsMock });
   const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
 
-  const scheduleMaybeSingleMock = vi.fn().mockResolvedValue({ data: BASE_SCHEDULE, error: null });
-  const scheduleLimitMock = vi.fn().mockReturnValue({ maybeSingle: scheduleMaybeSingleMock });
-  const scheduleEqMock = vi.fn().mockReturnValue({ limit: scheduleLimitMock });
+  // loadSchedules: .select(...).in("branch_id", [...]) -> every schedule row of the branch.
+  const scheduleInMock = vi.fn().mockResolvedValue({ data: schedules, error: null });
 
   const tables: Record<string, any> = {
     employees: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_EMPLOYEE, error: null }) }),
+        eq: () => ({ single: () => Promise.resolve({ data: employee, error: null }) }),
       }),
     },
     branches: {
@@ -90,7 +93,7 @@ function makeMockDb(
       }),
     },
     work_schedules: {
-      select: vi.fn().mockReturnValue({ eq: scheduleEqMock }),
+      select: vi.fn().mockReturnValue({ in: scheduleInMock }),
     },
     attendances: {
       select: attendancesSelectMock,
@@ -106,9 +109,7 @@ function makeMockDb(
     __updateMock: updateMock,
     __updateEqMock: updateEqMock,
     __updateIsMock: updateIsMock,
-    __scheduleEqMock: scheduleEqMock,
-    __scheduleLimitMock: scheduleLimitMock,
-    __scheduleMaybeSingleMock: scheduleMaybeSingleMock,
+    __scheduleInMock: scheduleInMock,
   };
 }
 
@@ -361,14 +362,19 @@ describe("clockOut", () => {
     expect(db.__updateMock.mock.calls[0][0]).not.toHaveProperty("catatan");
   });
 
-  it("takes the first work schedule row rather than erroring when a branch has several", async () => {
-    const db = makeMockDb();
+  it("uses the employee's department schedule over the branch default", async () => {
+    const schedules = [BASE_SCHEDULE, { ...BASE_SCHEDULE, department_id: "dept-gudang", jam_pulang: "19:00:00" }];
+    const now = new Date("2026-09-01T17:05:00+07:00");
 
-    await clockOut(db as any, { ...BASE_INPUT, now: new Date("2026-09-01T17:05:00+07:00") });
+    const office = makeMockDb({ schedules });
+    await clockOut(office as any, { ...BASE_INPUT, now });
+    expect(office.__scheduleInMock).toHaveBeenCalledWith("branch_id", ["branch-1"]);
+    expect(office.__updateMock.mock.calls[0][0].status).toBe("tepat_waktu");
 
-    expect(db.__scheduleEqMock).toHaveBeenCalledWith("branch_id", "branch-1");
-    expect(db.__scheduleLimitMock).toHaveBeenCalledWith(1);
-    expect(db.__scheduleMaybeSingleMock).toHaveBeenCalled();
+    // 17:05 is before the warehouse department's own 19:00 end.
+    const gudang = makeMockDb({ schedules, employee: { ...BASE_EMPLOYEE, department_id: "dept-gudang" } });
+    await clockOut(gudang as any, { ...BASE_INPUT, now });
+    expect(gudang.__updateMock.mock.calls[0][0].status).toBe("pulang_cepat");
   });
 
   describe("QR path", () => {

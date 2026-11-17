@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { ClockPanel, type TodaysAttendance } from "./clock-panel";
 import { submitClockIn, submitClockOut } from "./actions";
 
@@ -34,12 +35,9 @@ export default async function AbsenPage() {
     .maybeSingle();
   const qrEnabled = qrRow?.qr_enabled ?? false;
 
-  const { data: schedule, error: scheduleErr } = await db
-    .from("work_schedules")
-    .select("jam_masuk, jam_pulang, toleransi_terlambat_menit")
-    .eq("branch_id", employee.branchId)
-    .limit(1)
-    .maybeSingle();
+  const { data: schedule, error: scheduleErr } = await loadEmployeeSchedule<{
+    jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
+  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branchId, employee.departmentId);
   if (scheduleErr) console.error("absen: work schedule query failed", scheduleErr);
 
   // Do NOT use `new Date().toISOString().slice(0, 10)` here — that's the UTC

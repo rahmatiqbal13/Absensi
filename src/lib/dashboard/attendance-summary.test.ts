@@ -7,6 +7,7 @@ import type { TodayContext } from "./today-context";
 function ctxWorking(branchId = "branch-1", onLeave: string[] = []): TodayContext {
   return {
     today: "2026-08-31",
+    offToday: new Set<string>(),
     workingByBranch: new Map([[branchId, true]]),
     onLeave: new Set(onLeave),
   };
@@ -308,7 +309,8 @@ describe("getTodaySummary", () => {
     const db = makeMockDb({ attendanceRows: [], employeeCount: 5 });
     const ctx: TodayContext = {
       today: "2026-08-31",
-      workingByBranch: new Map([["branch-1", false]]),
+      offToday: new Set<string>(),
+    workingByBranch: new Map([["branch-1", false]]),
       onLeave: new Set(),
     };
 

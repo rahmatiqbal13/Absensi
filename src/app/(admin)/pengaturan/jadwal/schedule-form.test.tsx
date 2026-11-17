@@ -8,14 +8,14 @@ describe("ScheduleForm", () => {
     render(
       <ScheduleForm
         branchId="b1"
-        branchNama="Kantor Pusat"
+        label="Kantor Pusat"
         defaults={{ jamMasuk: "09:00", jamPulang: "17:00", hariKerja: [1, 2, 3, 4, 5], toleransiMenit: 15 }}
         saveSchedule={saveSchedule}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
-    await waitFor(() => expect(saveSchedule).toHaveBeenCalledWith("b1", expect.any(FormData)));
-    const fd = saveSchedule.mock.calls[0][1] as FormData;
+    await waitFor(() => expect(saveSchedule).toHaveBeenCalledWith("b1", null, expect.any(FormData)));
+    const fd = saveSchedule.mock.calls[0][2] as FormData;
     expect(fd.get("jamMasuk")).toBe("09:00");
     expect(fd.getAll("hariKerja")).toEqual(["1", "2", "3", "4", "5"]);
     expect(fd.get("toleransiMenit")).toBe("15");
@@ -27,7 +27,7 @@ describe("ScheduleForm", () => {
     render(
       <ScheduleForm
         branchId="b1"
-        branchNama="Kantor Pusat"
+        label="Kantor Pusat"
         defaults={{ jamMasuk: "09:00", jamPulang: "17:00", hariKerja: [1], toleransiMenit: 15, potongTerlambat: true }}
         saveSchedule={saveSchedule}
       />,
@@ -35,13 +35,22 @@ describe("ScheduleForm", () => {
     expect(screen.getByRole("switch", { name: /potong gaji per menit/i })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
     await waitFor(() => expect(saveSchedule).toHaveBeenCalled());
-    expect((saveSchedule.mock.calls[0][1] as FormData).get("potongTerlambat")).toBe("on");
+    expect((saveSchedule.mock.calls[0][2] as FormData).get("potongTerlambat")).toBe("on");
+  });
+
+  it("passes its department id when editing a department schedule", async () => {
+    const saveSchedule = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <ScheduleForm branchId="b1" departmentId="d1" label="Gudang" defaults={null} saveSchedule={saveSchedule} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /simpan jadwal gudang/i }));
+    await waitFor(() => expect(saveSchedule).toHaveBeenCalledWith("b1", "d1", expect.any(FormData)));
   });
 
   it("shows an error from a failed save", async () => {
     const saveSchedule = vi.fn().mockResolvedValue({ ok: false, error: "Jam pulang harus setelah jam masuk." });
     render(
-      <ScheduleForm branchId="b1" branchNama="Kantor Pusat" defaults={null} saveSchedule={saveSchedule} />,
+      <ScheduleForm branchId="b1" label="Kantor Pusat" defaults={null} saveSchedule={saveSchedule} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /simpan/i }));
     expect(await screen.findByText("Jam pulang harus setelah jam masuk.")).toBeInTheDocument();

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { defaultSyncYears, syncNationalHolidays } from "@/lib/holidays/national-sync";
 
 type Result = { ok: true } | { ok: false; error: string };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,4 +41,18 @@ export async function deleteHoliday(id: string): Promise<Result> {
   }
   revalidatePath("/pengaturan/libur");
   return { ok: true };
+}
+
+export async function syncHolidaysNow(): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me || (me.role !== "hr_admin" && me.role !== "super_admin")) {
+    return { ok: false, error: "Tidak diizinkan." };
+  }
+  // Session client: the holidays_write RLS policy authorises the HR admin.
+  const res = await syncNationalHolidays(db, { years: defaultSyncYears() });
+  if (!res.ok) return res;
+  revalidatePath("/pengaturan/libur");
+  const parts = [`${res.added} baru`, `${res.updated} diperbarui`, `${res.removed} dihapus`];
+  return { ok: true, message: `Libur nasional ${res.years.join("–")} tersinkron: ${parts.join(", ")}.` };
 }

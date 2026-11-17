@@ -38,6 +38,7 @@ function makeDb(opts: {
 function ctxWith(branches: string[], onLeave: string[] = []): TodayContext {
   return {
     today: "2026-08-31",
+    offToday: new Set<string>(),
     workingByBranch: new Map(branches.map((b) => [b, true])),
     onLeave: new Set(onLeave),
   };
@@ -123,7 +124,8 @@ describe("getTodayExceptions", () => {
   it("returns nonWorkingDay when the given branch is not working today", async () => {
     const ctx: TodayContext = {
       today: "2026-08-31",
-      workingByBranch: new Map([["b1", false]]),
+      offToday: new Set<string>(),
+    workingByBranch: new Map([["b1", false]]),
       onLeave: new Set(),
     };
     const res = await getTodayExceptions(
@@ -140,7 +142,8 @@ describe("getTodayExceptions", () => {
   it("skips an employee whose branch is non-working when no branch filter is given", async () => {
     const ctx: TodayContext = {
       today: "2026-08-31",
-      workingByBranch: new Map([
+      offToday: new Set<string>(),
+    workingByBranch: new Map([
         ["b1", true],
         ["b2", false],
       ]),

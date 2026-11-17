@@ -43,6 +43,7 @@ describe("getCurrentEmployee", () => {
       email: "budi@test.local",
       role: "hr_admin",
       branchId: "branch-1",
+      departmentId: null,
       fotoPath: "user-1/avatar.jpg",
     });
   });

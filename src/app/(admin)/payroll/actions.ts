@@ -8,6 +8,7 @@ import {
   type ApprovedLeave,
 } from "@/lib/payroll/compute";
 import type { AttendanceRowLite } from "@/lib/payroll/deduction";
+import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -74,15 +75,17 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
   const [employeesRes, scheduleRes, holidaysRes] = await Promise.all([
     db
       .from("employees")
-      .select("id, gaji_pokok, tanggal_mulai_kerja")
+      .select("id, gaji_pokok, tanggal_mulai_kerja, department_id")
       .eq("branch_id", period.branch_id)
       .eq("status", "aktif"),
-    db
-      .from("work_schedules")
-      .select("jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja")
-      .eq("branch_id", period.branch_id)
-      .limit(1)
-      .maybeSingle(),
+    // Branch default + any department schedules; each employee picks theirs.
+    loadSchedules<{
+      id: string;
+      jam_masuk: string;
+      jam_pulang: string;
+      toleransi_terlambat_menit: number;
+      hari_kerja: number[];
+    }>(db, "id, jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja", [period.branch_id]),
     db
       .from("holidays")
       .select("tanggal")
@@ -100,25 +103,43 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     });
     return { ok: false, error: "Gagal memuat data untuk payroll." };
   }
-  if (!scheduleRes.data) {
+  if (scheduleRes.data.length === 0) {
     return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
   }
 
   // Separate, migration-tolerant lookup: pre-0032 the column doesn't exist, and
   // the fail-safe for a fine is "not charged", never "charged".
-  const { data: fineRow, error: fineErr } = await db
+  const { data: fineRows, error: fineErr } = await db
     .from("work_schedules")
-    .select("potong_terlambat")
-    .eq("branch_id", period.branch_id)
-    .maybeSingle();
+    .select("id, potong_terlambat")
+    .eq("branch_id", period.branch_id);
   if (fineErr) console.error("generatePayroll: potong_terlambat lookup failed", fineErr);
-  const potongTerlambat = !fineErr && fineRow?.potong_terlambat === true;
+  const fineBySchedule = new Map(
+    (fineErr ? [] : (fineRows ?? [])).map((f) => [f.id as string, f.potong_terlambat === true]),
+  );
 
   const employees = (employeesRes.data ?? []) as {
     id: string;
     gaji_pokok: number;
     tanggal_mulai_kerja: string | null;
+    department_id: string | null;
   }[];
+
+  // Group employees by the schedule that applies to them.
+  const groups = new Map<string, { schedule: (typeof scheduleRes.data)[number]; employees: typeof employees }>();
+  for (const e of employees) {
+    const schedule = pickSchedule(scheduleRes.data, period.branch_id, e.department_id);
+    if (!schedule) {
+      return {
+        ok: false,
+        error: "Sebagian karyawan belum punya jadwal kerja. Atur jadwal cabang atau departemennya dulu.",
+      };
+    }
+    const g = groups.get(schedule.id) ?? { schedule, employees: [] };
+    g.employees.push(e);
+    groups.set(schedule.id, g);
+  }
+
   const employeeIds = employees.map((e) => e.id);
 
   const [attendanceRes, leaveRes] = await Promise.all([
@@ -178,25 +199,28 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     approvedLeavesByEmployee.set(row.employee_id, list);
   }
 
-  const rows = computePayrollForBranch({
-    year: period.tahun,
-    month: period.bulan,
-    employees: employees.map<PayrollEmployee>((e) => ({
-      id: e.id,
-      gajiPokok: Number(e.gaji_pokok),
-      tanggalMulaiKerja: e.tanggal_mulai_kerja,
-    })),
-    schedule: {
-      jamMasuk: scheduleRes.data.jam_masuk,
-      jamPulang: scheduleRes.data.jam_pulang,
-      toleransiMenit: Number(scheduleRes.data.toleransi_terlambat_menit),
-      hariKerja: scheduleRes.data.hari_kerja,
-      potongTerlambat,
-    },
-    holidayDates: ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal),
-    attendancesByEmployee,
-    approvedLeavesByEmployee,
-  });
+  const holidayDates = ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal);
+  const rows = [...groups.values()].flatMap(({ schedule, employees: members }) =>
+    computePayrollForBranch({
+      year: period.tahun,
+      month: period.bulan,
+      employees: members.map<PayrollEmployee>((e) => ({
+        id: e.id,
+        gajiPokok: Number(e.gaji_pokok),
+        tanggalMulaiKerja: e.tanggal_mulai_kerja,
+      })),
+      schedule: {
+        jamMasuk: schedule.jam_masuk,
+        jamPulang: schedule.jam_pulang,
+        toleransiMenit: Number(schedule.toleransi_terlambat_menit),
+        hariKerja: schedule.hari_kerja,
+        potongTerlambat: fineBySchedule.get(schedule.id) ?? false,
+      },
+      holidayDates,
+      attendancesByEmployee,
+      approvedLeavesByEmployee,
+    }),
+  );
 
   const { data: count, error: rpcErr } = await db.rpc("generate_payroll", {
     p_period_id: periodId,

@@ -1,10 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 
 export type TodayContext = {
   today: string;                      // Jakarta YYYY-MM-DD
-  /** branch_id -> today is a WORKING, non-holiday day for that branch */
+  /**
+   * branch_id -> today is a WORKING, non-holiday day for at least one schedule
+   * in that branch (its default or any department's own schedule).
+   */
   workingByBranch: Map<string, boolean>;
+  /**
+   * Active employees whose own schedule (department, else branch default) makes
+   * today a non-working day — they are never `alpa` today.
+   */
+  offToday: Set<string>;
   /** employee_id set with an approved leave request spanning today */
   onLeave: Set<string>;
 };
@@ -27,14 +36,20 @@ export async function getTodayContext(
   const today = toJakartaDateOnly(new Date());
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
 
-  let scheduleQuery = db.from("work_schedules").select("branch_id, hari_kerja");
-  if (branchId) scheduleQuery = scheduleQuery.eq("branch_id", branchId);
+  const scheduleQuery = loadSchedules<{ hari_kerja: number[] | null }>(
+    db,
+    "hari_kerja",
+    branchId ? [branchId] : undefined,
+  );
+
+  let employeeQuery = db.from("employees").select("id, branch_id, department_id").eq("status", "aktif");
+  if (branchId) employeeQuery = employeeQuery.eq("branch_id", branchId);
 
   // national (branch_id is null) OR the specific branch's holiday for today
   let holidayQuery = db.from("holidays").select("branch_id").eq("tanggal", today);
   if (branchId) holidayQuery = holidayQuery.or(`branch_id.is.null,branch_id.eq.${branchId}`);
 
-  let leaveQuery = branchId
+  const leaveQuery = branchId
     ? db
         .from("leave_requests")
         .select("employee_id, employees!leave_requests_employee_id_fkey!inner(branch_id)")
@@ -49,8 +64,13 @@ export async function getTodayContext(
         .lte("tanggal_mulai", today)
         .gte("tanggal_selesai", today);
 
-  const [schedRes, holRes, leaveRes] = await Promise.all([scheduleQuery, holidayQuery, leaveQuery]);
-  const err = schedRes.error ?? holRes.error ?? leaveRes.error;
+  const [schedRes, holRes, leaveRes, empRes] = await Promise.all([
+    scheduleQuery,
+    holidayQuery,
+    leaveQuery,
+    employeeQuery,
+  ]);
+  const err = schedRes.error ?? holRes.error ?? leaveRes.error ?? empRes.error;
   if (err) {
     console.error("getTodayContext: query failed", err);
     return { ok: false, error: "Gagal memuat konteks hari ini." };
@@ -63,17 +83,24 @@ export async function getTodayContext(
     (holRes.data ?? []).map((h) => h.branch_id as string | null).filter((b): b is string => b !== null),
   );
 
+  const worksToday = (s: { branch_id: string; hari_kerja: number[] | null }) =>
+    (s.hari_kerja ?? []).includes(dow) && !nationalHoliday && !branchHoliday.has(s.branch_id);
+
   const workingByBranch = new Map<string, boolean>();
-  for (const s of schedRes.data ?? []) {
-    const bid = s.branch_id as string;
-    const hariKerja = (s.hari_kerja as number[] | null) ?? [];
-    const isWorkingDow = hariKerja.includes(dow);
-    workingByBranch.set(bid, isWorkingDow && !nationalHoliday && !branchHoliday.has(bid));
+  for (const s of schedRes.data) {
+    workingByBranch.set(s.branch_id, (workingByBranch.get(s.branch_id) ?? false) || worksToday(s));
+  }
+
+  // No schedule at all => not "off" (unchanged from the branch-only behaviour).
+  const offToday = new Set<string>();
+  for (const e of (empRes.data ?? []) as { id: string; branch_id: string; department_id: string | null }[]) {
+    const schedule = pickSchedule(schedRes.data, e.branch_id, e.department_id);
+    if (schedule && !worksToday(schedule)) offToday.add(e.id);
   }
 
   const onLeave = new Set(
     (leaveRes.data ?? []).map((r) => r.employee_id as string),
   );
 
-  return { ok: true, ctx: { today, workingByBranch, onLeave } };
+  return { ok: true, ctx: { today, workingByBranch, offToday, onLeave } };
 }

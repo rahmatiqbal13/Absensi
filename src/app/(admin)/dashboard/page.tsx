@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { getTodayContext } from "@/lib/dashboard/today-context";
 import { getTodaySummary } from "@/lib/dashboard/attendance-summary";
 import { getMonthlyTrend } from "@/lib/dashboard/monthly-trend";
 import { getPendingApprovalCount } from "@/lib/dashboard/pending-approval-count";
+import { getPendingApprovalPreview } from "@/lib/dashboard/pending-approval-preview";
+import { formatLeaveRange, leaveJenisLabel } from "@/lib/leave/labels";
 import { getBranchBreakdown } from "@/lib/dashboard/branch-breakdown";
 import { getTodayExceptions } from "@/lib/dashboard/today-exceptions";
 import { getRecentActivity } from "@/lib/dashboard/recent-activity";
@@ -64,10 +66,11 @@ export default async function DashboardPage({
   const ctx = contextRes.ok ? contextRes.ctx : undefined;
 
   const ym = toJakartaDateOnly(new Date()).slice(0, 7);
-  const [summary, trend, approvals, exceptions, breakdown, activity] = await Promise.all([
+  const [summary, trend, approvals, pendingPreview, exceptions, breakdown, activity] = await Promise.all([
     getTodaySummary(db, branchId, ctx),
     getMonthlyTrend(db, ym, branchId),
     getPendingApprovalCount(db, employee),
+    getPendingApprovalPreview(db, employee, 3),
     showExceptions ? getTodayExceptions(db, branchId, ctx) : Promise.resolve(null),
     showBranchBreakdown ? getBranchBreakdown(db, ctx) : Promise.resolve(null),
     isHrAdmin ? getRecentActivity(db) : Promise.resolve(null),
@@ -125,11 +128,32 @@ export default async function DashboardPage({
                 {approvals.count}
               </span>
             </div>
-            <p className="text-sm text-sidebar-muted">
-              {approvals.count === 0
-                ? "Kotak masuk bersih. Tidak ada pengajuan cuti yang menunggu."
-                : "Pengajuan cuti menunggu keputusan Anda."}
-            </p>
+            {approvals.count === 0 ? (
+              <p className="text-sm text-sidebar-muted">
+                Kotak masuk bersih. Tidak ada pengajuan cuti yang menunggu.
+              </p>
+            ) : pendingPreview.ok ? (
+              <ul className="flex flex-col">
+                {pendingPreview.rows.map((p) => (
+                  <li key={p.id} className="border-t border-sidebar-border">
+                    <Link
+                      href={`/persetujuan-cuti?id=${p.id}`}
+                      className="flex min-h-[52px] items-center justify-between gap-3 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                    >
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="truncate text-sm font-semibold">{p.nama}</span>
+                        <span className="truncate text-[0.8rem] text-sidebar-muted">
+                          {leaveJenisLabel(p.jenis)} · {formatLeaveRange(p.tanggalMulai, p.tanggalSelesai)}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-sidebar-faint" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-sidebar-muted">Pengajuan cuti menunggu keputusan Anda.</p>
+            )}
             <Button asChild variant="brand" className="mt-auto h-11">
               <Link href="/persetujuan-cuti">Tinjau semua pengajuan</Link>
             </Button>

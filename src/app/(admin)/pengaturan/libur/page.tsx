@@ -11,7 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HolidayForm } from "./holiday-form";
 import { YearFilter } from "./year-filter";
-import { addHoliday, deleteHoliday } from "./actions";
+import { addHoliday, deleteHoliday, syncHolidaysNow } from "./actions";
+import { SyncHolidaysButton } from "./sync-holidays-button";
+import { Badge } from "@/components/ui/badge";
 
 const fmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "full", timeZone: "Asia/Jakarta" });
 
@@ -31,7 +33,7 @@ export default async function LiburPage({
   const { data: branches } = await db.from("branches").select("id, nama").order("nama");
   const { data: holidays, error } = await db
     .from("holidays")
-    .select("id, tanggal, nama, branches(nama)")
+    .select("id, tanggal, nama, sumber, disinkron_at, branches(nama)")
     .gte("tanggal", `${tahun}-01-01`)
     .lte("tanggal", `${tahun}-12-31`)
     .order("tanggal");
@@ -48,7 +50,8 @@ export default async function LiburPage({
       <PageHeader
         eyebrow="Pengaturan"
         title={`Hari Libur ${tahun}`}
-        description="Dipakai payroll untuk menghitung hari kerja efektif."
+        description="Dipakai payroll untuk menghitung hari kerja efektif. Libur nasional dan cuti bersama diperbarui otomatis setiap minggu; tambahkan libur khusus cabang secara manual."
+        actions={<SyncHolidaysButton sync={syncHolidaysNow} />}
       />
 
       <FilterBar>
@@ -74,6 +77,17 @@ export default async function LiburPage({
               cell: (h) => fmt.format(new Date(`${h.tanggal}T00:00:00Z`)),
             },
             { key: "nama", header: "Nama", mobileLabel: "Nama", cell: (h) => h.nama },
+            {
+              key: "sumber",
+              header: "Sumber",
+              mobileLabel: "Sumber",
+              cell: (h) =>
+                h.sumber === "otomatis" ? (
+                  <Badge variant="info" title="Disinkronkan dari kalender libur nasional">Otomatis</Badge>
+                ) : (
+                  <Badge variant="neutral">Manual</Badge>
+                ),
+            },
             {
               key: "cakupan",
               header: "Cakupan",

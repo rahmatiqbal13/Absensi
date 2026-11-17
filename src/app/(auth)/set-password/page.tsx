@@ -6,11 +6,14 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SetPasswordForm } from "./set-password-form";
+import { InviteLinkForm } from "./invite-link-form";
 
 export default function SetPasswordPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [fatal, setFatal] = useState<string | null>(null);
+  // Opened without a token (e.g. from "Punya undangan?" on the login page).
+  const [needsLink, setNeedsLink] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
@@ -38,7 +41,10 @@ export default function SetPasswordPage() {
         } else {
           // Maybe a session already exists (link opened twice).
           const { data } = await supabase.auth.getSession();
-          if (!data.session) throw new Error("no token");
+          if (!data.session) {
+            setNeedsLink(true);
+            return;
+          }
         }
         setReady(true);
       } catch (err) {
@@ -67,12 +73,21 @@ export default function SetPasswordPage() {
         <h1 className="text-[1.875rem] leading-tight font-semibold tracking-[-0.02em] text-foreground">
           Buat kata sandi Anda
         </h1>
-        <p className="text-sm text-muted-foreground">Tetapkan kata sandi untuk akun Anda.</p>
+        <p className="text-sm text-muted-foreground">
+          {needsLink
+            ? "Tempel link undangan yang Anda terima dari HR untuk melanjutkan."
+            : "Tetapkan kata sandi untuk akun Anda."}
+        </p>
       </div>
       {fatal ? (
-        <Alert variant="destructive">
-          <AlertDescription>{fatal}</AlertDescription>
-        </Alert>
+        <div className="flex flex-col gap-4">
+          <Alert variant="destructive">
+            <AlertDescription>{fatal}</AlertDescription>
+          </Alert>
+          <InviteLinkForm />
+        </div>
+      ) : needsLink ? (
+        <InviteLinkForm />
       ) : ready ? (
         <SetPasswordForm onSubmit={onSubmit} />
       ) : (

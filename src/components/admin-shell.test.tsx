@@ -24,6 +24,7 @@ const emp = (role: "atasan" | "hr_admin" | "super_admin") => ({
   email: "budi@x.id",
   role,
   branchId: "b1",
+  departmentId: null,
   fotoPath: null,
 });
 

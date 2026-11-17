@@ -72,6 +72,8 @@ export default async function PayrollPeriodPage({
         actions={<PayrollStatusBadge status={period.status as PayrollStatus} />}
       />
 
+      <PayrollSteps step={period.status === "final" ? 3 : rows.length > 0 ? 2 : 1} />
+
       {slipErr && (
         <Alert variant="destructive">
           <AlertDescription>Gagal memuat slip gaji.</AlertDescription>
@@ -85,5 +87,29 @@ export default async function PayrollPeriodPage({
         onFinalize={onFinalize}
       />
     </div>
+  );
+}
+
+const STEPS = ["Buat periode", "Generate slip", "Finalisasi"];
+
+function PayrollSteps({ step }: { step: 1 | 2 | 3 }) {
+  return (
+    <ol aria-label="Tahapan payroll" className="grid grid-cols-3 gap-1.5">
+      {STEPS.map((label, i) => {
+        const done = i < step;
+        return (
+          <li
+            key={label}
+            aria-current={i === step - 1 ? "step" : undefined}
+            className="flex flex-col gap-2"
+          >
+            <span className={done ? "h-1 rounded-sm bg-primary" : "h-1 rounded-sm bg-secondary"} />
+            <span className={done ? "text-[0.8rem] font-semibold" : "text-[0.8rem] font-semibold text-muted-foreground"}>
+              <span className="font-mono">{String(i + 1).padStart(2, "0")}</span> · {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

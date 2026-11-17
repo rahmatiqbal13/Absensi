@@ -33,6 +33,7 @@ function makeDb(opts: {
 function ctxWith(branches: string[], onLeave: string[] = []): TodayContext {
   return {
     today: "2026-08-31",
+    offToday: new Set<string>(),
     workingByBranch: new Map(branches.map((b) => [b, true])),
     onLeave: new Set(onLeave),
   };
@@ -81,7 +82,8 @@ describe("getBranchBreakdown", () => {
   it("reports alpa: 0 for a branch marked non-working in ctx", async () => {
     const ctx: TodayContext = {
       today: "2026-08-31",
-      workingByBranch: new Map([
+      offToday: new Set<string>(),
+    workingByBranch: new Map([
         ["b1", true],
         ["b2", false],
       ]),

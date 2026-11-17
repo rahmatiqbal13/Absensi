@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Field } from "@/components/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,12 @@ export default async function LoginPage({
           Masuk
         </Button>
       </form>
+      <Link
+        href="/set-password"
+        className="self-start text-sm font-semibold text-brand-text underline-offset-4 hover:underline"
+      >
+        Punya undangan? Atur kata sandi
+      </Link>
     </div>
   );
 }
