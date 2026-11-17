@@ -4,7 +4,7 @@ import path from "node:path";
 let cached: string | null | undefined;
 
 /**
- * The "absensi" product mark as a PNG data URL, for PDFs when no instansi logo
+ * The "tapabsen" product mark as a PNG data URL, for PDFs when no instansi logo
  * was uploaded. react-pdf's <Image> can't render SVG, hence the PNG copy in
  * /public. Returns null (no logo) if the file is missing.
  */

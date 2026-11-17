@@ -96,7 +96,7 @@ export function KioskDisplay({
         </span>
         {now && <span className="font-mono text-sm text-[#EEF0FF]/65">{formatJakartaLong(now)}</span>}
         <p className="max-w-[460px] text-[1.375rem] leading-snug text-[#EEF0FF]/85">
-          Buka aplikasi Absensi, pilih <b className="text-[#5EEAD4]">Scan QR</b>, lalu arahkan kamera ke kode ini.
+          Buka aplikasi tapabsen, pilih <b className="text-[#5EEAD4]">Scan QR</b>, lalu arahkan kamera ke kode ini.
         </p>
       </div>
 

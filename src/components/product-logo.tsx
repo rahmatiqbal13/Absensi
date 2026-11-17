@@ -1,8 +1,9 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
+import { PRODUCT_NAME } from "@/lib/branding/product-name";
 
 /**
- * The "absensi" product mark: indigo tile with an "a" glyph and an amber dot.
+ * The "tapabsen" product mark: indigo tile with an "a" glyph and an amber dot.
  * Distinct from <BrandMark />, which shows the tenant (instansi) logo.
  */
 export function ProductLogo({
@@ -22,7 +23,7 @@ export function ProductLogo({
   const r = `al-r-${uid}`;
   const a = `al-a-${uid}`;
   return (
-    <span role="img" aria-label="absensi" className={cn("flex items-center gap-2.5", className)}>
+    <span role="img" aria-label={PRODUCT_NAME} className={cn("flex items-center gap-2.5", className)}>
       <svg aria-hidden="true" viewBox="0 0 96 96" width={size} height={size} className="block shrink-0">
         <defs>
           <linearGradient id={g} x1="10" y1="0" x2="86" y2="96" gradientUnits="userSpaceOnUse">
@@ -55,7 +56,7 @@ export function ProductLogo({
           )}
           style={{ fontSize: Math.round(size * 0.65) }}
         >
-          absensi
+          {PRODUCT_NAME}
         </span>
       )}
     </span>

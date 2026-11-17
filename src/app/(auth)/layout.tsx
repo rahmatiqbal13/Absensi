@@ -35,7 +35,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
             ))}
           </div>
           <span className="font-mono text-[0.7rem] tracking-[0.12em] text-sidebar-faint uppercase">
-            Sistem Absensi HR · WIB
+            tapabsen · Sistem Absensi HR · WIB
           </span>
         </div>
       </aside>

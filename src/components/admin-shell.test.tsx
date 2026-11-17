@@ -85,8 +85,8 @@ describe("AdminShell", () => {
         <div>content</div>
       </AdminShell>,
     );
-    // The product logo is also role="img" (aria-label "absensi"); look past it.
-    const photos = screen.getAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "absensi");
+    // The product logo is also role="img" (aria-label "tapabsen"); look past it.
+    const photos = screen.getAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "tapabsen");
     expect(photos).toHaveLength(1);
     expect(photos[0]).toHaveAttribute("src", "https://s/pic");
   });
@@ -94,7 +94,7 @@ describe("AdminShell", () => {
   it("shows the initials fallback when avatarUrl is absent", () => {
     renderShell("hr_admin");
     expect(screen.getByText("BS")).toBeInTheDocument();
-    expect(screen.queryAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "absensi")).toHaveLength(0);
+    expect(screen.queryAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "tapabsen")).toHaveLength(0);
   });
 
   it("renders the theme toggle in the topbar", () => {

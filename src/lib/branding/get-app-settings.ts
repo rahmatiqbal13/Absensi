@@ -13,8 +13,8 @@ export type AppSettings = {
 };
 
 export const APP_SETTINGS_DEFAULTS: AppSettings = {
-  namaInstansi: "Absensi HR",
-  namaSingkat: "Absensi HR",
+  namaInstansi: "tapabsen",
+  namaSingkat: "tapabsen",
   tagline: null,
   logoUrl: null,
   alamat: null,

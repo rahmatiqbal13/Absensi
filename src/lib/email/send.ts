@@ -1,6 +1,6 @@
 /**
  * Minimal transactional email via Resend's HTTP API (no SDK dependency).
- * Needs RESEND_API_KEY and EMAIL_FROM (e.g. "Absensi <absensi@domain-anda.id>",
+ * Needs RESEND_API_KEY and EMAIL_FROM (e.g. "tapabsen <noreply@domain-anda.id>",
  * a sender on a domain verified in Resend). When either is missing the email is
  * skipped and logged — the app keeps working without mail configured.
  */
