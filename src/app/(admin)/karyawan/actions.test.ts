@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const from = vi.fn();
+const auditInsert = vi.fn(async (_row: unknown) => ({ error: null }));
+const serviceFrom = vi.fn((_table: string) => ({ insert: auditInsert }));
 const getUser = vi.fn(async () => ({ data: { user: { id: "actor-1" } } }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({ from, auth: { getUser } })),
-  createServiceRoleSupabaseClient: vi.fn(() => ({ _service: true })),
+  createServiceRoleSupabaseClient: vi.fn(() => ({ _service: true, from: serviceFrom })),
 }));
 const inviteEmployee = vi.fn();
 vi.mock("@/lib/employees/invite", () => ({ inviteEmployee: (...a: unknown[]) => inviteEmployee(...a) }));
@@ -14,7 +16,12 @@ vi.mock("@/lib/employees/super-admin-count", () => ({
   countActiveSuperAdmins: (...a: unknown[]) => countActiveSuperAdmins(...a),
 }));
 
-import { createEmployee, updateEmployee, setEmployeeStatus } from "./actions";
+const createRecoveryLink = vi.fn();
+vi.mock("@/lib/auth/password-reset", () => ({
+  createRecoveryLink: (...a: unknown[]) => createRecoveryLink(...a),
+}));
+
+import { createEmployee, updateEmployee, setEmployeeStatus, createPasswordResetLink } from "./actions";
 
 function fd(obj: Record<string, string>) {
   const f = new FormData();
@@ -147,5 +154,36 @@ describe("setEmployeeStatus", () => {
     mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await setEmployeeStatus("e2", "nonaktif");
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe("createPasswordResetLink", () => {
+  it("returns the link for hr_admin and writes an audit row", async () => {
+    createRecoveryLink.mockResolvedValue({ ok: true, url: "https://x/r", email: "b@x.co", nama: "B" });
+    const result = await createPasswordResetLink("e1");
+    expect(result).toEqual({ ok: true, url: "https://x/r" });
+    expect(createRecoveryLink).toHaveBeenCalledWith(
+      expect.objectContaining({ _service: true }),
+      { employeeId: "e1" },
+      { throttle: false },
+    );
+    expect(serviceFrom).toHaveBeenCalledWith("audit_logs");
+    expect(auditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ actor_id: "actor-1", target_employee_id: "e1", aksi: "password_reset_link" }),
+    );
+  });
+
+  it("refuses a non-HR caller without creating a link", async () => {
+    createRecoveryLink.mockReset();
+    mockFrom({ gateRow: { ...HR_ADMIN, role: "atasan" } });
+    expect(await createPasswordResetLink("e1")).toEqual({ ok: false, error: "Tidak diizinkan." });
+    expect(createRecoveryLink).not.toHaveBeenCalled();
+  });
+
+  it("explains why an inactive employee can't get a link", async () => {
+    createRecoveryLink.mockResolvedValue({ ok: false, reason: "inactive" });
+    const result = await createPasswordResetLink("e1");
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatch(/nonaktif/i);
   });
 });

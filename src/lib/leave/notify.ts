@@ -1,5 +1,6 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail, escapeHtml, type EmailResult } from "@/lib/email/send";
+import { appUrl } from "@/lib/app-url";
 import { formatLeaveRange, leaveJenisLabel } from "./labels";
 
 /**
@@ -36,8 +37,7 @@ export async function notifyApproverOfLeave(requestId: string): Promise<EmailRes
   const nama = row.requester?.nama ?? "Karyawan";
   const jenis = leaveJenisLabel(row.jenis);
   const range = formatLeaveRange(row.tanggal_mulai, row.tanggal_selesai);
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "";
-  const link = `${base}/persetujuan-cuti?id=${requestId}`;
+  const link = `${appUrl()}/persetujuan-cuti?id=${requestId}`;
 
   const lines = [
     `${nama} mengajukan ${jenis} untuk ${range}.`,

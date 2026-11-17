@@ -44,6 +44,12 @@ export default async function LoginPage({
             className="h-12 text-base"
           />
         </Field>
+        <Link
+          href="/lupa-password"
+          className="-mt-2 self-end text-sm font-semibold text-brand-text underline-offset-4 hover:underline"
+        >
+          Lupa kata sandi?
+        </Link>
         <Button type="submit" className="h-[50px] w-full rounded-xl text-[0.95rem]">
           Masuk
         </Button>

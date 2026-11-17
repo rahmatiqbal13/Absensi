@@ -11,6 +11,10 @@ describe("resolveRouteAccess", () => {
     expect(resolveRouteAccess("/login", null)).toBe("allow");
   });
 
+  it("allows the public /lupa-password route without a role", () => {
+    expect(resolveRouteAccess("/lupa-password", null)).toBe("allow");
+  });
+
   it("allows the public /set-password route without a role", () => {
     expect(resolveRouteAccess("/set-password", null)).toBe("allow");
   });

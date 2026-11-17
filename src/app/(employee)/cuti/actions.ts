@@ -83,3 +83,29 @@ export async function submitLeave(formData: FormData): Promise<{ ok: true } | { 
   revalidatePath("/cuti");
   return { ok: true };
 }
+
+const CANCEL_ERROR_MESSAGES: Record<string, string> = {
+  "leave has already started": "Cuti yang sudah berjalan tidak bisa dibatalkan. Hubungi HR.",
+  "leave request cannot be cancelled": "Pengajuan ini tidak bisa dibatalkan.",
+  "leave request not found": "Pengajuan cuti tidak ditemukan.",
+};
+
+/**
+ * Cancel the caller's own leave request (pending, or approved but not yet
+ * started). Ownership, status rules and the annual-leave refund all live in
+ * the cancel_leave_request RPC (migration 0040), so they hold server-side.
+ */
+export async function cancelLeave(requestId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = await createServerSupabaseClient();
+  const employee = await getCurrentEmployee(db);
+  if (!employee) return { ok: false, error: "Anda belum masuk. Silakan login ulang." };
+
+  const { error } = await db.rpc("cancel_leave_request", { p_request_id: requestId });
+  if (error) {
+    const known = Object.entries(CANCEL_ERROR_MESSAGES).find(([key]) => error.message?.includes(key));
+    if (!known) console.error("cancelLeave: unmapped RPC error", error);
+    return { ok: false, error: known?.[1] ?? "Gagal membatalkan pengajuan cuti." };
+  }
+  revalidatePath("/cuti");
+  return { ok: true };
+}

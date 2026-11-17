@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth/route-access";
+import { appUrl } from "@/lib/app-url";
 
 export type InviteEmployeeInput = {
   nama: string;
@@ -20,17 +21,6 @@ export type InviteEmployeeResult =
   | { ok: true; employeeId: string; setPasswordUrl: string }
   | { ok: false; error: string };
 
-// The invite link must point at a fixed, configured origin — never one taken
-// from request headers (Host / X-Forwarded-Host can be spoofed). Explicit
-// NEXT_PUBLIC_APP_URL wins; on Vercel the production domain is the fallback so
-// a deployed app never emits localhost links.
-export function appUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
-  if (explicit) return explicit;
-  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (vercelProd) return `https://${vercelProd}`;
-  return "http://localhost:3000";
-}
 
 export async function inviteEmployee(
   input: InviteEmployeeInput,

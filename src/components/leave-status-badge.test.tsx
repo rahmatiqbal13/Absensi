@@ -19,6 +19,11 @@ describe("LeaveStatusBadge", () => {
     expect(screen.getByText("Ditolak")).toBeInTheDocument();
   });
 
+  it("renders the Indonesian label for dibatalkan", () => {
+    render(<LeaveStatusBadge status="dibatalkan" />);
+    expect(screen.getByText("Dibatalkan")).toBeInTheDocument();
+  });
+
   it("gives each status a distinct background color class", () => {
     const { container: pending } = render(<LeaveStatusBadge status="pending" />);
     const { container: approved } = render(<LeaveStatusBadge status="approved" />);

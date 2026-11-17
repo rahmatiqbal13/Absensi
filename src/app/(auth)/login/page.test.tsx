@@ -14,6 +14,11 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "Masuk" })).toBeInTheDocument();
   });
 
+  it("links to the forgot-password page", async () => {
+    render(await LoginPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole("link", { name: "Lupa kata sandi?" })).toHaveAttribute("href", "/lupa-password");
+  });
+
   it("shows the nonaktif notice as an alert", async () => {
     render(await LoginPage({ searchParams: Promise.resolve({ reason: "nonaktif" }) }));
     expect(screen.getByRole("alert")).toHaveTextContent(/nonaktif/i);

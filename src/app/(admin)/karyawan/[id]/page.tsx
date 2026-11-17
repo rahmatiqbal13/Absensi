@@ -14,7 +14,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Role } from "@/lib/auth/route-access";
 import { EditEmployeeForm } from "./edit-employee-form";
 import { KaryawanTabs } from "./karyawan-tabs";
-import { updateEmployee, setEmployeeStatus } from "../actions";
+import { updateEmployee, setEmployeeStatus, createPasswordResetLink } from "../actions";
+import { ResetPasswordLinkButton } from "./reset-password-link-button";
 
 export default async function KaryawanDetailPage({
   params,
@@ -87,6 +88,12 @@ export default async function KaryawanDetailPage({
                 <FileBarChart className="size-4" aria-hidden="true" /> Laporan kehadiran
               </Link>
             </Button>
+            {emp.status === "aktif" && (
+              <ResetPasswordLinkButton
+                employeeName={emp.nama}
+                createLink={createPasswordResetLink.bind(null, emp.id)}
+              />
+            )}
           </>
         }
       />

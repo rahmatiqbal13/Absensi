@@ -11,7 +11,8 @@ import { annualLeaveEligibleFrom } from "@/lib/leave/eligibility";
 import { leaveJenisLabel } from "@/lib/leave/labels";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { LeaveForm } from "./leave-form";
-import { submitLeave } from "./actions";
+import { cancelLeave, submitLeave } from "./actions";
+import { CancelLeaveButton } from "./cancel-leave-button";
 
 function formatDate(dateOnly: string): string {
   return new Date(`${dateOnly}T00:00:00`).toLocaleDateString("id-ID", {
@@ -114,6 +115,15 @@ export default async function CutiPage() {
                       <p className="rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">
                         {row.catatan_approval}
                       </p>
+                    )}
+                    {/* Mirrors cancel_leave_request (migration 0040): pending any
+                        time, approved only before it starts. */}
+                    {(row.status === "pending" || (row.status === "approved" && row.tanggal_mulai > today)) && (
+                      <CancelLeaveButton
+                        action={cancelLeave.bind(null, row.id)}
+                        approved={row.status === "approved"}
+                        refundsBalance={row.jenis === "tahunan"}
+                      />
                     )}
                   </CardContent>
                 </Card>

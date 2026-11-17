@@ -18,7 +18,7 @@ const ADMIN_PATH_PREFIXES = [
 const HR_ADMIN_PATH_PREFIXES = ["/payroll", "/karyawan"];
 // `/kiosk/<secret-key>` is a login-less branch entrance screen (QR attendance).
 // `/api/cron/*` is called by the scheduler and authenticates with CRON_SECRET.
-const PUBLIC_PATHS = ["/login", "/set-password", "/kiosk", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/lupa-password", "/set-password", "/kiosk", "/api/cron"];
 
 export function resolveRouteAccess(pathname: string, role: Role | null): RouteAccessResult {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "allow";

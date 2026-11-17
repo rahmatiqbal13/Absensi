@@ -1,15 +1,16 @@
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-export type LeaveStatus = "pending" | "approved" | "rejected";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "dibatalkan";
 
 const CONFIG: Record<
   LeaveStatus,
-  { label: string; variant: "warning" | "success" | "danger"; Icon: typeof Clock }
+  { label: string; variant: "warning" | "success" | "danger" | "neutral"; Icon: typeof Clock }
 > = {
   pending: { label: "Menunggu", variant: "warning", Icon: Clock },
   approved: { label: "Disetujui", variant: "success", Icon: CheckCircle2 },
   rejected: { label: "Ditolak", variant: "danger", Icon: XCircle },
+  dibatalkan: { label: "Dibatalkan", variant: "neutral", Icon: Ban },
 };
 
 export function LeaveStatusBadge({ status }: { status: LeaveStatus }) {

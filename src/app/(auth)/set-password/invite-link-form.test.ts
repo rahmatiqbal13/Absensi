@@ -7,6 +7,11 @@ describe("inviteQueryFrom", () => {
       "?t=abc123def456ghi789",
     );
   });
+  it("keeps type=recovery on a password-reset link", () => {
+    expect(inviteQueryFrom("https://x.id/set-password?t=abc123def456ghi789&type=recovery")).toBe(
+      "?t=abc123def456ghi789&type=recovery",
+    );
+  });
   it("accepts legacy ?code= links and #access_token hashes", () => {
     expect(inviteQueryFrom("https://x.id/set-password?code=xyz")).toBe("?code=xyz");
     expect(inviteQueryFrom("https://x.id/set-password#access_token=a&refresh_token=b")).toBe(

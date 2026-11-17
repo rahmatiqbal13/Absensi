@@ -16,7 +16,11 @@ export function inviteQueryFrom(raw: string): string | null {
   try {
     const url = new URL(text);
     const t = url.searchParams.get("t");
-    if (t) return `?t=${encodeURIComponent(t)}`;
+    if (t) {
+      // Keep the link kind: a reset link must be verified as `recovery`.
+      const recovery = url.searchParams.get("type") === "recovery" ? "&type=recovery" : "";
+      return `?t=${encodeURIComponent(t)}${recovery}`;
+    }
     const code = url.searchParams.get("code");
     if (code) return `?code=${encodeURIComponent(code)}`;
     if (url.hash.includes("access_token=")) return url.hash; // legacy Supabase verify redirect

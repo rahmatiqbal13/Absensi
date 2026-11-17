@@ -6,6 +6,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
 import { inviteEmployee } from "@/lib/employees/invite";
 import { countActiveSuperAdmins } from "@/lib/employees/super-admin-count";
+import { createRecoveryLink } from "@/lib/auth/password-reset";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -168,4 +169,39 @@ export async function setEmployeeStatus(
   revalidatePath(`/karyawan/${id}`);
   revalidatePath("/karyawan");
   return { ok: true };
+}
+
+/**
+ * HR fallback for "lupa kata sandi" when email isn't configured or doesn't
+ * arrive: a one-time reset link HR passes to the employee directly (same flow
+ * as the invite link). Audited, since it grants access to the account.
+ */
+export async function createPasswordResetLink(id: string): Promise<Result<{ url: string }>> {
+  const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me || (me.role !== "hr_admin" && me.role !== "super_admin")) {
+    return { ok: false, error: "Tidak diizinkan." };
+  }
+
+  const service = createServiceRoleSupabaseClient();
+  const result = await createRecoveryLink(service, { employeeId: id }, { throttle: false });
+  if (!result.ok) {
+    if (result.reason === "inactive") {
+      return { ok: false, error: "Karyawan nonaktif. Aktifkan kembali sebelum membuat link reset." };
+    }
+    if (result.reason === "not-found") return { ok: false, error: "Karyawan tidak ditemukan." };
+    return { ok: false, error: "Gagal membuat link reset kata sandi." };
+  }
+
+  const { error: auditErr } = await service.from("audit_logs").insert({
+    actor_id: me.id,
+    target_employee_id: id,
+    aksi: "password_reset_link",
+    detail: {},
+    is_self_action: me.id === id,
+  });
+  if (auditErr) console.error("createPasswordResetLink: audit insert failed", auditErr);
+
+  revalidatePath(`/karyawan/${id}`);
+  return { ok: true, url: result.url };
 }

@@ -14,6 +14,8 @@ export default function SetPasswordPage() {
   const [fatal, setFatal] = useState<string | null>(null);
   // Opened without a token (e.g. from "Punya undangan?" on the login page).
   const [needsLink, setNeedsLink] = useState(false);
+  // `?type=recovery`: a "lupa kata sandi" reset link rather than an HR invite.
+  const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
@@ -26,9 +28,14 @@ export default function SetPasswordPage() {
       const refresh_token = hash.get("refresh_token");
       const code = search.get("code");
       const tokenHash = search.get("t");
+      const recovery = search.get("type") === "recovery";
+      setIsRecovery(recovery);
       try {
         if (tokenHash) {
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "invite" });
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: recovery ? "recovery" : "invite",
+          });
           if (error) throw error;
           // Drop the one-time token from the address bar / history.
           window.history.replaceState(null, "", window.location.pathname);
@@ -49,7 +56,11 @@ export default function SetPasswordPage() {
         setReady(true);
       } catch (err) {
         console.error("set-password: could not establish session", err);
-        setFatal("Link ini tidak valid atau sudah kedaluwarsa. Minta link baru ke HR.");
+        setFatal(
+          recovery
+            ? "Link ini tidak valid atau sudah kedaluwarsa. Minta link reset baru."
+            : "Link ini tidak valid atau sudah kedaluwarsa. Minta link baru ke HR.",
+        );
       }
     }
     establish();
@@ -60,7 +71,12 @@ export default function SetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       console.error("set-password: updateUser failed", error);
-      return { ok: false, error: "Gagal menyimpan kata sandi. Coba minta link baru ke HR." };
+      return {
+        ok: false,
+        error: isRecovery
+          ? "Gagal menyimpan kata sandi. Coba minta link reset baru."
+          : "Gagal menyimpan kata sandi. Coba minta link baru ke HR.",
+      };
     }
     setTimeout(() => router.replace("/absen"), 800);
     return { ok: true };
@@ -69,9 +85,9 @@ export default function SetPasswordPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <span className="eyebrow">Undangan dari HR</span>
+        <span className="eyebrow">{isRecovery ? "Atur ulang kata sandi" : "Undangan dari HR"}</span>
         <h1 className="text-[1.875rem] leading-tight font-semibold tracking-[-0.02em] text-foreground">
-          Buat kata sandi Anda
+          {isRecovery ? "Buat kata sandi baru" : "Buat kata sandi Anda"}
         </h1>
         <p className="text-sm text-muted-foreground">
           {needsLink
