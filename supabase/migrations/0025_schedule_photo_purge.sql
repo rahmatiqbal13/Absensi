@@ -24,7 +24,7 @@ select cron.schedule(
   '0 19 * * *',
   $$
   select net.http_post(
-    url := 'https://usvkufbzvxlwacbomram.supabase.co/functions/v1/purge-expired-photos',
+    url := 'https://icfaagkrfwgfnnznnrdz.supabase.co/functions/v1/purge-expired-photos',
     headers := jsonb_build_object(
       'Authorization',
       'Bearer ' || (
