@@ -79,7 +79,7 @@ export function LocationMap({
       }).addTo(map);
       const c = L.circle([marker.lat, marker.lng], {
         radius: radiusMeters,
-        color: "#2563eb",
+        color: "#4A3FDB",
         weight: 1,
         fillOpacity: 0.1,
       }).addTo(map);

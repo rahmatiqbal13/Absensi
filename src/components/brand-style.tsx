@@ -25,6 +25,6 @@ function safeHex(hex: string): string {
     deriveAccent(hex);
     return hex;
   } catch {
-    return "#C63B22";
+    return "#4A3FDB";
   }
 }

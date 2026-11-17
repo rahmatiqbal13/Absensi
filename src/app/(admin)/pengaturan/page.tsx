@@ -18,6 +18,17 @@ const HUB = [
   { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence per cabang dan departemen." },
 ];
 
+// Number tiles cycle through the area hues (redesign).
+const HUB_TONES = [
+  "bg-[#E0E4FF] text-[#3A30B8] dark:bg-primary/20 dark:text-primary",
+  "bg-success text-success-foreground",
+  "bg-leave text-leave-foreground",
+  "bg-info text-info-foreground",
+  "bg-warning text-warning-foreground",
+  "bg-[#FCE1F0] text-[#9A2A6B] dark:bg-[#3a1530] dark:text-[#f9a8d4]",
+  "bg-early text-early-foreground",
+];
+
 export default async function PengaturanPage() {
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
@@ -61,14 +72,16 @@ export default async function PengaturanPage() {
       )}
 
       {(employee.role === "hr_admin" || employee.role === "super_admin") && (
-        <ul className="grid border-t border-primary sm:grid-cols-2 sm:gap-x-8">
+        <ul className="grid border-t border-foreground sm:grid-cols-2 sm:gap-x-8">
           {HUB.filter((h) => !h.superOnly || employee.role === "super_admin").map((h, i) => (
             <li key={h.href} className="border-b border-border">
               <Link
                 href={h.href}
                 className="group grid grid-cols-[44px_1fr_20px] items-start gap-3 py-5.5 pr-2 outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="pt-0.5 pl-2 font-mono text-[0.8rem] text-brand-text">
+                <span
+                  className={`ml-2 grid size-8 place-items-center rounded-[9px] font-mono text-[0.8rem] font-semibold ${HUB_TONES[i % HUB_TONES.length]}`}
+                >
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="flex flex-col gap-1">

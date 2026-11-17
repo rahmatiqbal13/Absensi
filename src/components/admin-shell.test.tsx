@@ -41,7 +41,7 @@ const renderShell = (
 describe("AdminShell", () => {
   it("renders the primary nav for super_admin", () => {
     renderShell("super_admin");
-    for (const name of ["Dashboard", "Karyawan", "Cuti", "Laporan", "Payroll", "Pengaturan"]) {
+    for (const name of ["Dashboard", "Karyawan", "Persetujuan cuti", "Laporan", "Payroll", "Pengaturan"]) {
       expect(screen.getAllByRole("link", { name }).length).toBeGreaterThan(0);
     }
   });
@@ -85,13 +85,16 @@ describe("AdminShell", () => {
         <div>content</div>
       </AdminShell>,
     );
-    expect(screen.getByRole("img")).toHaveAttribute("src", "https://s/pic");
+    // The product logo is also role="img" (aria-label "absensi"); look past it.
+    const photos = screen.getAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "absensi");
+    expect(photos).toHaveLength(1);
+    expect(photos[0]).toHaveAttribute("src", "https://s/pic");
   });
 
   it("shows the initials fallback when avatarUrl is absent", () => {
     renderShell("hr_admin");
     expect(screen.getByText("BS")).toBeInTheDocument();
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("img").filter((el) => el.getAttribute("aria-label") !== "absensi")).toHaveLength(0);
   });
 
   it("renders the theme toggle in the topbar", () => {

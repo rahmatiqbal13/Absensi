@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
+import { ProductLogo } from "@/components/product-logo";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
@@ -40,7 +41,14 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <AdminShell
       employee={employee}
       avatarUrl={avatarUrl ?? undefined}
-      brand={<BrandMark size="md" tone="inverse" />}
+      brand={
+        <div className="flex flex-col gap-3">
+          <ProductLogo size={34} />
+          <div className="rounded-[10px] bg-sidebar-accent/70 px-2.5 py-2">
+            <BrandMark size="sm" tone="inverse" />
+          </div>
+        </div>
+      }
       footer={<AppFooter />}
       pendingLeave={pendingLeave ?? 0}
     >

@@ -12,12 +12,11 @@ import {
 } from "recharts";
 import type { MonthlyTrendPoint } from "@/lib/dashboard/monthly-trend";
 
-// Colors follow the dataviz skill's validated categorical palette
-// (references/palette.md): two series -> slot 1 (blue) and slot 2 (orange),
-// the fixed opening pair of the passing 8-hue order (adjacent CVD Delta E
-// 9.1, normal-vision 19.6 — both clear of the floors). Never hand-picked.
-const COLOR_HADIR = "#2a78d6"; // categorical slot 1 (blue)
-const COLOR_TERLAMBAT = "#eb6834"; // categorical slot 2 (orange)
+// Series use the attendance status colours (redesign): hadir = status green,
+// terlambat = status amber — the same hues as the board, legend and badges,
+// so a colour means one thing across the dashboard. Theme-reactive tokens.
+const COLOR_HADIR = "var(--chart-1)"; // status green (hadir)
+const COLOR_TERLAMBAT = "var(--chart-2)"; // status amber (terlambat)
 
 // Chrome tokens from the same reference: hairline gridlines/axis one step
 // off the chart surface, muted ink for axis ticks — recessive by design so

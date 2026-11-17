@@ -69,9 +69,10 @@ describe("accentWarning", () => {
 
 describe("deriveBrandText", () => {
   it("darkens a brand colour that falls just short of 4.5:1 on paper", () => {
-    const t = deriveBrandText("#C63B22");
-    expect(t).not.toBe("#C63B22");
-    expect(contrastRatio(t, "#F2EEE5")).toBeGreaterThanOrEqual(4.5);
+    // #D0402A is 4.30:1 on the #F3F4FA page background.
+    const t = deriveBrandText("#D0402A");
+    expect(t).not.toBe("#D0402A");
+    expect(contrastRatio(t, "#F3F4FA")).toBeGreaterThanOrEqual(4.5);
   });
   it("passes an already-dark brand colour through unchanged", () => {
     expect(deriveBrandText("#1E3A5F")).toBe("#1E3A5F");

@@ -38,17 +38,30 @@ export function InstansiForm({
       const r = await saveAppSettings(formData);
       if (r.ok) toast.success("Pengaturan instansi tersimpan.");
       else toast.error(r.error);
+    } catch (e) {
+      console.error("saveAppSettings failed", e);
+      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
     } finally {
       setBusy(false);
     }
   }
 
   async function onLogo(formData: FormData) {
+    const file = formData.get("logo");
+    if (!(file instanceof File) || file.size === 0) {
+      toast.error("Pilih berkas logo dulu, lalu klik Unggah Logo.");
+      return;
+    }
     setBusy(true);
     try {
       const r = await uploadLogo(formData);
       if (r.ok) toast.success("Logo diperbarui.");
       else toast.error(r.error);
+    } catch (e) {
+      // A request rejected before the action runs (e.g. an oversized file)
+      // throws instead of returning a Result — never fail silently.
+      console.error("uploadLogo failed", e);
+      toast.error("Gagal mengunggah logo. Pastikan ukurannya maksimal 512 KB lalu coba lagi.");
     } finally {
       setBusy(false);
     }
@@ -146,6 +159,9 @@ export function InstansiForm({
                           const r = await removeLogo();
                           if (r.ok) toast.success("Logo dihapus.");
                           else toast.error(r.error);
+                        } catch (e) {
+                          console.error("removeLogo failed", e);
+                          toast.error("Gagal menghapus logo. Coba lagi.");
                         } finally {
                           setBusy(false);
                         }

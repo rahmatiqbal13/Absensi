@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { QR_WINDOW_MS } from "@/lib/attendance/qr-token";
 import { formatJakartaLong, jakartaClock, useNow } from "@/lib/time/use-now";
 import { getKioskQr } from "./actions";
+import { ProductLogo } from "@/components/product-logo";
 
 const FAILURE_RETRY_MS = 5000;
 const MIN_REFRESH_MS = 1000;
@@ -67,8 +68,8 @@ export function KioskDisplay({
 
   if (inactive) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#1c1b18] p-8 text-center">
-        <p className="text-lg text-[#f2eee5]/70">Kiosk tidak aktif.</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#17154A] p-8 text-center">
+        <p className="text-lg text-[#EEF0FF]/70">Kiosk tidak aktif.</p>
       </main>
     );
   }
@@ -81,9 +82,10 @@ export function KioskDisplay({
 
   // The kiosk is a fixed dark wall display regardless of the viewer's theme.
   return (
-    <main className="grid min-h-screen grid-cols-1 items-center gap-12 bg-[#1c1b18] p-8 text-[#f2eee5] md:p-12 lg:grid-cols-2">
+    <main className="grid min-h-screen grid-cols-1 items-center gap-12 bg-[#17154A] p-8 text-[#EEF0FF] md:p-12 lg:grid-cols-2">
       <div className="flex flex-col gap-4.5">
-        <span className="font-mono text-[0.8rem] tracking-[0.12em] text-[#f2eee5]/65 uppercase">
+        <ProductLogo size={36} />
+        <span className="font-mono text-[0.8rem] tracking-[0.12em] text-[#EEF0FF]/65 uppercase">
           Kiosk · {branchNama}
         </span>
         <span
@@ -92,20 +94,20 @@ export function KioskDisplay({
         >
           {clock?.hm ?? "--:--"}
         </span>
-        {now && <span className="font-mono text-sm text-[#f2eee5]/65">{formatJakartaLong(now)}</span>}
-        <p className="max-w-[460px] text-[1.375rem] leading-snug text-[#f2eee5]/85">
-          Buka aplikasi Absensi, pilih <b className="text-[#f2eee5]">Scan QR</b>, lalu arahkan kamera ke kode ini.
+        {now && <span className="font-mono text-sm text-[#EEF0FF]/65">{formatJakartaLong(now)}</span>}
+        <p className="max-w-[460px] text-[1.375rem] leading-snug text-[#EEF0FF]/85">
+          Buka aplikasi Absensi, pilih <b className="text-[#5EEAD4]">Scan QR</b>, lalu arahkan kamera ke kode ini.
         </p>
       </div>
 
       <div className="flex flex-col items-center gap-5.5">
-        <div className="rounded-3xl bg-[#fffdf8] p-5.5">
+        <div className="rounded-3xl bg-[#FFFFFF] p-5.5">
           {dataUrl ? (
             // A rotating base64 QR — next/image optimization does not apply.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={dataUrl} width={360} height={360} alt="QR absen" className="size-[min(70vw,360px)]" />
           ) : (
-            <div className="grid size-[min(70vw,360px)] place-items-center text-[#5e5a51]">Memuat…</div>
+            <div className="grid size-[min(70vw,360px)] place-items-center text-[#4F5675]">Memuat…</div>
           )}
         </div>
 
@@ -115,13 +117,13 @@ export function KioskDisplay({
           <span
             aria-hidden="true"
             className="grid size-11 place-items-center rounded-full"
-            style={{ background: `conic-gradient(#e0482a ${ringDeg}deg, rgb(242 238 229 / 0.15) 0)` }}
+            style={{ background: `conic-gradient(#5EEAD4 ${ringDeg}deg, rgb(238 240 255 / 0.15) 0)` }}
           >
-            <span className="grid size-[34px] place-items-center rounded-full bg-[#1c1b18] font-mono text-[0.8rem] font-semibold">
+            <span className="grid size-[34px] place-items-center rounded-full bg-[#17154A] font-mono text-[0.8rem] font-semibold">
               {leftSec ?? "–"}
             </span>
           </span>
-          <span className="text-[0.95rem] text-[#f2eee5]/80">Kode berganti otomatis setiap {windowSec} detik.</span>
+          <span className="text-[0.95rem] text-[#EEF0FF]/80">Kode berganti otomatis setiap {windowSec} detik.</span>
         </div>
       </div>
     </main>

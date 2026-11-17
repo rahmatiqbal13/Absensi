@@ -12,7 +12,7 @@ import { getBranchBreakdown } from "@/lib/dashboard/branch-breakdown";
 import { getTodayExceptions } from "@/lib/dashboard/today-exceptions";
 import { getRecentActivity } from "@/lib/dashboard/recent-activity";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader, SectionTitle } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { AttendanceTrendChart } from "@/components/attendance-trend-chart";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
@@ -113,7 +113,7 @@ export default async function DashboardPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-[1.05rem]">Tren kehadiran bulan ini</CardTitle>
+            <CardTitle><SectionTitle as="h3" marker="bg-primary">Tren kehadiran bulan ini</SectionTitle></CardTitle>
             <CardDescription>Jumlah hadir dan terlambat per hari.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -121,7 +121,7 @@ export default async function DashboardPage({
           </CardContent>
         </Card>
         {approvals.ok ? (
-          <section className="flex flex-col gap-4 rounded-[18px] bg-sidebar p-6 text-sidebar-foreground">
+          <section className="flex flex-col gap-4 rounded-[18px] bg-primary p-6 text-primary-foreground">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-[1.05rem] font-semibold">Menunggu persetujuan</h2>
               <span className="text-[2.75rem] leading-none font-semibold tracking-[-0.04em] tabular-nums">
@@ -129,32 +129,32 @@ export default async function DashboardPage({
               </span>
             </div>
             {approvals.count === 0 ? (
-              <p className="text-sm text-sidebar-muted">
+              <p className="text-sm text-primary-foreground/85">
                 Kotak masuk bersih. Tidak ada pengajuan cuti yang menunggu.
               </p>
             ) : pendingPreview.ok ? (
               <ul className="flex flex-col">
                 {pendingPreview.rows.map((p) => (
-                  <li key={p.id} className="border-t border-sidebar-border">
+                  <li key={p.id} className="border-t border-primary-foreground/25">
                     <Link
                       href={`/persetujuan-cuti?id=${p.id}`}
-                      className="flex min-h-[52px] items-center justify-between gap-3 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      className="flex min-h-[52px] items-center justify-between gap-3 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
                     >
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="truncate text-sm font-semibold">{p.nama}</span>
-                        <span className="truncate text-[0.8rem] text-sidebar-muted">
+                        <span className="truncate text-[0.8rem] text-primary-foreground/85">
                           {leaveJenisLabel(p.jenis)} · {formatLeaveRange(p.tanggalMulai, p.tanggalSelesai)}
                         </span>
                       </span>
-                      <ChevronRight className="size-4 shrink-0 text-sidebar-faint" aria-hidden="true" />
+                      <ChevronRight className="size-4 shrink-0 text-primary-foreground/85" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-sidebar-muted">Pengajuan cuti menunggu keputusan Anda.</p>
+              <p className="text-sm text-primary-foreground/85">Pengajuan cuti menunggu keputusan Anda.</p>
             )}
-            <Button asChild variant="brand" className="mt-auto h-11">
+            <Button asChild className="mt-auto h-11 bg-highlight text-highlight-foreground hover:bg-highlight/90">
               <Link href="/persetujuan-cuti">Tinjau semua pengajuan</Link>
             </Button>
           </section>
@@ -168,7 +168,7 @@ export default async function DashboardPage({
         <div className={`grid gap-4 ${twoColRow ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
           {showBranchBreakdown && (
             <Card>
-              <CardHeader><CardTitle className="text-[1.05rem]">Per cabang · hari ini</CardTitle></CardHeader>
+              <CardHeader><CardTitle><SectionTitle as="h3" marker="bg-info-solid">Per cabang · hari ini</SectionTitle></CardTitle></CardHeader>
               <CardContent>
                 {breakdown && breakdown.ok ? (
                   breakdown.rows.length === 0 ? (
@@ -184,7 +184,7 @@ export default async function DashboardPage({
           )}
           {showExceptionsCard && (
             <Card>
-              <CardHeader><CardTitle className="text-[1.05rem]">Perlu perhatian</CardTitle></CardHeader>
+              <CardHeader><CardTitle><SectionTitle as="h3" marker="bg-warning-solid">Perlu perhatian</SectionTitle></CardTitle></CardHeader>
               <CardContent>
                 {exceptions.ok ? (
                   exceptions.nonWorkingDay ? (
@@ -234,7 +234,7 @@ export default async function DashboardPage({
       {isHrAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-[1.05rem]">Aktivitas terakhir</CardTitle>
+            <CardTitle><SectionTitle as="h3" marker="bg-leave-solid">Aktivitas terakhir</SectionTitle></CardTitle>
             <CardAction>
               <Link href="/pengaturan/audit" className="text-xs font-medium text-brand-text hover:underline">
                 Lihat log audit

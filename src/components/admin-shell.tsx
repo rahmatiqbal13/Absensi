@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { ProductLogo } from "@/components/product-logo";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -40,6 +41,8 @@ type NavItem = {
   href: string;
   label: string;
   Icon: typeof LayoutDashboard;
+  /** Icon tint on the navy sidebar (redesign: one hue per area). */
+  tint: string;
   hrAdminOnly?: boolean;
   countKey?: "pendingLeave";
 };
@@ -48,19 +51,19 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Hari ini",
     items: [
-      { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-      { href: "/persetujuan-cuti", label: "Cuti", Icon: CalendarCheck, countKey: "pendingLeave" },
+      { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, tint: "#A5B4FC" },
+      { href: "/persetujuan-cuti", label: "Persetujuan cuti", Icon: CalendarCheck, tint: "#C4B5FD", countKey: "pendingLeave" },
     ],
   },
-  { title: "Orang", items: [{ href: "/karyawan", label: "Karyawan", Icon: Users, hrAdminOnly: true }] },
+  { title: "Orang", items: [{ href: "/karyawan", label: "Karyawan", Icon: Users, tint: "#7DD3FC", hrAdminOnly: true }] },
   {
     title: "Angka",
     items: [
-      { href: "/laporan", label: "Laporan", Icon: BarChart3 },
-      { href: "/payroll", label: "Payroll", Icon: Wallet, hrAdminOnly: true },
+      { href: "/laporan", label: "Laporan", Icon: BarChart3, tint: "#FCD34D" },
+      { href: "/payroll", label: "Payroll", Icon: Wallet, tint: "#6EE7B7", hrAdminOnly: true },
     ],
   },
-  { title: "Sistem", items: [{ href: "/pengaturan", label: "Pengaturan", Icon: Settings }] },
+  { title: "Sistem", items: [{ href: "/pengaturan", label: "Pengaturan", Icon: Settings, tint: "#F9A8D4" }] },
 ];
 
 function initialsOf(nama: string) {
@@ -94,7 +97,7 @@ function AdminNav({
       {groups.map((g) => (
         <div key={g.title} className="flex flex-col gap-0.5">
           <span className="eyebrow px-2.5 pb-1.5 text-[0.65rem] text-sidebar-faint">{g.title}</span>
-          {g.items.map(({ href, label, Icon, countKey }) => {
+          {g.items.map(({ href, label, Icon, tint, countKey }) => {
             const active = pathname === href || pathname?.startsWith(`${href}/`);
             const count = countKey === "pendingLeave" ? pendingLeave : 0;
             return (
@@ -110,10 +113,10 @@ function AdminNav({
                     : "text-sidebar-muted hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                 )}
               >
-                <Icon className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <Icon className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" style={{ color: tint }} />
                 <span className="flex-1">{label}</span>
                 {count > 0 && (
-                  <span className="grid h-5 min-w-[22px] place-items-center rounded-full bg-brand px-1.5 text-[0.7rem] font-bold text-brand-foreground">
+                  <span className="grid h-5 min-w-[22px] place-items-center rounded-full bg-highlight px-1.5 text-[0.7rem] font-bold text-highlight-foreground">
                     <span className="sr-only">, </span>
                     {count}
                     <span className="sr-only"> menunggu</span>
@@ -157,7 +160,7 @@ function UserMenu({ employee, avatarUrl }: { employee: CurrentEmployee; avatarUr
         >
           <Avatar className="size-[34px] shrink-0">
             {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-            <AvatarFallback className="bg-[#c9bba0] text-xs font-semibold text-[#1c1b18]">
+            <AvatarFallback className="bg-[#C4B5FD] text-xs font-semibold text-[#14162E]">
               {initialsOf(employee.nama)}
             </AvatarFallback>
           </Avatar>
@@ -235,7 +238,7 @@ export function AdminShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-[58px] shrink-0 items-center justify-between bg-sidebar px-4 text-sidebar-foreground lg:hidden">
-          {brand}
+          <ProductLogo size={30} />
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <button

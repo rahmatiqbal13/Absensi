@@ -20,7 +20,7 @@ export const APP_SETTINGS_DEFAULTS: AppSettings = {
   alamat: null,
   telepon: null,
   email: null,
-  warnaAksen: "#C63B22",
+  warnaAksen: "#4A3FDB",
 };
 
 export async function getAppSettingsUncached(): Promise<AppSettings> {

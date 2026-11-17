@@ -40,9 +40,9 @@ export function deriveAccent(hex: string): DerivedAccent {
 }
 
 // The .dark theme surface (--background in globals.css).
-const DARK_SURFACE = "#151411";
+const DARK_SURFACE = "#0E0D2B";
 // The light theme paper surface (--background in globals.css).
-const PAPER_SURFACE = "#F2EEE5";
+const PAPER_SURFACE = "#F3F4FA";
 
 function mixToward(hex: string, target: string, t: number): string {
   const a = normalizeHex(hex);

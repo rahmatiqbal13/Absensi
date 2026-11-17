@@ -1,10 +1,11 @@
 import type { AttendanceSummary } from "@/lib/dashboard/attendance-summary";
 import { cn } from "@/lib/utils";
+import { SectionTitle } from "@/components/page-header";
 
 // One exclusive bucket per employee. `hadir` from the summary lib already
 // includes pulang_cepat / di_luar_lokasi, so those are peeled off here.
 const BUCKETS = [
-  { key: "tepat", label: "Tepat waktu", swatch: "bg-primary" },
+  { key: "tepat", label: "Tepat waktu", swatch: "bg-success-solid" },
   { key: "terlambat", label: "Terlambat", swatch: "bg-warning-solid" },
   { key: "pulangCepat", label: "Pulang cepat", swatch: "bg-early-solid" },
   { key: "diLuarLokasi", label: "Di luar lokasi", swatch: "bg-info-solid" },
@@ -45,7 +46,7 @@ export function TodayBoard({ summary }: { summary: AttendanceSummary }) {
     <section className="grid gap-7 rounded-[18px] border border-border bg-card p-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
       <div className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-[1.05rem] font-semibold">Siapa sudah datang</h2>
+          <SectionTitle marker="bg-success-solid">Siapa sudah datang</SectionTitle>
           <span className="text-sm text-muted-foreground">
             {perCell === 1 ? "Satu kotak = satu karyawan" : "Satu kotak = 1% karyawan"}
           </span>
@@ -61,7 +62,7 @@ export function TodayBoard({ summary }: { summary: AttendanceSummary }) {
       <div className="flex min-w-0 flex-col gap-4.5 border-border lg:border-l lg:pl-6">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm text-muted-foreground">Tingkat kehadiran</span>
-          <span className="text-[4rem] leading-none font-semibold tracking-[-0.05em] tabular-nums">
+          <span className="text-[4rem] leading-none font-semibold tracking-[-0.05em] text-success-foreground tabular-nums">
             {rate == null ? "—" : `${rate}%`}
           </span>
           <span className="text-sm text-muted-foreground">
@@ -101,7 +102,7 @@ export function BranchBars({
               </span>
             </div>
             <div aria-hidden="true" className="flex h-3 gap-0.5 overflow-hidden rounded-[4px] bg-secondary">
-              <span className="bg-primary" style={{ width: w(r.hadir) }} />
+              <span className="bg-success-solid" style={{ width: w(r.hadir) }} />
               <span className="bg-warning-solid" style={{ width: w(r.terlambat) }} />
               <span className="bg-danger-solid" style={{ width: w(r.alpa) }} />
             </div>
