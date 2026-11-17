@@ -28,6 +28,8 @@ function makeMockDb(
   opts: {
     employee?: { id: string; branch_id: string; department_id?: string | null };
     schedules?: any[];
+    /** departments row for the employee's department pin (0037); null = none set. */
+    departmentPin?: { lat: number | null; long: number | null; radius_geofencing_meter: number | null; branch_id: string } | null;
     existingAttendance?: any[];
     existingAttendanceError?: { message: string; code?: string } | null;
     consentRows?: any[];
@@ -46,6 +48,7 @@ function makeMockDb(
     qrColumnsError = null,
     employee = BASE_EMPLOYEE,
     schedules = [BASE_SCHEDULE],
+    departmentPin = null,
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -88,6 +91,11 @@ function makeMockDb(
                 : { data: branch, error: null },
             ),
         }),
+      }),
+    },
+    departments: {
+      select: () => ({
+        eq: () => ({ maybeSingle: () => Promise.resolve({ data: departmentPin, error: null }) }),
       }),
     },
     work_schedules: {
@@ -370,6 +378,39 @@ describe("clockIn", () => {
     // ...but late for the warehouse department's own 07:00 start.
     const gudang = makeMockDb({ schedules, employee: { ...BASE_EMPLOYEE, department_id: "dept-gudang" } });
     expect(await clockIn(gudang as any, input)).toMatchObject({ ok: true, status: "terlambat" });
+  });
+
+  describe("department location pin", () => {
+    // Branch office at (-6.2, 106.8); the warehouse department sits ~5.5 km away.
+    const WAREHOUSE = { lat: -6.25, long: 106.8, radius_geofencing_meter: 150, branch_id: "branch-1" };
+    const input = (lat: number, long: number) => ({
+      employeeId: "employee-1",
+      lat,
+      long,
+      photoPath: "employee-1/masuk-1.jpg",
+      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      now: new Date("2026-09-01T08:58:00+07:00"),
+    });
+    const warehouseEmployee = { ...BASE_EMPLOYEE, department_id: "dept-gudang" };
+
+    it("accepts a clock-in at the department's own pin, far from the branch office", async () => {
+      const db = makeMockDb({ employee: warehouseEmployee, departmentPin: WAREHOUSE });
+      expect(await clockIn(db as any, input(-6.25, 106.8))).toMatchObject({ ok: true, status: "tepat_waktu" });
+    });
+
+    it("treats the branch office as outside the radius for that department", async () => {
+      const db = makeMockDb({ employee: warehouseEmployee, departmentPin: WAREHOUSE });
+      const r = await clockIn(db as any, input(-6.2, 106.8));
+      expect(r.ok).toBe(false); // out of radius with no catatan
+    });
+
+    it("uses the branch pin when the department has none", async () => {
+      const db = makeMockDb({
+        employee: warehouseEmployee,
+        departmentPin: { lat: null, long: null, radius_geofencing_meter: null, branch_id: "branch-1" },
+      });
+      expect(await clockIn(db as any, input(-6.2, 106.8))).toMatchObject({ ok: true, status: "tepat_waktu" });
+    });
   });
 
   it("returns a generic Indonesian message and logs the raw error when the insert fails", async () => {

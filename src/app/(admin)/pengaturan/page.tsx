@@ -15,7 +15,7 @@ const HUB = [
   { href: "/pengaturan/departemen", title: "Departemen", desc: "Kelompokkan karyawan per departemen di tiap cabang." },
   { href: "/pengaturan/jadwal", title: "Jadwal kerja", desc: "Jam kerja, hari kerja, dan toleransi keterlambatan per cabang dan departemen." },
   { href: "/pengaturan/cabang", title: "Cabang", desc: "Tambah, ubah nama atau alamat, hapus kantor cabang." },
-  { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence untuk absensi per cabang." },
+  { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence per cabang dan departemen." },
 ];
 
 export default async function PengaturanPage() {

@@ -30,6 +30,8 @@ function makeMockDb(
   opts: {
     employee?: { id: string; branch_id: string; department_id?: string | null };
     schedules?: any[];
+    /** departments row for the employee's department pin (0037); null = none set. */
+    departmentPin?: { lat: number | null; long: number | null; radius_geofencing_meter: number | null; branch_id: string } | null;
     todaysAttendance?: any;
     todaysAttendanceError?: { message: string; code?: string } | null;
     updateError?: { message: string; code?: string } | null;
@@ -51,6 +53,7 @@ function makeMockDb(
     qrColumnsError = null,
     employee = BASE_EMPLOYEE,
     schedules = [BASE_SCHEDULE],
+    departmentPin = null,
   } = opts;
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
@@ -90,6 +93,11 @@ function makeMockDb(
                 : { data: branch, error: null },
             ),
         }),
+      }),
+    },
+    departments: {
+      select: () => ({
+        eq: () => ({ maybeSingle: () => Promise.resolve({ data: departmentPin, error: null }) }),
       }),
     },
     work_schedules: {

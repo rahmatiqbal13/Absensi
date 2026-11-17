@@ -8,8 +8,14 @@ import {
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { LocationForm, type BranchLocation } from "./location-form";
-import { saveBranchLocation, setBranchQr, resetKioskKey } from "./actions";
+import { LocationForm, type BranchLocation, type DepartmentLocation } from "./location-form";
+import {
+  saveBranchLocation,
+  setBranchQr,
+  resetKioskKey,
+  saveDepartmentLocation,
+  clearDepartmentLocation,
+} from "./actions";
 
 const JAKARTA = { lat: -6.2, lng: 106.816 };
 
@@ -53,6 +59,35 @@ export default async function LokasiPage() {
     ]),
   );
 
+  // Department pins (0037). Separate, migration-tolerant read: before the
+  // migration the columns don't exist, so fall back to names only.
+  type DeptRow = { id: string; nama: string; branch_id: string; lat?: number | null; long?: number | null; radius_geofencing_meter?: number | null };
+  let deptRows: DeptRow[] = [];
+  const deptRes = await db
+    .from("departments")
+    .select("id, nama, branch_id, lat, long, radius_geofencing_meter")
+    .order("nama");
+  if (deptRes.error) {
+    console.error("lokasi: department pins query failed (showing names only)", deptRes.error);
+    const fallback = await db.from("departments").select("id, nama, branch_id").order("nama");
+    deptRows = (fallback.data ?? []) as DeptRow[];
+  } else {
+    deptRows = (deptRes.data ?? []) as DeptRow[];
+  }
+  const departmentsByBranch = new Map<string, DepartmentLocation[]>();
+  for (const d of deptRows) {
+    const list = departmentsByBranch.get(d.branch_id) ?? [];
+    list.push({
+      id: d.id,
+      nama: d.nama,
+      pin:
+        d.lat != null && d.long != null
+          ? { lat: d.lat, long: d.long, radius: d.radius_geofencing_meter ?? 100 }
+          : null,
+    });
+    departmentsByBranch.set(d.branch_id, list);
+  }
+
   const h = await headers();
   const proto = h.get("x-forwarded-proto") ?? "https";
   const host = h.get("host");
@@ -83,7 +118,7 @@ export default async function LokasiPage() {
       <PageHeader
         eyebrow="Pengaturan"
         title="Lokasi Kantor"
-        description="Titik kantor dan radius geofence dipakai untuk memvalidasi absensi karyawan."
+        description="Titik kantor dan radius geofence per cabang — dan titik khusus per departemen — dipakai untuk memvalidasi absensi karyawan."
       />
       {rows.length === 0 ? (
         <EmptyState icon={MapPin} message="Belum ada cabang. Tambahkan lewat menu Cabang." />
@@ -99,6 +134,9 @@ export default async function LokasiPage() {
               kioskUrl={b.kioskUrl}
               setBranchQr={setBranchQr}
               resetKioskKey={resetKioskKey}
+              departments={departmentsByBranch.get(b.id) ?? []}
+              saveDepartmentLocation={saveDepartmentLocation}
+              clearDepartmentLocation={clearDepartmentLocation}
             />
           ))}
         </div>

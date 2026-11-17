@@ -162,3 +162,79 @@ export async function resetKioskKey(branchId: string): Promise<Result> {
   revalidatePath("/pengaturan/lokasi");
   return { ok: true };
 }
+
+async function requireHrAdmin() {
+  const db = await createServerSupabaseClient();
+  const me = await getCurrentEmployee(db);
+  if (!me || (me.role !== "hr_admin" && me.role !== "super_admin")) return null;
+  return { db, me };
+}
+
+async function auditDepartmentLocation(actorId: string, departmentId: string, before: unknown, after: unknown) {
+  const service = createServiceRoleSupabaseClient();
+  const { error } = await service.from("audit_logs").insert({
+    actor_id: actorId,
+    target_employee_id: null,
+    aksi: "department_location_update",
+    detail: { department_id: departmentId, before: before ?? null, after },
+  });
+  if (error) console.error("department location: audit insert failed", error);
+}
+
+/** Gives a department its own geofence pin (migration 0037). */
+export async function saveDepartmentLocation(departmentId: string, formData: FormData): Promise<Result> {
+  const auth = await requireHrAdmin();
+  if (!auth) return { ok: false, error: "Tidak diizinkan." };
+  if (!departmentId) return { ok: false, error: "Departemen tidak valid." };
+
+  const parsed = validateLocationInput({
+    lat: formData.get("lat"),
+    long: formData.get("long"),
+    radius: formData.get("radius"),
+  });
+  if (!parsed.ok) return parsed;
+
+  const { data: before, error: beforeErr } = await auth.db
+    .from("departments")
+    .select("lat, long, radius_geofencing_meter")
+    .eq("id", departmentId)
+    .maybeSingle();
+  if (beforeErr) console.error("saveDepartmentLocation: before-read failed", beforeErr);
+
+  const after = {
+    lat: parsed.value.lat,
+    long: parsed.value.long,
+    radius_geofencing_meter: parsed.value.radius,
+  };
+  const { data, error } = await auth.db.from("departments").update(after).eq("id", departmentId).select("id");
+  if (error) {
+    console.error("saveDepartmentLocation: update failed", error);
+    return { ok: false, error: "Gagal menyimpan titik departemen." };
+  }
+  if (!data || data.length === 0) return { ok: false, error: "Departemen tidak ditemukan." };
+
+  await auditDepartmentLocation(auth.me.id, departmentId, before, after);
+  revalidatePath("/pengaturan/lokasi");
+  revalidatePath("/absen");
+  return { ok: true };
+}
+
+/** Removes a department's pin; its employees go back to the branch pin. */
+export async function clearDepartmentLocation(departmentId: string): Promise<Result> {
+  const auth = await requireHrAdmin();
+  if (!auth) return { ok: false, error: "Tidak diizinkan." };
+  if (!departmentId) return { ok: false, error: "Departemen tidak valid." };
+
+  const after = { lat: null, long: null, radius_geofencing_meter: null };
+  const { data, error } = await auth.db.from("departments").update(after).eq("id", departmentId).select("id");
+  if (error) {
+    console.error("clearDepartmentLocation: update failed", error);
+    return { ok: false, error: "Gagal menghapus titik departemen." };
+  }
+  if (!data || data.length === 0) return { ok: false, error: "Departemen tidak ditemukan." };
+
+  await auditDepartmentLocation(auth.me.id, departmentId, null, after);
+  revalidatePath("/pengaturan/lokasi");
+  revalidatePath("/absen");
+  return { ok: true };
+}

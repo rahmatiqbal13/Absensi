@@ -210,3 +210,44 @@ describe("LocationForm", () => {
     expect(toast.success).toHaveBeenCalledWith("Lokasi kantor tersimpan.");
   });
 });
+
+describe("LocationForm — department pins", () => {
+  const noop = vi.fn().mockResolvedValue({ ok: true });
+  const renderWithDepts = (save = vi.fn().mockResolvedValue({ ok: true })) => {
+    render(
+      <LocationForm
+        branch={configured}
+        fallbackCenter={fallbackCenter}
+        saveBranchLocation={noop}
+        qrEnabled={false}
+        kioskUrl={null}
+        setBranchQr={noop}
+        resetKioskKey={noop}
+        departments={[
+          { id: "d1", nama: "Gudang", pin: null },
+          { id: "d2", nama: "Proyek", pin: { lat: -6.3, long: 106.9, radius: 200 } },
+        ]}
+        saveDepartmentLocation={save}
+        clearDepartmentLocation={noop}
+      />,
+    );
+    return save;
+  };
+
+  it("labels which departments follow the branch and which have their own pin", () => {
+    renderWithDepts();
+    expect(screen.getByText("Ikut titik cabang")).toBeInTheDocument();
+    expect(screen.getByText("Titik khusus")).toBeInTheDocument();
+    expect(screen.getByText(/-6\.30000, 106\.90000 · 200 m/)).toBeInTheDocument();
+  });
+
+  it("saves a new department pin starting from the branch pin", async () => {
+    const save = renderWithDepts();
+    fireEvent.click(screen.getByRole("button", { name: /atur titik khusus/i }));
+    fireEvent.click(screen.getByRole("button", { name: /simpan titik gudang/i }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("d1", expect.any(FormData)));
+    const fd = save.mock.calls[0][1] as FormData;
+    expect([fd.get("lat"), fd.get("long"), fd.get("radius")]).toEqual(["-6.2", "106.8", "100"]);
+    expect(toast.success).toHaveBeenCalledWith("Titik Gudang tersimpan.");
+  });
+});
