@@ -1,8 +1,10 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { monthLabel } from "@/lib/format/month";
+import { getCurrentEmployee } from "@/lib/auth/session";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
 import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
+import { loadPayslipDetail } from "@/lib/payroll/payslip-detail";
+import { payslipFileName, attachmentHeader } from "@/lib/payroll/payslip-filename";
 import { PayslipDocument } from "@/components/payslip-document";
 
 // @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
@@ -15,57 +17,29 @@ export async function GET(
 ) {
   const { payslipId } = await params;
   const db = await createServerSupabaseClient();
+  const viewer = await getCurrentEmployee(db);
+  if (!viewer) return new Response("Silakan masuk terlebih dahulu.", { status: 401 });
 
-  type PayslipQueryRow = {
-    gaji_pokok: number;
-    hari_kerja_efektif: number;
-    gaji_harian: number;
-    total_potongan_absensi: number;
-    gaji_akhir: number;
-    employees: { nama: string } | null;
-    payroll_periods:
-      | { bulan: number; tahun: number; branches: { nama: string } | null }
-      | null;
-  };
+  const res = await loadPayslipDetail(db, viewer, payslipId);
+  if (!res.ok) return new Response(res.error, { status: res.status });
 
-  const { data, error } = await db
-    .from("payslips")
-    .select(
-      "gaji_pokok, hari_kerja_efektif, gaji_harian, total_potongan_absensi, gaji_akhir, " +
-        "employees(nama), payroll_periods(bulan, tahun, branches(nama))",
-    )
-    .eq("id", payslipId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("payslip pdf: lookup failed", error);
-    return new Response("Gagal memuat slip gaji.", { status: 500 });
-  }
-  if (!data) {
-    return new Response("Slip gaji tidak ditemukan.", { status: 404 });
-  }
-
-  const slip = data as unknown as PayslipQueryRow;
-  const period = slip.payroll_periods;
-
-  const { namaInstansi, logoUrl } = await getAppSettings();
-  const orgLogoUrl = await fetchLogoDataUrl(logoUrl);
+  const settings = await getAppSettings();
+  const logoUrl = await fetchLogoDataUrl(settings.logoUrl);
+  const printedAt = new Date();
 
   let buffer: Buffer;
   try {
     buffer = await renderToBuffer(
       <PayslipDocument
-        data={{
-          nama: (slip.employees as { nama: string } | null)?.nama ?? "-",
-          orgNama: namaInstansi,
-          orgLogoUrl,
-          branchNama: period?.branches?.nama ?? "-",
-          periodeLabel: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
-          gajiPokok: Number(slip.gaji_pokok),
-          hariKerjaEfektif: slip.hari_kerja_efektif,
-          gajiHarian: Number(slip.gaji_harian),
-          totalPotongan: Number(slip.total_potongan_absensi),
-          gajiAkhir: Number(slip.gaji_akhir),
+        slip={res.slip}
+        printedAt={printedAt}
+        org={{
+          nama: settings.namaInstansi,
+          alamat: settings.alamat,
+          telepon: settings.telepon,
+          email: settings.email,
+          logoUrl,
+          aksen: settings.warnaAksen,
         }}
       />,
     );
@@ -77,7 +51,9 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="slip-gaji-${payslipId}.pdf"`,
+      // Employee name + download moment (WIB), e.g. Slip-Gaji_Budi-Santoso_2026-11-17_09-52-07.pdf
+      "Content-Disposition": attachmentHeader(payslipFileName(res.slip.karyawan.nama, printedAt)),
+      "Cache-Control": "private, no-store",
     },
   });
 }

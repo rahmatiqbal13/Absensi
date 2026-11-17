@@ -1,6 +1,7 @@
 import { effectiveWorkDays } from "./effective-days";
 import { dailyWage } from "./daily-wage";
 import { round2 } from "./round";
+import { pph21 } from "./pph21";
 import {
   dayDeduction,
   leaveCoversDate,
@@ -12,6 +13,8 @@ export type PayrollEmployee = {
   id: string;
   gajiPokok: number;
   tanggalMulaiKerja: string | null;
+  /** Deduct a day's wage per alpa day — see shouldDeductAlpa(). Default false. */
+  potongAlpa?: boolean;
 };
 
 export type PayrollSchedule = {
@@ -52,6 +55,8 @@ export type PayslipRow = {
   hari_kerja_efektif: number;
   gaji_harian: number;
   total_potongan_absensi: number;
+  tarif_pph21: number;
+  potongan_pph21: number;
   gaji_akhir: number;
   rincian_harian: RincianHarianEntry[];
 };
@@ -64,8 +69,11 @@ export function computePayrollForBranch(input: {
   holidayDates: string[];
   attendancesByEmployee: Map<string, Map<string, AttendanceRowLite>>;
   approvedLeavesByEmployee: Map<string, ApprovedLeave[]>;
+  /** PPh 21 rate in percent, withheld from the earned wage. Default 0. */
+  tarifPph21Persen?: number;
 }): PayslipRow[] {
   const { year, month, employees, schedule, holidayDates, attendancesByEmployee, approvedLeavesByEmployee } = input;
+  const tarifPph21 = input.tarifPph21Persen ?? 0;
 
   return employees.map((emp) => {
     const { fullMonthDays, accrualDays } = effectiveWorkDays({
@@ -87,6 +95,7 @@ export function computePayrollForBranch(input: {
           schedule,
           dailyWage: wage,
           leave: leaveCoversDate(leaves, tanggal),
+          potongAlpa: emp.potongAlpa ?? false,
         }),
       ),
       emp.gajiPokok,
@@ -95,7 +104,9 @@ export function computePayrollForBranch(input: {
     const total_potongan_absensi = round2(
       rincian_harian.reduce((sum, r) => sum + r.potongan, 0),
     );
-    const gaji_akhir = Math.max(0, round2(emp.gajiPokok - total_potongan_absensi));
+    const penghasilanBruto = Math.max(0, round2(emp.gajiPokok - total_potongan_absensi));
+    const potongan_pph21 = pph21(penghasilanBruto, tarifPph21);
+    const gaji_akhir = Math.max(0, round2(penghasilanBruto - potongan_pph21));
 
     return {
       employee_id: emp.id,
@@ -107,6 +118,8 @@ export function computePayrollForBranch(input: {
       hari_kerja_efektif: fullMonthDays.length,
       gaji_harian: wage,
       total_potongan_absensi,
+      tarif_pph21: tarifPph21,
+      potongan_pph21,
       gaji_akhir,
       rincian_harian,
     };

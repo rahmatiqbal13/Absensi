@@ -46,6 +46,8 @@ describe("generatePayroll", () => {
           return q({ data: [], error: null });
         case "leave_requests":
           return q({ data: [], error: null });
+        case "app_settings":
+          return q({ data: { potong_alpa: false }, error: null });
         default:
           throw new Error(`unexpected table ${table}`);
       }
@@ -165,6 +167,93 @@ describe("generatePayroll", () => {
     const result = await generatePayroll("p1");
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining("belum punya jadwal kerja") });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  describe("alpa deduction", () => {
+    // August 2026, one employee with no attendance at all (21 alpa days).
+    function mockBranch(opts: { company: boolean | null; override: boolean | null; overrideError?: boolean }) {
+      from.mockImplementation((table: string) => {
+        switch (table) {
+          case "payroll_periods":
+            return q({ data: periodRow(), error: null });
+          case "employees":
+            // Same table serves the main read and the potong_alpa read.
+            return q({
+              data: [{ id: "e1", gaji_pokok: 10_500_000, tanggal_mulai_kerja: "2026-01-01", department_id: null, potong_alpa: opts.override }],
+              error: opts.overrideError ? { message: "column employees.potong_alpa does not exist" } : null,
+            });
+          case "work_schedules":
+            return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
+          case "app_settings":
+            // Rate 0 here keeps these assertions about alpa only; PPh 21 has its own tests.
+            return q({ data: opts.company === null ? null : { potong_alpa: opts.company, tarif_pph21_persen: 0 }, error: null });
+          default:
+            return q({ data: [], error: null });
+        }
+      });
+      rpc.mockResolvedValue({ data: 1, error: null });
+    }
+    const gajiAkhir = () => rpc.mock.calls[0][1].p_rows[0].gaji_akhir;
+
+    it("pays full salary by default", async () => {
+      mockBranch({ company: false, override: null });
+      await generatePayroll("p1");
+      expect(gajiAkhir()).toBe(10_500_000);
+    });
+
+    it("deducts when the company setting is on", async () => {
+      mockBranch({ company: true, override: null });
+      await generatePayroll("p1");
+      expect(gajiAkhir()).toBe(0);
+    });
+
+    it("lets an employee override the company setting either way", async () => {
+      mockBranch({ company: false, override: true });
+      await generatePayroll("p1");
+      expect(gajiAkhir()).toBe(0);
+
+      rpc.mockClear();
+      mockBranch({ company: true, override: false });
+      await generatePayroll("p1");
+      expect(gajiAkhir()).toBe(10_500_000);
+    });
+  });
+
+  describe("PPh 21", () => {
+    function mockBranch(appSettings: { data: unknown; error: unknown }) {
+      from.mockImplementation((table: string) => {
+        switch (table) {
+          case "payroll_periods":
+            return q({ data: periodRow(), error: null });
+          case "employees":
+            return q({ data: [{ id: "e1", gaji_pokok: 10_000_000, tanggal_mulai_kerja: "2026-01-01", department_id: null, potong_alpa: null }], error: null });
+          case "work_schedules":
+            return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
+          case "app_settings":
+            return q(appSettings);
+          default:
+            return q({ data: [], error: null });
+        }
+      });
+      rpc.mockResolvedValue({ data: 1, error: null });
+    }
+
+    it("withholds the configured rate from the earned wage", async () => {
+      mockBranch({ data: { potong_alpa: false, tarif_pph21_persen: "1.00" }, error: null });
+      await generatePayroll("p1");
+      expect(rpc.mock.calls[0][1].p_rows[0]).toMatchObject({
+        tarif_pph21: 1,
+        potongan_pph21: 100_000,
+        gaji_akhir: 9_900_000,
+      });
+    });
+
+    it("stops payroll when the rate cannot be read", async () => {
+      mockBranch({ data: null, error: { message: "column app_settings.tarif_pph21_persen does not exist" } });
+      const result = await generatePayroll("p1");
+      expect(result).toMatchObject({ ok: false, error: expect.stringContaining("PPh 21") });
+      expect(rpc).not.toHaveBeenCalled();
+    });
   });
 
   it("maps a finalized-period RPC error", async () => {

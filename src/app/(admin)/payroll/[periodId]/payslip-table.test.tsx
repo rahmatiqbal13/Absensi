@@ -5,7 +5,7 @@ import { PayslipTable, type PayslipView } from "./payslip-table";
 const ROWS: PayslipView[] = [
   {
     id: "s1", nama: "Budi", gajiPokok: 10_000_000, hariKerjaEfektif: 20,
-    totalPotongan: 500_000, gajiAkhir: 9_500_000,
+    totalPotongan: 500_000, tarifPph21: 1, potonganPph21: 95_000, gajiAkhir: 9_405_000,
     rincian: [
       { tanggal: "2026-08-03", jenis: "alpa", status: "alpa", menit_terlambat: 0, menit_pulang_cepat: 0, potongan: 500_000 },
     ],
@@ -14,36 +14,39 @@ const ROWS: PayslipView[] = [
 
 describe("PayslipTable", () => {
   it("shows an empty prompt when there are no rows", () => {
-    render(<PayslipTable rows={[]} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={[]} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     expect(screen.getByText(/belum ada slip/i)).toBeInTheDocument();
   });
 
   it("renders one row per payslip with the final amount", () => {
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     // desktop table + mobile cards both render under jsdom; scope to the
     // desktop <Table> (the only role="table") so getByText asserts exactly one
     const table = within(screen.getByRole("table"));
     const row = table.getByText("Budi").closest("tr") as HTMLElement;
-    expect(within(row).getByText(/9\.500\.000/)).toBeInTheDocument();
+    expect(within(row).getByText(/9\.405\.000/)).toBeInTheDocument();
+    // PPh 21 shown separately, with its rate.
+    expect(within(row).getByText(/95\.000/)).toBeInTheDocument();
+    expect(within(row).getByText("1%")).toBeInTheDocument();
   });
 
   it("calls onGenerate when Generate is clicked", async () => {
     const onGenerate = vi.fn().mockResolvedValue({ ok: true, message: "1 slip gaji dibuat." });
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /generate/i }));
     await waitFor(() => expect(onGenerate).toHaveBeenCalled());
     expect(await screen.findByText(/1 slip gaji dibuat/i)).toBeInTheDocument();
   });
 
   it("hides Generate and Finalize when the period is final", () => {
-    render(<PayslipTable rows={ROWS} status="final" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="final" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /generate/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /finalisasi/i })).not.toBeInTheDocument();
   });
 
   it("asks for confirmation before finalizing", async () => {
     const onFinalize = vi.fn().mockResolvedValue({ ok: true });
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={onFinalize} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={onFinalize} />);
     fireEvent.click(screen.getByRole("button", { name: /finalisasi/i }));
     expect(onFinalize).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("alertdialog");
@@ -53,7 +56,7 @@ describe("PayslipTable", () => {
 
   it("recovers when an action rejects (unbusies and shows a generic error)", async () => {
     const onGenerate = vi.fn().mockRejectedValue(new Error("boom"));
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
     const generate = screen.getByRole("button", { name: /generate/i });
     fireEvent.click(generate);
     expect(await screen.findByText(/terjadi kesalahan\. coba lagi\./i)).toBeInTheDocument();
@@ -61,14 +64,14 @@ describe("PayslipTable", () => {
   });
 
   it("expands a row to show rincian_harian", () => {
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     const table = within(screen.getByRole("table"));
     fireEvent.click(table.getByRole("button", { name: /rincian budi/i }));
     expect(table.getByText("2026-08-03")).toBeInTheDocument();
   });
 
   it("reflects toggle state via aria-expanded", () => {
-    render(<PayslipTable rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
+    render(<PayslipTable periodId="p1" rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} />);
     const toggle = screen.getAllByRole("button", { name: /rincian budi/i })[0];
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);

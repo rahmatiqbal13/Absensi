@@ -1,9 +1,11 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import Link from "next/link";
 import type { ActionResult } from "../actions";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { formatRupiah } from "@/lib/format/rupiah";
+import { formatPersen } from "@/lib/payroll/pph21";
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -23,13 +25,16 @@ export type PayslipView = {
   gajiPokok: number;
   hariKerjaEfektif: number;
   totalPotongan: number;
+  tarifPph21: number;
+  potonganPph21: number;
   gajiAkhir: number;
   rincian: RincianHarianEntry[];
 };
 
 export function PayslipTable({
-  rows, status, onGenerate, onFinalize,
+  periodId, rows, status, onGenerate, onFinalize,
 }: {
+  periodId: string;
   rows: PayslipView[];
   status: "draft" | "final";
   onGenerate: () => Promise<ActionResult>;
@@ -66,9 +71,10 @@ export function PayslipTable({
     (a, r) => ({
       gajiPokok: a.gajiPokok + r.gajiPokok,
       totalPotongan: a.totalPotongan + r.totalPotongan,
+      potonganPph21: a.potonganPph21 + r.potonganPph21,
       gajiAkhir: a.gajiAkhir + r.gajiAkhir,
     }),
-    { gajiPokok: 0, totalPotongan: 0, gajiAkhir: 0 },
+    { gajiPokok: 0, totalPotongan: 0, potonganPph21: 0, gajiAkhir: 0 },
   );
 
   return (
@@ -124,7 +130,8 @@ export function PayslipTable({
                   <TableHead>Nama</TableHead>
                   <TableHead className="text-right">Gaji Pokok</TableHead>
                   <TableHead className="text-right">Hari Efektif</TableHead>
-                  <TableHead className="text-right">Potongan</TableHead>
+                  <TableHead className="text-right">Potongan Absensi</TableHead>
+                  <TableHead className="text-right">PPh 21</TableHead>
                   <TableHead className="text-right">Gaji Akhir</TableHead>
                   <TableHead className="text-right">Rincian</TableHead>
                 </TableRow>
@@ -141,6 +148,12 @@ export function PayslipTable({
                           {formatRupiah(row.totalPotongan)}
                         </span>
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatRupiah(row.potonganPph21)}
+                        {row.tarifPph21 > 0 && (
+                          <span className="block text-xs text-muted-foreground">{formatPersen(row.tarifPph21)}</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{formatRupiah(row.gajiAkhir)}</TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -153,6 +166,9 @@ export function PayslipTable({
                         >
                           {expanded === row.id ? "Tutup" : "Rincian"}
                         </Button>
+                        <Link href={`/payroll/${periodId}/slip/${row.id}`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
+                          Lihat slip
+                        </Link>
                         <a href={`/slip-gaji/${row.id}/pdf`} className="ml-3 text-xs font-medium text-brand-text hover:underline">
                           PDF
                         </a>
@@ -160,7 +176,7 @@ export function PayslipTable({
                     </TableRow>
                     {expanded === row.id && (
                       <TableRow>
-                        <TableCell colSpan={6} className="bg-muted/40">
+                        <TableCell colSpan={7} className="bg-muted/40">
                           <ul className="space-y-1 text-xs text-muted-foreground">
                             {row.rincian.map((r) => (
                               <li key={r.tanggal} className="flex flex-wrap gap-x-4">
@@ -185,6 +201,7 @@ export function PayslipTable({
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.gajiPokok)}</TableCell>
                   <TableCell />
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.totalPotongan)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatRupiah(totals.potonganPph21)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.gajiAkhir)}</TableCell>
                   <TableCell />
                 </TableRow>
@@ -203,8 +220,10 @@ export function PayslipTable({
                     <dd className="text-right tabular-nums">{formatRupiah(row.gajiPokok)}</dd>
                     <dt className="text-muted-foreground">Hari Efektif</dt>
                     <dd className="text-right tabular-nums">{row.hariKerjaEfektif}</dd>
-                    <dt className="text-muted-foreground">Potongan</dt>
+                    <dt className="text-muted-foreground">Potongan Absensi</dt>
                     <dd className={`text-right tabular-nums ${row.totalPotongan > 0 ? "text-destructive" : ""}`}>{formatRupiah(row.totalPotongan)}</dd>
+                    <dt className="text-muted-foreground">PPh 21{row.tarifPph21 > 0 ? ` (${formatPersen(row.tarifPph21)})` : ""}</dt>
+                    <dd className="text-right tabular-nums">{formatRupiah(row.potonganPph21)}</dd>
                     <dt className="text-muted-foreground">Gaji Akhir</dt>
                     <dd className="text-right font-medium tabular-nums">{formatRupiah(row.gajiAkhir)}</dd>
                   </dl>
@@ -217,6 +236,7 @@ export function PayslipTable({
                     >
                       {expanded === row.id ? "Tutup" : "Rincian"}
                     </Button>
+                    <Link href={`/payroll/${periodId}/slip/${row.id}`} className="self-center text-xs font-medium text-brand-text hover:underline">Lihat slip</Link>
                     <a href={`/slip-gaji/${row.id}/pdf`} className="self-center text-xs font-medium text-brand-text hover:underline">PDF</a>
                   </div>
                   {expanded === row.id && (

@@ -21,9 +21,24 @@ describe("dayDeduction", () => {
     expect(r).toMatchObject({ jenis: "cuti", status: null, potongan: 0, catatan: "cuti_sakit" });
   });
 
-  it("no attendance row -> full-day deduction", () => {
-    const r = dayDeduction({ ...base, attendanceRow: null, leave: { covered: false } });
+  it("no attendance row, alpa deduction on -> full-day deduction", () => {
+    const r = dayDeduction({ ...base, attendanceRow: null, leave: { covered: false }, potongAlpa: true });
     expect(r).toMatchObject({ jenis: "alpa", status: "alpa", potongan: WAGE });
+  });
+
+  it("no attendance row, alpa deduction off (default) -> recorded as alpa, paid in full", () => {
+    const r = dayDeduction({ ...base, attendanceRow: null, leave: { covered: false } });
+    expect(r).toMatchObject({ jenis: "alpa", status: "alpa", potongan: 0, catatan: "alpa tidak dipotong" });
+  });
+
+  it("explicit alpa row, alpa deduction off -> no deduction", () => {
+    const r = dayDeduction({
+      ...base,
+      attendanceRow: { status: "alpa", jam_masuk: null, jam_pulang: null },
+      leave: { covered: false },
+      potongAlpa: false,
+    });
+    expect(r).toMatchObject({ jenis: "alpa", potongan: 0 });
   });
 
   it("di_luar_lokasi -> zero", () => {
@@ -40,6 +55,7 @@ describe("dayDeduction", () => {
       ...base,
       attendanceRow: { status: "alpa", jam_masuk: null, jam_pulang: null },
       leave: { covered: false },
+      potongAlpa: true,
     });
     expect(r.potongan).toBe(WAGE);
   });
@@ -95,6 +111,7 @@ describe("dayDeduction", () => {
       schedule: { ...SCHEDULE, potongTerlambat: false },
       attendanceRow: null,
       leave: { covered: false },
+      potongAlpa: true,
     });
     expect(r.potongan).toBe(WAGE);
   });

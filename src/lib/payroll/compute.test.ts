@@ -39,7 +39,7 @@ describe("computePayrollForBranch", () => {
   it("deducts alpa days, leaves approved-leave days untouched, and never goes negative", () => {
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
-      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-01-01" }],
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-01-01", potongAlpa: true }],
       schedule: SCHEDULE,
       holidayDates: [],
       attendancesByEmployee: new Map(), // no rows at all -> every non-leave day is alpa
@@ -58,7 +58,7 @@ describe("computePayrollForBranch", () => {
   it("floors gaji_akhir at 0 when deductions exceed gaji pokok", () => {
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
-      employees: [{ id: "e1", gajiPokok: 1_000_000, tanggalMulaiKerja: "2026-01-01" }],
+      employees: [{ id: "e1", gajiPokok: 1_000_000, tanggalMulaiKerja: "2026-01-01", potongAlpa: true }],
       schedule: SCHEDULE,
       holidayDates: [],
       attendancesByEmployee: new Map(),
@@ -79,7 +79,7 @@ describe("computePayrollForBranch", () => {
     }
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
-      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17", potongAlpa: true }],
       schedule: SCHEDULE,
       holidayDates: [],
       attendancesByEmployee: new Map([["e1", attendance]]),
@@ -95,7 +95,7 @@ describe("computePayrollForBranch", () => {
   it("deducts a mid-month joiner only for the post-join days they miss", () => {
     const [row] = computePayrollForBranch({
       year: 2026, month: 8,
-      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17" }],
+      employees: [{ id: "e1", gajiPokok: 10_500_000, tanggalMulaiKerja: "2026-08-17", potongAlpa: true }],
       schedule: SCHEDULE,
       holidayDates: [],
       attendancesByEmployee: new Map(), // absent every post-join day

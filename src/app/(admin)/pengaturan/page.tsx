@@ -9,10 +9,11 @@ import { ChevronRight, AlertTriangle } from "lucide-react";
 
 const HUB = [
   { href: "/pengaturan/instansi", title: "Instansi", desc: "Nama, logo, kontak, dan warna aksen aplikasi.", superOnly: true },
+  { href: "/pengaturan/potongan-gaji", title: "Potongan gaji", desc: "Tarif PPh 21 dan potongan hari alpa — semua karyawan atau karyawan tertentu.", superOnly: true },
   { href: "/pengaturan/libur", title: "Hari libur", desc: "Hari libur nasional dan cabang untuk perhitungan payroll." },
   { href: "/pengaturan/audit", title: "Log audit", desc: "Riwayat perubahan data karyawan dan persetujuan cuti." },
   { href: "/pengaturan/departemen", title: "Departemen", desc: "Kelompokkan karyawan per departemen di tiap cabang." },
-  { href: "/pengaturan/jadwal", title: "Jadwal kerja", desc: "Jam kerja, hari kerja, dan toleransi keterlambatan per cabang." },
+  { href: "/pengaturan/jadwal", title: "Jadwal kerja", desc: "Jam kerja, hari kerja, dan toleransi keterlambatan per cabang dan departemen." },
   { href: "/pengaturan/cabang", title: "Cabang", desc: "Tambah, ubah nama atau alamat, hapus kantor cabang." },
   { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence untuk absensi per cabang." },
 ];

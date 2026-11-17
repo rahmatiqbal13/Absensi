@@ -9,6 +9,8 @@ import {
 } from "@/lib/payroll/compute";
 import type { AttendanceRowLite } from "@/lib/payroll/deduction";
 import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { shouldDeductAlpa } from "@/lib/payroll/absence-deduction";
+import { DEFAULT_TARIF_PPH21_PERSEN } from "@/lib/payroll/pph21";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -118,6 +120,38 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     (fineErr ? [] : (fineRows ?? [])).map((f) => [f.id as string, f.potong_terlambat === true]),
   );
 
+  // Alpa deduction (0035): separate, migration-tolerant reads. Fail-safe is
+  // "not deducted" — the current policy is full salary.
+  const [companyAlpaRes, employeeAlpaRes] = await Promise.all([
+    db.from("app_settings").select("potong_alpa").eq("id", 1).maybeSingle(),
+    db.from("employees").select("id, potong_alpa").eq("branch_id", period.branch_id),
+  ]);
+  if (companyAlpaRes.error) console.error("generatePayroll: app_settings.potong_alpa lookup failed", companyAlpaRes.error);
+  if (employeeAlpaRes.error) console.error("generatePayroll: employees.potong_alpa lookup failed", employeeAlpaRes.error);
+  const companyPotongAlpa = !companyAlpaRes.error && companyAlpaRes.data?.potong_alpa === true;
+  const alpaOverride = new Map<string, boolean | null>(
+    employeeAlpaRes.error
+      ? []
+      : ((employeeAlpaRes.data ?? []) as { id: string; potong_alpa: boolean | null }[]).map((e) => [e.id, e.potong_alpa]),
+  );
+  // Overrides are unreadable => nobody is deducted (never fall through to the company default).
+  const potongAlpaFor = (id: string) =>
+    !employeeAlpaRes.error && shouldDeductAlpa(companyPotongAlpa, alpaOverride.get(id));
+
+  // PPh 21 rate (0036). No silent fallback: a payslip with the wrong tax is
+  // worse than a payroll run that stops and says why.
+  const { data: taxRow, error: taxErr } = await db
+    .from("app_settings")
+    .select("tarif_pph21_persen")
+    .eq("id", 1)
+    .maybeSingle();
+  if (taxErr) {
+    console.error("generatePayroll: tarif_pph21_persen lookup failed", taxErr);
+    return { ok: false, error: "Gagal memuat tarif PPh 21. Pastikan migrasi database terbaru sudah dijalankan." };
+  }
+  const tarifPph21Persen =
+    taxRow?.tarif_pph21_persen == null ? DEFAULT_TARIF_PPH21_PERSEN : Number(taxRow.tarif_pph21_persen);
+
   const employees = (employeesRes.data ?? []) as {
     id: string;
     gaji_pokok: number;
@@ -208,6 +242,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
         id: e.id,
         gajiPokok: Number(e.gaji_pokok),
         tanggalMulaiKerja: e.tanggal_mulai_kerja,
+        potongAlpa: potongAlpaFor(e.id),
       })),
       schedule: {
         jamMasuk: schedule.jam_masuk,
@@ -219,6 +254,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
       holidayDates,
       attendancesByEmployee,
       approvedLeavesByEmployee,
+      tarifPph21Persen,
     }),
   );
 

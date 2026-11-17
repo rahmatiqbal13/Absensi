@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
@@ -6,7 +7,7 @@ import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Download, ReceiptText } from "lucide-react";
+import { Download, Eye, ReceiptText } from "lucide-react";
 
 export default async function SlipGajiPage() {
   const db = await createServerSupabaseClient();
@@ -63,11 +64,18 @@ export default async function SlipGajiPage() {
                     {formatRupiah(Number(s.gaji_akhir))}
                   </p>
                 </div>
-                <Button asChild variant="outline" size="sm" className="min-h-11">
-                  <a href={`/slip-gaji/${s.id}/pdf`}>
-                    <Download className="size-4" /> Unduh PDF
-                  </a>
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button asChild variant="outline" size="sm" className="min-h-11">
+                    <Link href={`/slip-gaji/${s.id}`}>
+                      <Eye className="size-4" /> Lihat
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" size="sm" className="min-h-11" aria-label={`Unduh PDF ${monthLabel(p.bulan)} ${p.tahun}`}>
+                    <a href={`/slip-gaji/${s.id}/pdf`}>
+                      <Download className="size-4" /> PDF
+                    </a>
+                  </Button>
+                </div>
               </li>
             );
           })}

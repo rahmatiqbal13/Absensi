@@ -17,6 +17,8 @@ export type ScheduleLite = {
   potongTerlambat: boolean;
 };
 
+export const ALPA_NOT_DEDUCTED_NOTE = "alpa tidak dipotong";
+
 export type RincianHarianEntry = {
   tanggal: string;
   jenis: "kerja" | "alpa" | "cuti" | "luar_kantor";
@@ -47,8 +49,17 @@ export function dayDeduction(params: {
   schedule: ScheduleLite;
   dailyWage: number;
   leave: LeaveCoverage;
+  /**
+   * Deduct a day's wage for alpa. Off by default (company pays full salary);
+   * the day is still recorded as alpa on the payslip either way.
+   */
+  potongAlpa?: boolean;
 }): RincianHarianEntry {
-  const { tanggal, attendanceRow, schedule, dailyWage, leave } = params;
+  const { tanggal, attendanceRow, schedule, dailyWage, leave, potongAlpa = false } = params;
+  const alpa = (): RincianHarianEntry =>
+    potongAlpa
+      ? { ...entry, jenis: "alpa", status: "alpa", potongan: dailyWage }
+      : { ...entry, jenis: "alpa", status: "alpa", potongan: 0, catatan: ALPA_NOT_DEDUCTED_NOTE };
 
   const entry: RincianHarianEntry = {
     tanggal,
@@ -62,15 +73,11 @@ export function dayDeduction(params: {
   if (leave.covered) {
     return { ...entry, jenis: "cuti", status: null, catatan: `cuti_${leave.jenis}` };
   }
-  if (attendanceRow === null) {
-    return { ...entry, jenis: "alpa", status: "alpa", potongan: dailyWage };
-  }
+  if (attendanceRow === null) return alpa();
   if (attendanceRow.status === "di_luar_lokasi") {
     return { ...entry, jenis: "luar_kantor", potongan: 0 };
   }
-  if (attendanceRow.status === "alpa") {
-    return { ...entry, jenis: "alpa", potongan: dailyWage };
-  }
+  if (attendanceRow.status === "alpa") return alpa();
 
   const workMinutes = scheduleMinutes(schedule.jamPulang) - scheduleMinutes(schedule.jamMasuk);
   const lateThreshold = scheduleMinutes(schedule.jamMasuk) + schedule.toleransiMenit;
