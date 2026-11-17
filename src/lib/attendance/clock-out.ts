@@ -3,6 +3,7 @@ import { geofenceState, isGeofenceConfigured } from "./geofencing";
 import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { loadOfficeLocation } from "./office-location";
 import { resolveClockOutStatus, mergeAttendanceStatus, type AttendanceStatus } from "./status";
 
 // PostgREST's "no rows returned" code, surfaced as PostgrestError.code when a
@@ -99,6 +100,9 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     return { ok: false, error: "Jadwal kerja cabang tidak ditemukan." };
   }
 
+  // The department's own pin when it has one, else the branch's (0037).
+  const office = await loadOfficeLocation(db, branch, employee.branch_id, employee.department_id);
+
   // A scanned kiosk QR is an admin-enabled alternative to the GPS geofence. When
   // one is presented and the branch has QR enabled, it must verify or the
   // clock-out is rejected outright — it never falls through to the GPS path.
@@ -128,10 +132,10 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
   // Absent coords only reach here on the QR path (the action rejects a coordless
   // GPS clock-out). Treat as "no fix": a verified QR already proves presence.
   const geo = hasCoords
-    ? geofenceState(input.lat as number, input.long as number, branch, branch.radius_geofencing_meter)
+    ? geofenceState(input.lat as number, input.long as number, office, office.radius_geofencing_meter)
     : // No fix: the branch geofence may still be configured, so a non-QR
       // clock-out here must still be gated on a reason (not silently allowed).
-      { configured: isGeofenceConfigured(branch), distanceMeters: null, withinRadius: false };
+      { configured: isGeofenceConfigured(office), distanceMeters: null, withinRadius: false };
   // A verified QR proves presence; the geofence and its reason gate are skipped.
   const withinRadius = qrVerified ? true : geo.withinRadius;
 

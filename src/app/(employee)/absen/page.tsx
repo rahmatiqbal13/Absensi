@@ -4,6 +4,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { loadOfficeLocation } from "@/lib/attendance/office-location";
 import { ClockPanel, type TodaysAttendance } from "./clock-panel";
 import { submitClockIn, submitClockOut } from "./actions";
 
@@ -25,6 +26,10 @@ export default async function AbsenPage() {
     .eq("id", employee.branchId)
     .single();
   if (branchErr) console.error("absen: branch query failed", branchErr);
+  // Department pin when the employee's department has one, else the branch's.
+  const office = branch
+    ? await loadOfficeLocation(db, branch, employee.branchId, employee.departmentId)
+    : null;
 
   // Separate query so a pre-migration project (no qr_enabled column) still
   // renders the GPS flow instead of erroring the whole branch lookup.
@@ -86,9 +91,9 @@ export default async function AbsenPage() {
       <ClockPanel
         todaysAttendance={todaysAttendance}
         office={{
-          lat: branch?.lat ?? 0,
-          long: branch?.long ?? 0,
-          radius: branch?.radius_geofencing_meter ?? 100,
+          lat: office?.lat ?? 0,
+          long: office?.long ?? 0,
+          radius: office?.radius_geofencing_meter ?? 100,
         }}
         shift={
           schedule
