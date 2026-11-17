@@ -15,14 +15,21 @@ export default function SetPasswordPage() {
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
     async function establish() {
-      // Implicit flow: tokens in the URL hash. PKCE flow: ?code= in the query.
+      // Own-domain invite link: ?t=<hashed_token>. Legacy Supabase /verify
+      // links land with tokens in the hash (implicit) or ?code= (PKCE).
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const search = new URLSearchParams(window.location.search);
       const access_token = hash.get("access_token");
       const refresh_token = hash.get("refresh_token");
       const code = search.get("code");
+      const tokenHash = search.get("t");
       try {
-        if (access_token && refresh_token) {
+        if (tokenHash) {
+          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "invite" });
+          if (error) throw error;
+          // Drop the one-time token from the address bar / history.
+          window.history.replaceState(null, "", window.location.pathname);
+        } else if (access_token && refresh_token) {
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
           if (error) throw error;
         } else if (code) {

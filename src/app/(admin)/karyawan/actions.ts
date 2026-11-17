@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { validateEmployeeInput } from "@/lib/employees/employee-form";
@@ -39,6 +40,15 @@ function formRecord(formData: FormData): Record<string, FormDataEntryValue | nul
   return rec;
 }
 
+async function requestOrigin(): Promise<string | undefined> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return undefined;
+  const proto =
+    h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 export async function createEmployee(
   formData: FormData,
 ): Promise<Result<{ setPasswordUrl: string }>> {
@@ -63,6 +73,7 @@ export async function createEmployee(
       designatedApproverId: parsed.value.designatedApproverId,
     },
     createServiceRoleSupabaseClient(),
+    await requestOrigin(),
   );
   if (!result.ok) {
     console.error("createEmployee: invite failed", result.error);

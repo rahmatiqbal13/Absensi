@@ -25,7 +25,7 @@ function makeDb(opts: { linkError?: string; insertError?: string; deleteError?: 
       : {
           data: {
             user: { id: "auth-user-1" },
-            properties: { action_link: `${APP_URL}/set-password#access_token=xyz` },
+            properties: { action_link: "https://x.supabase.co/auth/v1/verify?token=abc", hashed_token: "abc123" },
           },
           error: null,
         },
@@ -55,7 +55,7 @@ describe("inviteEmployee", () => {
     expect(result).toEqual({
       ok: true,
       employeeId: "auth-user-1",
-      setPasswordUrl: `${APP_URL}/set-password#access_token=xyz`,
+      setPasswordUrl: `${APP_URL}/set-password?t=abc123`,
     });
     expect(db._generateLink).toHaveBeenCalledWith(
       expect.objectContaining({ type: "invite", email: "sari@contoh.co.id" }),

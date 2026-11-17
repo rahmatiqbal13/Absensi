@@ -19,13 +19,20 @@ export type InviteEmployeeResult =
   | { ok: true; employeeId: string; setPasswordUrl: string }
   | { ok: false; error: string };
 
-function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// Explicit NEXT_PUBLIC_APP_URL wins; otherwise use the origin of the request
+// that triggered the invite, so a deployed app never emits localhost links.
+function appUrl(requestOrigin?: string): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ||
+    requestOrigin ||
+    "http://localhost:3000"
+  );
 }
 
 export async function inviteEmployee(
   input: InviteEmployeeInput,
   db: SupabaseClient, // service-role
+  requestOrigin?: string,
 ): Promise<InviteEmployeeResult> {
   if (
     (input.role === "hr_admin" || input.role === "super_admin") &&
@@ -40,11 +47,11 @@ export async function inviteEmployee(
   const { data: linkData, error: linkErr } = await db.auth.admin.generateLink({
     type: "invite",
     email: input.email,
-    options: { redirectTo: `${appUrl()}/set-password` },
+    options: { redirectTo: `${appUrl(requestOrigin)}/set-password` },
   });
   const authUserId = linkData?.user?.id;
-  const actionLink = linkData?.properties?.action_link;
-  if (linkErr || !authUserId || !actionLink) {
+  const tokenHash = linkData?.properties?.hashed_token;
+  if (linkErr || !authUserId || !tokenHash) {
     console.error("inviteEmployee: generateLink failed", linkErr);
     return { ok: false, error: "Gagal membuat akun karyawan." };
   }
@@ -80,5 +87,10 @@ export async function inviteEmployee(
     return { ok: false, error: "Gagal menyimpan data karyawan." };
   }
 
-  return { ok: true, employeeId: employee.id, setPasswordUrl: actionLink };
+  // Link on our own domain instead of Supabase's /auth/v1/verify action_link:
+  // shorter, independent of the Supabase redirect allowlist, and the token is
+  // only redeemed by JS on the page — chat-app link previews (which fetch the
+  // URL but don't run JS) can't burn it the way they burn a /verify link.
+  const setPasswordUrl = `${appUrl(requestOrigin)}/set-password?t=${encodeURIComponent(tokenHash)}`;
+  return { ok: true, employeeId: employee.id, setPasswordUrl };
 }
