@@ -12,6 +12,13 @@ vi.mock("@/lib/auth/password-reset", () => ({
   sendPasswordResetEmail: (...a: unknown[]) => sendPasswordResetEmail(...a),
 }));
 
+const withinRateLimit = vi.fn();
+vi.mock("@/lib/security/rate-limit", () => ({
+  clientIp: async () => "9.9.9.9",
+  withinRateLimit: (...a: unknown[]) => withinRateLimit(...a),
+  RATE_LIMITED_MESSAGE: "Terlalu banyak percobaan.",
+}));
+
 import { requestPasswordReset } from "./actions";
 
 function fd(email: string) {
@@ -24,6 +31,8 @@ beforeEach(() => {
   createRecoveryLink.mockReset();
   sendPasswordResetEmail.mockReset();
   sendPasswordResetEmail.mockResolvedValue({ sent: true });
+  withinRateLimit.mockReset();
+  withinRateLimit.mockResolvedValue(true);
 });
 
 describe("requestPasswordReset", () => {
@@ -42,6 +51,13 @@ describe("requestPasswordReset", () => {
 
   it("rejects a malformed email before touching the database", async () => {
     await expect(requestPasswordReset(fd("bukan-email"))).rejects.toThrow(/REDIRECT:\/lupa-password\?error=/);
+    expect(createRecoveryLink).not.toHaveBeenCalled();
+  });
+
+  it("stops an IP that sends too many requests, before creating any link", async () => {
+    withinRateLimit.mockResolvedValue(false);
+    await expect(requestPasswordReset(fd("a@b.id"))).rejects.toThrow(/REDIRECT:\/lupa-password\?error=Terlalu/);
+    expect(withinRateLimit).toHaveBeenCalledWith({}, [{ key: "reset:ip:9.9.9.9", max: 5, windowSeconds: 900 }]);
     expect(createRecoveryLink).not.toHaveBeenCalled();
   });
 });

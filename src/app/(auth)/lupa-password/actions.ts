@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { createRecoveryLink, sendPasswordResetEmail } from "@/lib/auth/password-reset";
+import { clientIp, RATE_LIMITED_MESSAGE, withinRateLimit } from "@/lib/security/rate-limit";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,7 +18,15 @@ export async function requestPasswordReset(formData: FormData) {
     redirect("/lupa-password?error=" + encodeURIComponent("Format email tidak valid."));
   }
 
-  const result = await createRecoveryLink(createServiceRoleSupabaseClient(), { email }, { throttle: true });
+  const service = createServiceRoleSupabaseClient();
+  // The per-account throttle lives in createRecoveryLink; this caps one IP
+  // spraying many addresses (each would get an email).
+  const allowed = await withinRateLimit(service, [
+    { key: `reset:ip:${await clientIp()}`, max: 5, windowSeconds: 15 * 60 },
+  ]);
+  if (!allowed) redirect("/lupa-password?error=" + encodeURIComponent(RATE_LIMITED_MESSAGE));
+
+  const result = await createRecoveryLink(service, { email }, { throttle: true });
   if (result.ok) {
     const sent = await sendPasswordResetEmail(result, result.url).catch((e) => {
       console.error("requestPasswordReset: email send threw", e);

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { BrandStyle } from "@/components/brand-style";
@@ -21,6 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: s.namaInstansi, template: `%s · ${s.namaInstansi}` },
     description: s.tagline ?? "Sistem absensi, cuti, dan payroll karyawan",
+    // iOS home-screen install (Safari ignores most of the web manifest).
+    appleWebApp: { capable: true, title: s.namaSingkat, statusBarStyle: "default" },
     // Product mark by default; an uploaded instansi logo (Pengaturan → Instansi)
     // replaces the tab icon. Kept here, not as app/icon.* files, because file
     // conventions would override this per-tenant choice.
@@ -35,6 +37,13 @@ export async function generateMetadata(): Promise<Metadata> {
         },
   };
 }
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3f4fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0d2b" },
+  ],
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
