@@ -28,6 +28,19 @@ export type PendingLeaveRequest = {
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 const JENIS_LABELS = LEAVE_JENIS_LABELS;
+// Dot colour per leave type, so the inbox can be scanned by kind.
+const JENIS_DOT: Record<string, string> = {
+  tahunan: "bg-brand",
+  sakit: "bg-[#E0621A]",
+  menikah: "bg-[#D6409F]",
+  menikahkan_anak: "bg-[#D6409F]",
+  melahirkan: "bg-leave-solid",
+  istri_melahirkan_keguguran: "bg-leave-solid",
+  keguguran: "bg-leave-solid",
+  khitan_baptis_anak: "bg-info-solid",
+  kematian_keluarga_inti: "bg-muted-foreground",
+  kematian_keluarga_serumah: "bg-muted-foreground",
+};
 const formatRange = formatLeaveRange;
 
 // Inclusive calendar-day count — only a fallback when the server-computed
@@ -149,7 +162,13 @@ export function ApprovalList({
                 )}
               >
                 <span className="flex justify-between gap-2.5">
-                  <span className="text-[0.95rem] font-semibold">{r.employeeName}</span>
+                  <span className="flex items-center gap-2.5 text-[0.95rem] font-semibold">
+                    <span
+                      aria-hidden="true"
+                      className={cn("size-[9px] shrink-0 rounded-full", JENIS_DOT[r.jenis] ?? "bg-muted-foreground")}
+                    />
+                    {r.employeeName}
+                  </span>
                   <span className="flex items-center gap-2">
                     {r.review && r.review.clashes.length > 0 && (
                       <span className="rounded-full bg-warning px-2 py-0.5 text-[0.7rem] font-semibold text-warning-foreground">

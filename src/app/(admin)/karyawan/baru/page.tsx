@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { CreateEmployeeForm } from "./create-employee-form";
 import { createEmployee } from "../actions";
 
@@ -32,16 +31,12 @@ export default async function KaryawanBaruPage() {
         title="Tambah Karyawan"
         description="Buat akun, lalu kirim link set-password ke karyawan."
       />
-      <Card>
-        <CardContent>
-          <CreateEmployeeForm
+      <CreateEmployeeForm
             branches={branches ?? []}
             departments={departments ?? []}
             approverOptions={approvers ?? []}
             createEmployee={createEmployee}
           />
-        </CardContent>
-      </Card>
     </div>
   );
 }

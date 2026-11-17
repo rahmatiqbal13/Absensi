@@ -42,6 +42,12 @@ export function ScheduleForm({
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const days = new Set(defaults?.hariKerja ?? [1, 2, 3, 4, 5]);
+  // Live copy of the inputs, only for the week preview below.
+  const [preview, setPreview] = useState({
+    masuk: defaults?.jamMasuk ?? "09:00",
+    pulang: defaults?.jamPulang ?? "17:00",
+    days: [...days],
+  });
 
   async function action(fd: FormData) {
     setError(null);
@@ -63,10 +69,10 @@ export function ScheduleForm({
     <form action={action} className="flex flex-col gap-5.5">
       <div className="flex flex-wrap items-end gap-4">
         <Field id={`jamMasuk-${key}`} label="Jam Masuk">
-          <Input name="jamMasuk" type="time" defaultValue={defaults?.jamMasuk ?? "09:00"} className="h-11.5 w-38 font-mono" />
+          <Input name="jamMasuk" type="time" defaultValue={defaults?.jamMasuk ?? "09:00"} onChange={(e) => setPreview((p) => ({ ...p, masuk: e.target.value }))} className="h-11.5 w-38 font-mono" />
         </Field>
         <Field id={`jamPulang-${key}`} label="Jam Pulang">
-          <Input name="jamPulang" type="time" defaultValue={defaults?.jamPulang ?? "17:00"} className="h-11.5 w-38 font-mono" />
+          <Input name="jamPulang" type="time" defaultValue={defaults?.jamPulang ?? "17:00"} onChange={(e) => setPreview((p) => ({ ...p, pulang: e.target.value }))} className="h-11.5 w-38 font-mono" />
         </Field>
         <Field id={`toleransiMenit-${key}`} label="Toleransi (menit)">
           <Input name="toleransiMenit" type="number" min="0" defaultValue={defaults?.toleransiMenit ?? 15} className="h-11.5 w-28 font-mono" />
@@ -82,6 +88,12 @@ export function ScheduleForm({
                 name="hariKerja"
                 value={d.v}
                 defaultChecked={days.has(d.v)}
+                onChange={(e) =>
+                  setPreview((p) => ({
+                    ...p,
+                    days: e.target.checked ? [...p.days, d.v] : p.days.filter((x) => x !== d.v),
+                  }))
+                }
                 className="peer sr-only"
               />
               <span className="grid h-13 cursor-pointer place-items-center rounded-[10px] bg-muted text-sm font-semibold text-muted-foreground transition-colors select-none peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-brand/40">
@@ -91,6 +103,7 @@ export function ScheduleForm({
           ))}
         </div>
       </fieldset>
+      <WeekPreview masuk={preview.masuk} pulang={preview.pulang} days={preview.days} />
       <label className="flex cursor-pointer items-start gap-3.5 rounded-xl bg-background p-4">
         <span className="relative mt-0.5 inline-flex shrink-0">
           <input
@@ -154,5 +167,51 @@ export function ScheduleForm({
         {extraActions}
       </div>
     </form>
+  );
+}
+
+// 06:00–20:00 window, one bar per day showing the working hours.
+const PREVIEW_START = 6;
+const PREVIEW_SPAN = 14;
+function toHours(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (Number.isFinite(h) ? h : 0) + (Number.isFinite(m) ? m : 0) / 60;
+}
+
+function WeekPreview({ masuk, pulang, days }: { masuk: string; pulang: string; days: number[] }) {
+  const start = toHours(masuk);
+  const end = toHours(pulang);
+  const left = Math.min(100, Math.max(0, ((start - PREVIEW_START) / PREVIEW_SPAN) * 100));
+  const width = Math.max(0, Math.min(100 - left, ((end - start) / PREVIEW_SPAN) * 100));
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[0.8rem] font-semibold text-foreground">Pratinjau minggu</span>
+      <div aria-hidden="true" className="flex max-w-[560px] flex-col gap-1">
+        {DAYS_MON_FIRST.map((d) => (
+          <div key={d.v} className="grid grid-cols-[40px_1fr] items-center gap-2.5">
+            <span className="font-mono text-[0.72rem] text-muted-foreground">{d.label}</span>
+            <span className="relative h-3 rounded-[3px] bg-muted">
+              {days.includes(d.v) && (
+                <span
+                  className="absolute inset-y-0 rounded-[3px] bg-brand"
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                />
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      <span
+        aria-hidden="true"
+        className="flex max-w-[560px] justify-between pl-[50px] font-mono text-[0.7rem] text-muted-foreground"
+      >
+        <span>06</span>
+        <span>13</span>
+        <span>20</span>
+      </span>
+      <span className="sr-only">
+        {days.length} hari kerja, {masuk}–{pulang}
+      </span>
+    </div>
   );
 }

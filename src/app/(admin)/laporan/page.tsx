@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { loadRecap } from "@/lib/laporan/load-recap";
+import type { RecapRow } from "@/lib/laporan/attendance-recap";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
 import { PageHeader } from "@/components/page-header";
 import { ResponsiveTable } from "@/components/responsive-table";
@@ -102,6 +103,30 @@ export default async function LaporanPage({
       )
     : null;
 
+  // Attendance rate = days actually present ÷ scheduled days not on leave.
+  const presentDays = (r: RecapRow) => r.hadir + r.terlambat + r.pulangCepat + r.diLuarLokasi + r.lain;
+  const rateOf = (r: RecapRow) => {
+    const expected = r.hariKerjaEfektif - r.cuti;
+    return expected > 0 ? Math.round((presentDays(r) / expected) * 100) : null;
+  };
+  const summary = recap.ok && totals
+    ? (() => {
+        const expected = recap.rows.reduce((a, r) => a + Math.max(0, r.hariKerjaEfektif - r.cuti), 0);
+        const present = recap.rows.reduce((a, r) => a + presentDays(r), 0);
+        const hariKerja = recap.rows.reduce((m, r) => Math.max(m, r.hariKerjaEfektif), 0);
+        return [
+          { label: "Hari kerja", value: String(hariKerja), tone: "text-foreground" },
+          {
+            label: "Rata-rata hadir",
+            value: expected > 0 ? `${Math.round((present / expected) * 100)}%` : "—",
+            tone: "text-success-foreground",
+          },
+          { label: "Menit terlambat", value: totals.menit.toLocaleString("id-ID"), tone: "text-warning-foreground" },
+          { label: "Alpa", value: String(totals.alpa), tone: "text-destructive" },
+        ];
+      })()
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -138,6 +163,19 @@ export default async function LaporanPage({
         </Alert>
       )}
 
+      {summary && (
+        <dl className="grid grid-cols-2 border-t border-foreground border-b border-b-border sm:grid-cols-4">
+          {summary.map((m) => (
+            <div key={m.label} className="flex flex-col gap-1 px-1 py-4">
+              <dt className="text-[0.8rem] text-muted-foreground">{m.label}</dt>
+              <dd className={`text-[2.1rem] leading-none font-semibold tracking-[-0.03em] tabular-nums ${m.tone}`}>
+                {m.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {recap.ok && (
         <ResponsiveTable
           caption="Rekap kehadiran per karyawan"
@@ -157,6 +195,26 @@ export default async function LaporanPage({
             { key: "cuti", header: "Cuti", align: "right", cell: (r) => r.cuti, mobileLabel: "Cuti" },
             { key: "menit", header: "Menit Terlambat", align: "right", cell: (r) => r.totalMenitTerlambat, mobileLabel: "Menit Terlambat" },
             { key: "lembur", header: "Menit Lembur", align: "right", cell: (r) => r.menitLembur, mobileLabel: "Menit Lembur" },
+            {
+              key: "rate",
+              header: "Kehadiran",
+              mobileLabel: "Kehadiran",
+              cell: (r) => {
+                const pct = rateOf(r);
+                if (pct == null) return <span className="text-muted-foreground">—</span>;
+                return (
+                  <span className="flex min-w-[140px] items-center gap-2.5">
+                    <span className="block h-1.5 flex-1 overflow-hidden rounded-[3px] bg-muted">
+                      <span
+                        className={`block h-full ${pct < 90 ? "bg-warning-solid" : "bg-foreground"}`}
+                        style={{ width: `${Math.min(100, pct)}%` }}
+                      />
+                    </span>
+                    <span className="w-10 text-right font-mono text-[0.78rem] tabular-nums">{pct}%</span>
+                  </span>
+                );
+              },
+            },
           ]}
           rows={recap.rows}
           rowKey={(r) => r.employeeId}
@@ -177,6 +235,7 @@ export default async function LaporanPage({
                 <TableCell className="text-right tabular-nums">{totals.cuti}</TableCell>
                 <TableCell className="text-right tabular-nums">{totals.menit}</TableCell>
                 <TableCell className="text-right tabular-nums">{totals.lembur}</TableCell>
+                <TableCell />
               </>
             ) : undefined
           }

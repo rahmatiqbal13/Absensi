@@ -12,6 +12,15 @@ const ROLE_LABEL: Record<string, string> = {
   karyawan: "Karyawan", atasan: "Atasan", hr_admin: "HR Admin", super_admin: "Super Admin",
 };
 
+function initialsOf(nama: string): string {
+  return nama
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+}
+
 export default async function ProfilPage() {
   const db = await createServerSupabaseClient();
   const me = await getCurrentEmployee(db);
@@ -43,19 +52,38 @@ export default async function ProfilPage() {
       <PageHeader
         eyebrow="Akun" title="Profil" description="Data diri dan pengaturan akun Anda." />
 
+      <section className="flex items-center gap-4 rounded-[18px] bg-primary p-5 text-primary-foreground">
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
+          <img src={photoUrl} alt="" className="size-16 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="grid size-16 shrink-0 place-items-center rounded-full bg-[#C4B5FD] text-xl font-semibold text-[#14162E]"
+          >
+            {initialsOf(row?.nama ?? me.nama)}
+          </span>
+        )}
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="truncate text-xl font-semibold">{row?.nama ?? me.nama}</span>
+          <span className="truncate text-sm text-primary-foreground/80">
+            {[row?.jabatan, branchNama !== "-" ? branchNama : null].filter(Boolean).join(" · ") || "-"}
+          </span>
+          <span className="mt-1 self-start rounded-full bg-info px-2.5 py-0.5 text-xs font-semibold text-info-foreground">
+            {ROLE_LABEL[row?.role ?? me.role] ?? "-"}
+          </span>
+        </div>
+      </section>
+
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3 rounded-xl border border-border bg-card p-4 text-sm">
         {[
-          ["Nama", row?.nama ?? me.nama],
           ["Email", me.email],
-          ["Jabatan", row?.jabatan ?? "-"],
-          ["Cabang", branchNama],
           ["Departemen", deptNama],
-          ["Peran", ROLE_LABEL[row?.role ?? me.role] ?? "-"],
           ["Mulai Kerja", row?.tanggal_mulai_kerja ?? "-"],
         ].map(([k, v]) => (
           <div key={k} className="contents">
             <dt className="text-muted-foreground">{k}</dt>
-            <dd className="col-span-2 text-foreground">{v}</dd>
+            <dd className="col-span-2 break-words text-foreground">{v}</dd>
           </div>
         ))}
       </dl>
