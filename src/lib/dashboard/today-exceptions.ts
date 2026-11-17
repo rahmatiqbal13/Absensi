@@ -56,7 +56,7 @@ export async function getTodayExceptions(
     .eq("status", "aktif");
   if (branchId) employeeQuery = employeeQuery.eq("branch_id", branchId);
 
-  let attendanceQuery = branchId
+  const attendanceQuery = branchId
     ? db
         .from("attendances")
         .select("employee_id, status, employees!inner(branch_id)")

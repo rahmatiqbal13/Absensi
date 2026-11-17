@@ -138,6 +138,7 @@ export function InstansiForm({
             <div>
               <p className="mb-2 text-sm font-medium text-foreground">Logo</p>
               {defaults.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- user-uploaded logo from storage; a 64px preview needs no optimizer
                 <img src={defaults.logoUrl} alt="Logo saat ini" className="mb-2 h-16 w-16 rounded object-contain" />
               )}
               <form action={onLogo} className="space-y-2">

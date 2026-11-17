@@ -20,20 +20,21 @@ export type InviteEmployeeResult =
   | { ok: true; employeeId: string; setPasswordUrl: string }
   | { ok: false; error: string };
 
-// Explicit NEXT_PUBLIC_APP_URL wins; otherwise use the origin of the request
-// that triggered the invite, so a deployed app never emits localhost links.
-function appUrl(requestOrigin?: string): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ||
-    requestOrigin ||
-    "http://localhost:3000"
-  );
+// The invite link must point at a fixed, configured origin — never one taken
+// from request headers (Host / X-Forwarded-Host can be spoofed). Explicit
+// NEXT_PUBLIC_APP_URL wins; on Vercel the production domain is the fallback so
+// a deployed app never emits localhost links.
+export function appUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+  if (explicit) return explicit;
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercelProd) return `https://${vercelProd}`;
+  return "http://localhost:3000";
 }
 
 export async function inviteEmployee(
   input: InviteEmployeeInput,
   db: SupabaseClient, // service-role
-  requestOrigin?: string,
 ): Promise<InviteEmployeeResult> {
   if (
     (input.role === "hr_admin" || input.role === "super_admin") &&
@@ -48,7 +49,7 @@ export async function inviteEmployee(
   const { data: linkData, error: linkErr } = await db.auth.admin.generateLink({
     type: "invite",
     email: input.email,
-    options: { redirectTo: `${appUrl(requestOrigin)}/set-password` },
+    options: { redirectTo: `${appUrl()}/set-password` },
   });
   const authUserId = linkData?.user?.id;
   const tokenHash = linkData?.properties?.hashed_token;
@@ -93,6 +94,6 @@ export async function inviteEmployee(
   // shorter, independent of the Supabase redirect allowlist, and the token is
   // only redeemed by JS on the page — chat-app link previews (which fetch the
   // URL but don't run JS) can't burn it the way they burn a /verify link.
-  const setPasswordUrl = `${appUrl(requestOrigin)}/set-password?t=${encodeURIComponent(tokenHash)}`;
+  const setPasswordUrl = `${appUrl()}/set-password?t=${encodeURIComponent(tokenHash)}`;
   return { ok: true, employeeId: employee.id, setPasswordUrl };
 }

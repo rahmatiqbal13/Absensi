@@ -28,6 +28,7 @@ export function RecapDocument({ data }: { data: RecapDocData }) {
     <Document>
       <Page size="A4" style={styles.page} orientation="landscape">
         <View style={styles.header}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop */}
           {data.orgLogoUrl ? <Image src={data.orgLogoUrl} style={styles.headerLogo} /> : null}
           <Text style={styles.headerName}>{data.orgNama}</Text>
         </View>

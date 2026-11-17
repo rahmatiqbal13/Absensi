@@ -117,6 +117,7 @@ export function PayslipDocument({
       <Page size="A4" style={s.page}>
         <View style={s.head}>
           <View style={s.org}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop */}
             {org.logoUrl ? <Image src={org.logoUrl} style={s.logo} /> : null}
             <View>
               <Text style={s.orgName}>{org.nama}</Text>

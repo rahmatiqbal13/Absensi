@@ -17,12 +17,12 @@ export async function runSeed() {
   const db = createServiceRoleSupabaseClient();
 
   // Get all "Kantor Pusat" branches, preferring those with existing super_admins
-  let { data: allBranches } = await db
+  const { data: allBranches } = await db
     .from("branches")
     .select("*")
     .eq("nama", "Kantor Pusat");
 
-  let branch: any = null;
+  let branch: { id: string } | null = null;
 
   // First, try to find a branch that already has 2 super_admins
   if (allBranches && allBranches.length > 0) {
@@ -110,7 +110,6 @@ export async function runSeed() {
     }
 
     // Try to create auth user
-    let userId: string;
     const { data: authUser, error: authError } = await db.auth.admin.createUser({
       email: seed.email,
       password: seedPassword,
@@ -133,7 +132,7 @@ export async function runSeed() {
       }
     }
 
-    userId = authUser!.user!.id;
+    const userId = authUser!.user!.id;
 
     const { data: employee, error: insertError } = await db
       .from("employees")
