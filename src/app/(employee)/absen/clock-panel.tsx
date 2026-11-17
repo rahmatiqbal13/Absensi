@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, QrCode, MapPin } from "lucide-react";
 import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
@@ -16,6 +16,7 @@ import { formatClockTime } from "./today-timeline";
 import { ShiftRibbon } from "./shift-ribbon";
 import { HoldButton } from "./hold-button";
 import { jakartaClock, useNow } from "@/lib/time/use-now";
+import { compressPhoto, needsCompression } from "@/lib/attendance/compress-photo";
 
 export type TodaysAttendance = {
   jamMasuk: string;
@@ -32,7 +33,20 @@ type GeoSummary = {
   configured: boolean;
   withinRadius: boolean;
   hasFix: boolean;
+  fix?: GeoFix | null;
 };
+
+type GeoFix = { lat: number; lng: number; accuracy: number | null; at: number };
+
+/** A watched fix this recent is used as-is; GPS on a moving phone keeps updating it. */
+const FRESH_FIX_MS = 60_000;
+/** If a fresh request fails, a fix up to this old is still a fair position. */
+const STALE_FIX_MS = 5 * 60_000;
+
+const LOCATION_ERROR = "Gagal mengambil lokasi. Pastikan GPS aktif dan izin lokasi diberikan.";
+const SUBMIT_ERROR = "Gagal mengirim absensi. Periksa koneksi internet, lalu coba lagi.";
+
+class LocationError extends Error {}
 
 /** Time from `startIso` to `endIso` (or now) as "3j 20m" (hours dropped when 0, e.g. "12m"). */
 function computeDuration(startIso: string, endIso: string | null): string {
@@ -50,8 +64,35 @@ const OUT_OF_RADIUS_MESSAGE = "Anda berada di luar radius kantor. Wajib isi cata
 
 function getPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTS);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      reject(new LocationError("unsupported"));
+      return;
+    }
+    // Accept a cached fix up to a minute old and allow a slower cold start than
+    // the live watch: this runs only when the watch has nothing recent.
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      ...GEO_OPTS,
+      maximumAge: FRESH_FIX_MS,
+      timeout: 20_000,
+    });
   });
+}
+
+/**
+ * Position for a submit. Prefers the fix the map is already showing (a second
+ * high-accuracy request while the watch runs often times out on a moving
+ * phone); falls back to a fresh request, then to a slightly older watched fix.
+ */
+async function resolvePosition(last: GeoFix | null | undefined): Promise<{ lat: number; lng: number }> {
+  const now = Date.now();
+  if (last && now - last.at <= FRESH_FIX_MS) return { lat: last.lat, lng: last.lng };
+  try {
+    const p = await getPosition();
+    return { lat: p.coords.latitude, lng: p.coords.longitude };
+  } catch {
+    if (last && Date.now() - last.at <= STALE_FIX_MS) return { lat: last.lat, lng: last.lng };
+    throw new LocationError("no fix");
+  }
 }
 
 export function ClockPanel({
@@ -92,7 +133,26 @@ export function ClockPanel({
   // it — the handler MUST be referentially stable or the panel re-runs its
   // effect forever. `setGeo` from useState is already stable; wrapping it in a
   // `useCallback(_, [])` keeps that guarantee explicit.
-  const onGeoChange = useCallback((next: GeoSummary) => setGeo(next), []);
+  const lastFix = useRef<GeoFix | null>(null);
+  const onGeoChange = useCallback((next: GeoSummary) => {
+    if (next.fix) lastFix.current = next.fix;
+    setGeo(next);
+  }, []);
+
+  // Compress the selfie as soon as it is taken, so the upload is small.
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const onPhotoChange = useCallback(async (file: File | null) => {
+    if (!file || !needsCompression(file)) {
+      setPhoto(file);
+      return;
+    }
+    setPreparingPhoto(true);
+    try {
+      setPhoto(await compressPhoto(file));
+    } finally {
+      setPreparingPhoto(false);
+    }
+  }, []);
 
   const done = Boolean(todaysAttendance?.jamPulang);
   const clockedIn = !done && Boolean(todaysAttendance?.jamMasuk);
@@ -121,9 +181,12 @@ export function ClockPanel({
 
   const submitDisabled =
     submitting ||
+    preparingPhoto ||
     !photo ||
     (scanning ? !qrPayload : reasonRequired && !reason.trim());
-  const disabledHint = !photo
+  const disabledHint = preparingPhoto
+    ? "Menyiapkan foto…"
+    : !photo
     ? "Ambil foto selfie dulu."
     : scanning && !qrPayload
       ? "Scan QR di layar kantor dulu."
@@ -146,16 +209,16 @@ export function ClockPanel({
         // Best effort — a coarse fix is still worth recording, but never block
         // the QR path on it.
         try {
-          const position = await getPosition();
-          formData.set("lat", String(position.coords.latitude));
-          formData.set("long", String(position.coords.longitude));
+          const position = await resolvePosition(lastFix.current);
+          formData.set("lat", String(position.lat));
+          formData.set("long", String(position.lng));
         } catch {
           /* GPS is optional on the QR path */
         }
       } else {
-        const position = await getPosition();
-        formData.set("lat", String(position.coords.latitude));
-        formData.set("long", String(position.coords.longitude));
+        const position = await resolvePosition(lastFix.current);
+        formData.set("lat", String(position.lat));
+        formData.set("long", String(position.lng));
       }
       if (photo) formData.set("photo", photo);
       const catatan = reason.trim();
@@ -178,8 +241,15 @@ export function ClockPanel({
         // (clocked-in / done) immediately, alongside the action's revalidatePath.
         router.refresh();
       }
-    } catch {
-      setError("Gagal mengambil lokasi. Pastikan GPS aktif dan izin lokasi diberikan.");
+    } catch (e) {
+      // Only a GPS failure is a location problem. Anything else thrown here is
+      // the request itself failing (offline, upload too large, server error).
+      if (e instanceof LocationError) {
+        setError(LOCATION_ERROR);
+      } else {
+        console.error("clock submit failed", e);
+        setError(SUBMIT_ERROR);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -296,7 +366,7 @@ export function ClockPanel({
         <ProximityPanel office={office} onGeoChange={onGeoChange} />
       )}
 
-      <PhotoCaptureButton disabled={submitting} photo={photo} onPhotoChange={setPhoto} />
+      <PhotoCaptureButton disabled={submitting || preparingPhoto} photo={photo} onPhotoChange={onPhotoChange} />
 
       {reasonRequired && (
         <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 flex flex-col gap-1.5">

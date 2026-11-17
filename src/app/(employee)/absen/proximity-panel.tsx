@@ -25,9 +25,11 @@ export function ProximityPanel({
     configured: boolean;
     withinRadius: boolean;
     hasFix: boolean;
+    /** Latest watched fix — reused at submit instead of a fresh, slow GPS request. */
+    fix?: { lat: number; lng: number; accuracy: number | null; at: number } | null;
   }) => void;
 }) {
-  const { position, accuracy, status } = useGeolocation();
+  const { position, accuracy, fixedAt, status } = useGeolocation();
 
   // `.configured` is derived once from geofenceState so the (0,0) sentinel
   // lives in exactly one place.
@@ -43,8 +45,9 @@ export function ProximityPanel({
       configured: geo.configured,
       withinRadius: geo.withinRadius,
       hasFix: position != null,
+      fix: position && fixedAt != null ? { lat: position.lat, lng: position.lng, accuracy, at: fixedAt } : null,
     });
-  }, [status, geo.configured, geo.withinRadius, position, onGeoChange]);
+  }, [status, geo.configured, geo.withinRadius, position, accuracy, fixedAt, onGeoChange]);
 
   const accuracyStatus = accuracy == null ? "neutral" : accuracy <= 30 ? "good" : accuracy <= 100 ? "warn" : "bad";
   const distanceStatus = !geo.configured ? "neutral" : geo.withinRadius ? "good" : "bad";

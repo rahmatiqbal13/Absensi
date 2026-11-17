@@ -7,6 +7,8 @@ export type GeoStatus = "prompt" | "watching" | "granted" | "denied" | "unavaila
 export type GeoReading = {
   position: { lat: number; lng: number } | null;
   accuracy: number | null;
+  /** Date.now() when the current `position` was received; null without a fix. */
+  fixedAt: number | null;
   status: GeoStatus;
   error: string | null;
   refresh: () => void;
@@ -25,6 +27,7 @@ export function useGeolocation(enabled = true): GeoReading {
   const supported = typeof navigator !== "undefined" && !!navigator.geolocation;
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [fixedAt, setFixedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<GeoStatus>(supported ? "prompt" : "unavailable");
   const [error, setError] = useState<string | null>(supported ? null : "Perangkat tidak mendukung lokasi.");
   const watchId = useRef<number | null>(null);
@@ -32,6 +35,7 @@ export function useGeolocation(enabled = true): GeoReading {
   const onOk = useCallback((p: GeolocationPosition) => {
     setPosition({ lat: p.coords.latitude, lng: p.coords.longitude });
     setAccuracy(p.coords.accuracy);
+    setFixedAt(Date.now());
     setStatus("granted");
     setError(null);
   }, []);
@@ -61,5 +65,5 @@ export function useGeolocation(enabled = true): GeoReading {
     navigator.geolocation.getCurrentPosition(onOk, onErr, OPTS);
   }, [supported, onOk, onErr]);
 
-  return { position, accuracy, status, error, refresh };
+  return { position, accuracy, fixedAt, status, error, refresh };
 }

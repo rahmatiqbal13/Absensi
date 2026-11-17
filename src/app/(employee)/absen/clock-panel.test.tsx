@@ -9,6 +9,7 @@ type GeoSummary = {
   configured: boolean;
   withinRadius: boolean;
   hasFix: boolean;
+  fix?: { lat: number; lng: number; accuracy: number | null; at: number } | null;
 };
 
 const mockRefresh = vi.fn();
@@ -237,6 +238,59 @@ describe("ClockPanel", () => {
     attachPhoto();
     fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
     expect(await screen.findByText("Anda sudah absen masuk hari ini.")).toBeInTheDocument();
+  });
+
+  describe("location at submit (moving phone)", () => {
+    // A second high-accuracy request times out while the watch is running.
+    const failingGeo = () =>
+      vi.stubGlobal("navigator", {
+        geolocation: {
+          getCurrentPosition: (_ok: PositionCallback, err: PositionErrorCallback) =>
+            err({ code: 3, message: "Timeout expired", TIMEOUT: 3 } as GeolocationPositionError),
+        },
+      });
+
+    it("uses the fix the map already shows instead of asking GPS again", async () => {
+      failingGeo();
+      renderPanel();
+      await pushGeo({ ...IN_RADIUS, fix: { lat: -6.2001, lng: 106.8002, accuracy: 10, at: Date.now() } });
+      attachPhoto();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+      await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+      const fd = mockSubmitClockIn.mock.calls[0][0] as FormData;
+      expect([fd.get("lat"), fd.get("long")]).toEqual(["-6.2001", "106.8002"]);
+    });
+
+    it("falls back to a recent-enough fix when a fresh request fails", async () => {
+      failingGeo();
+      renderPanel();
+      await pushGeo({ ...IN_RADIUS, fix: { lat: -6.2001, lng: 106.8002, accuracy: 10, at: Date.now() - 3 * 60_000 } });
+      attachPhoto();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+      await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+    });
+
+    it("reports a location problem only when there is no usable fix at all", async () => {
+      failingGeo();
+      renderPanel();
+      await pushGeo(IN_RADIUS);
+      attachPhoto();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+      expect(await screen.findByText(/gagal mengambil lokasi/i)).toBeInTheDocument();
+      expect(mockSubmitClockIn).not.toHaveBeenCalled();
+    });
+
+    it("reports a failed upload as a sending problem, not a location problem", async () => {
+      mockSubmitClockIn.mockRejectedValue(new Error("Body exceeded 1 MB limit"));
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      await pushGeo({ ...IN_RADIUS, fix: { lat: -6.2, lng: 106.8, accuracy: 10, at: Date.now() } });
+      attachPhoto();
+      fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
+      expect(await screen.findByText(/gagal mengirim absensi/i)).toBeInTheDocument();
+      expect(screen.queryByText(/gagal mengambil lokasi/i)).not.toBeInTheDocument();
+      spy.mockRestore();
+    });
   });
 
   it("clock-out flow (jamMasuk set): renders 'Absen Pulang' and the running-duration text", () => {
