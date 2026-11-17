@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { shouldDeductAlpa } from "@/lib/payroll/absence-deduction";
-import { pph21 } from "@/lib/payroll/pph21";
-import { formatRupiah } from "@/lib/format/rupiah";
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -29,16 +27,12 @@ const CHOICE_VALUE: Record<Choice, boolean | null> = { ikut: null, potong: true,
 
 export function PotonganGajiManager({
   companyDefault,
-  tarifPph21,
   employees,
   branches,
   saveCompanyPotongAlpa,
   setEmployeesPotongAlpa,
-  saveTarifPph21,
 }: {
   companyDefault: boolean;
-  tarifPph21: number;
-  saveTarifPph21: (tarifPersen: number) => Promise<Result>;
   employees: AlpaEmployee[];
   branches: { id: string; nama: string }[];
   saveCompanyPotongAlpa: (enabled: boolean) => Promise<Result>;
@@ -49,7 +43,6 @@ export function PotonganGajiManager({
   const [branch, setBranch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [choice, setChoice] = useState<Choice>("potong");
-  const [tarif, setTarif] = useState(String(tarifPph21));
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -100,44 +93,6 @@ export function PotonganGajiManager({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>PPh 21</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Dipotong dari setiap slip gaji: tarif × (gaji pokok − potongan absensi). Berlaku untuk payroll yang dibuat
-            setelah disimpan; slip lama tetap memakai tarif saat dibuat.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(() => saveTarifPph21(Number(tarif.replace(",", "."))));
-            }}
-          >
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[0.8rem] font-semibold text-foreground">Tarif (%)</span>
-              <Input
-                name="tarifPph21"
-                inputMode="decimal"
-                value={tarif}
-                onChange={(e) => setTarif(e.target.value)}
-                className="h-11 w-28 font-mono"
-                aria-describedby="tarif-pph21-hint"
-              />
-            </label>
-            <Button type="submit" disabled={pending} className="h-11 px-5">
-              Simpan tarif
-            </Button>
-            <p id="tarif-pph21-hint" className="basis-full text-sm text-muted-foreground">
-              Contoh: gaji pokok Rp5.000.000 tanpa potongan absensi → PPh 21{" "}
-              {formatRupiah(pph21(5_000_000, Number(tarif.replace(",", ".")) || 0))}.
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Potongan alpa — pengaturan perusahaan</CardTitle>

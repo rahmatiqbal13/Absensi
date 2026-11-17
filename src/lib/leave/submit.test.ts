@@ -6,14 +6,17 @@ const BASE_EMPLOYEE = {
   role: "karyawan",
   atasan_id: "atasan-1",
   designated_approver_id: "super-admin-1",
+  tanggal_mulai_kerja: "2024-01-15",
 };
 
 function makeMockDb(opts: {
-  balanceRow?: { saldo_sisa: number } | null;
+  balanceRow?: { saldo_awal: number; saldo_terpakai: number } | null;
   balanceError?: { message: string } | null;
   insertError?: { message: string } | null;
+  employee?: Partial<typeof BASE_EMPLOYEE>;
 } = {}) {
-  const { balanceRow = { saldo_sisa: 12 }, balanceError = null, insertError = null } = opts;
+  const { balanceRow = { saldo_awal: 12, saldo_terpakai: 0 }, balanceError = null, insertError = null } = opts;
+  const employee = { ...BASE_EMPLOYEE, ...opts.employee };
 
   // Spies for the chain steps whose arguments/payloads the tests assert on.
   const balanceMaybeSingleMock = vi
@@ -36,7 +39,7 @@ function makeMockDb(opts: {
   const tables: Record<string, any> = {
     employees: {
       select: () => ({
-        eq: () => ({ single: () => Promise.resolve({ data: BASE_EMPLOYEE, error: null }) }),
+        eq: () => ({ single: () => Promise.resolve({ data: employee, error: null }) }),
       }),
     },
     leave_balances: {
@@ -89,7 +92,7 @@ describe("submitLeaveRequest", () => {
   });
 
   it("rejects a tahunan request that exceeds the remaining balance", async () => {
-    const db = makeMockDb({ balanceRow: { saldo_sisa: 2 } });
+    const db = makeMockDb({ balanceRow: { saldo_awal: 12, saldo_terpakai: 10 } });
     const result = await submitLeaveRequest(db as any, BASE_INPUT);
     expect(result).toEqual({
       ok: false,
@@ -101,8 +104,8 @@ describe("submitLeaveRequest", () => {
   });
 
   it("skips the balance check entirely for non-tahunan leave types", async () => {
-    const db = makeMockDb({ balanceRow: { saldo_sisa: 0 } });
-    const result = await submitLeaveRequest(db as any, { ...BASE_INPUT, jenis: "sakit" });
+    const db = makeMockDb({ balanceRow: { saldo_awal: 12, saldo_terpakai: 12 } });
+    const result = await submitLeaveRequest(db as any, { ...BASE_INPUT, jenis: "izin_lain", tanggalSelesai: "2026-10-01" });
     expect(result).toEqual({ ok: true, requestId: "leave-request-1" });
 
     // Distinguish "query skipped" from "query issued but result ignored":
@@ -111,13 +114,36 @@ describe("submitLeaveRequest", () => {
     expect(db.__balanceSelectMock).not.toHaveBeenCalled();
   });
 
-  it("treats a missing balance row as zero remaining for tahunan requests", async () => {
+  it("treats a missing balance row as the full default allowance, like the approval RPC", async () => {
     const db = makeMockDb({ balanceRow: null });
+    const result = await submitLeaveRequest(db as any, BASE_INPUT);
+    expect(result).toEqual({ ok: true, requestId: "leave-request-1" });
+  });
+
+  it("refuses annual leave before 12 months of service", async () => {
+    const db = makeMockDb({ employee: { tanggal_mulai_kerja: "2026-01-15" } });
     const result = await submitLeaveRequest(db as any, BASE_INPUT);
     expect(result).toEqual({
       ok: false,
-      error: "Saldo cuti tidak mencukupi. Sisa saldo: 0 hari, diajukan: 3 hari.",
+      error: "Cuti tahunan berlaku setelah 12 bulan bekerja, yaitu mulai 15 Januari 2027.",
     });
+    expect(db.__insertMock).not.toHaveBeenCalled();
+  });
+
+  it("requires a doctor's note for sick leave longer than one day", async () => {
+    const db = makeMockDb();
+    const sick = { ...BASE_INPUT, jenis: "sakit" };
+    expect(await submitLeaveRequest(db as any, sick)).toEqual({
+      ok: false,
+      error: "Cuti sakit lebih dari 1 hari wajib melampirkan surat dokter.",
+    });
+    expect(await submitLeaveRequest(db as any, { ...sick, tanggalSelesai: sick.tanggalMulai })).toEqual({
+      ok: true,
+      requestId: "leave-request-1",
+    });
+    expect(
+      await submitLeaveRequest(db as any, { ...sick, lampiranUrl: "employee-1/surat.pdf" }),
+    ).toEqual({ ok: true, requestId: "leave-request-1" });
   });
 
   it("fails closed when the leave_balances query itself errors", async () => {

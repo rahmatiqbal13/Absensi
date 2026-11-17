@@ -37,7 +37,7 @@ export default async function PayrollPeriodPage({
   const { data: slips, error: slipErr } = await db
     .from("payslips")
     .select(
-      "id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama)",
+      "id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, upah_lembur, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama)",
     )
     .eq("payroll_period_id", periodId)
     .order("created_at", { ascending: true });
@@ -50,6 +50,7 @@ export default async function PayrollPeriodPage({
         gajiPokok: Number(s.gaji_pokok),
         hariKerjaEfektif: s.hari_kerja_efektif,
         totalPotongan: Number(s.total_potongan_absensi),
+        upahLembur: Number(s.upah_lembur ?? 0),
         tarifPph21: Number(s.tarif_pph21 ?? 0),
         potonganPph21: Number(s.potongan_pph21 ?? 0),
         gajiAkhir: Number(s.gaji_akhir),

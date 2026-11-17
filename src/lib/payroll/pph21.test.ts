@@ -45,3 +45,47 @@ describe("computePayrollForBranch with PPh 21", () => {
     expect(row.gaji_akhir).toBe(2_475_000);
   });
 });
+
+import { terRate, computePph21, validateTerBrackets, type TerBracket } from "./pph21";
+
+const BRACKETS: TerBracket[] = [
+  { kategori: "A", batasBawah: 0, tarifPersen: 0 },
+  { kategori: "A", batasBawah: 5_400_001, tarifPersen: 0.25 },
+  { kategori: "A", batasBawah: 6_750_001, tarifPersen: 1.25 },
+  { kategori: "B", batasBawah: 0, tarifPersen: 0 },
+  { kategori: "B", batasBawah: 6_200_001, tarifPersen: 0.25 },
+];
+
+describe("TER", () => {
+  it("picks the bracket by monthly gross", () => {
+    expect(terRate(BRACKETS, "A", 5_400_000)).toBe(0);
+    expect(terRate(BRACKETS, "A", 5_400_001)).toBe(0.25);
+    expect(terRate(BRACKETS, "A", 7_000_000)).toBe(1.25);
+    expect(terRate(BRACKETS, "B", 6_000_000)).toBe(0);
+  });
+
+  it("maps PTKP status to its category and withholds rate × gross", () => {
+    const cfg = { metode: "ter" as const, brackets: BRACKETS, kategoriByPtkp: { "TK/0": "A" as const, "K/1": "B" as const } };
+    expect(computePph21(cfg, 7_000_000, "TK/0")).toEqual({ tarifPersen: 1.25, kategori: "A", amount: 87_500 });
+    expect(computePph21(cfg, 6_500_000, "K/1")).toEqual({ tarifPersen: 0.25, kategori: "B", amount: 16_250 });
+  });
+
+  it("still supports the flat-rate method", () => {
+    expect(computePph21({ metode: "tarif_tetap", tarifPersen: 1 }, 5_000_000, "K/3")).toEqual({
+      tarifPersen: 1,
+      kategori: null,
+      amount: 50_000,
+    });
+  });
+
+  it("validates edited tables", () => {
+    expect(validateTerBrackets([{ batasBawah: 100, tarifPersen: 1 }])).toMatchObject({ ok: false });
+    expect(validateTerBrackets([{ batasBawah: 0, tarifPersen: 101 }])).toMatchObject({ ok: false });
+    expect(
+      validateTerBrackets([
+        { batasBawah: 5_000_001, tarifPersen: 1 },
+        { batasBawah: 0, tarifPersen: 0 },
+      ]),
+    ).toEqual({ ok: true, rows: [{ batasBawah: 0, tarifPersen: 0 }, { batasBawah: 5_000_001, tarifPersen: 1 }] });
+  });
+});

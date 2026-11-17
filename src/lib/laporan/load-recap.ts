@@ -1,6 +1,7 @@
 // src/lib/laporan/load-recap.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { logOptionalLookup } from "@/lib/supabase/missing-column";
 import {
   computeAttendanceRecap,
   type RecapRow,
@@ -11,6 +12,8 @@ import {
 export type RecapFilters = {
   branchId: string;
   departmentId?: string | null;
+  /** Only this atasan's direct reports (PRD §6: atasan sees their own team). */
+  atasanId?: string | null;
   from: string;
   to: string;
 };
@@ -47,12 +50,15 @@ export async function loadRecap(
     .eq("status", "aktif")
     .order("nama");
   if (departmentId) employeeQuery = employeeQuery.eq("department_id", departmentId);
+  if (filters.atasanId) employeeQuery = employeeQuery.eq("atasan_id", filters.atasanId);
 
-  const [scheduleRes, employeesRes, holidaysRes] = await Promise.all([
+  const [scheduleRes, lemburRes, employeesRes, holidaysRes] = await Promise.all([
     // Branch default + department schedules; each employee picks theirs.
     loadSchedules<{
       id: string; jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number; hari_kerja: number[];
     }>(db, "id, jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja", [branchId]),
+    // Overtime toggle (0039), tolerant: unreadable => no overtime column values.
+    db.from("work_schedules").select("id, hitung_lembur").eq("branch_id", branchId),
     employeeQuery,
     db.from("holidays").select("tanggal")
       .or(`branch_id.is.null,branch_id.eq.${branchId}`)
@@ -71,6 +77,11 @@ export async function loadRecap(
     id: string; nama: string; tanggal_mulai_kerja: string | null; department_id: string | null;
   }[];
 
+  if (lemburRes.error) logOptionalLookup("loadRecap: hitung_lembur", lemburRes.error, "0039");
+  const lemburById = new Map(
+    (lemburRes.error ? [] : (lemburRes.data ?? [])).map((r) => [r.id as string, r.hitung_lembur === true]),
+  );
+
   type Schedule = (typeof scheduleRes.data)[number];
   const groups = new Map<string, { schedule: Schedule; employees: typeof employees }>();
   for (const e of employees) {
@@ -87,7 +98,7 @@ export async function loadRecap(
   const [attendanceRes, leaveRes] = await Promise.all([
     employeeIds.length
       ? db.from("attendances")
-          .select("employee_id, tanggal, status, jam_masuk")
+          .select("employee_id, tanggal, status, jam_masuk, jam_pulang")
           .in("employee_id", employeeIds).gte("tanggal", from).lte("tanggal", to)
       : Promise.resolve({ data: [], error: null }),
     employeeIds.length
@@ -106,9 +117,9 @@ export async function loadRecap(
   }
 
   const attendancesByEmployee = new Map<string, Map<string, RecapAttendanceRow>>();
-  for (const r of (attendanceRes.data ?? []) as { employee_id: string; tanggal: string; status: string; jam_masuk: string | null }[]) {
+  for (const r of (attendanceRes.data ?? []) as { employee_id: string; tanggal: string; status: string; jam_masuk: string | null; jam_pulang?: string | null }[]) {
     const m = attendancesByEmployee.get(r.employee_id) ?? new Map();
-    m.set(r.tanggal, { tanggal: r.tanggal, status: r.status, jam_masuk: r.jam_masuk });
+    m.set(r.tanggal, { tanggal: r.tanggal, status: r.status, jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang ?? null });
     attendancesByEmployee.set(r.employee_id, m);
   }
 
@@ -131,6 +142,7 @@ export async function loadRecap(
             jamPulang: schedule.jam_pulang,
             toleransiMenit: schedule.toleransi_terlambat_menit,
             hariKerja: schedule.hari_kerja,
+            hitungLembur: lemburById.get(schedule.id) ?? false,
           },
           holidayDates,
           attendancesByEmployee,

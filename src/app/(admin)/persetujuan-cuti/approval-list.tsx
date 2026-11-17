@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, Paperclip } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,8 @@ export type PendingLeaveRequest = {
   tanggalMulai: string;
   tanggalSelesai: string;
   alasan: string | null;
+  /** Signed, short-lived link to the attachment (surat dokter), if any. */
+  lampiranUrl?: string | null;
   /** "Jabatan · Departemen · Cabang" under the name. */
   meta?: string;
   /** Working days, balance and team clashes; null when it failed to load. */
@@ -233,6 +235,16 @@ export function ApprovalList({
           <p className="max-w-[60ch] text-base leading-relaxed">
             {sel.alasan ? `“${sel.alasan}”` : <span className="text-muted-foreground">Tidak ada alasan.</span>}
           </p>
+          {sel.lampiranUrl && (
+            <a
+              href={sel.lampiranUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 self-start text-sm font-semibold text-brand-text underline-offset-4 hover:underline"
+            >
+              <Paperclip className="size-4" aria-hidden="true" /> Lihat lampiran
+            </a>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

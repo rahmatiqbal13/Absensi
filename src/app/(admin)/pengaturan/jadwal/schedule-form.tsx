@@ -12,6 +12,7 @@ export type ScheduleDefaults = {
   hariKerja: number[];
   toleransiMenit: number;
   potongTerlambat?: boolean;
+  hitungLembur?: boolean;
 } | null;
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -115,6 +116,34 @@ export function ScheduleForm({
           <span className="max-w-[620px] text-sm leading-relaxed text-muted-foreground">
             Aktifkan hanya bila diatur di perjanjian kerja, peraturan perusahaan, atau PKB. Total potongan
             dibatasi 50% gaji pokok. Ketidakhadiran tanpa izin tetap tidak dibayar.
+          </span>
+        </span>
+      </label>
+      <label className="flex cursor-pointer items-start gap-3.5 rounded-xl bg-background p-4">
+        <span className="relative mt-0.5 inline-flex shrink-0">
+          <input
+            type="checkbox"
+            role="switch"
+            name="hitungLembur"
+            defaultChecked={defaults?.hitungLembur ?? false}
+            className="peer sr-only"
+          />
+          <span
+            aria-hidden="true"
+            className="h-7 w-[46px] rounded-full bg-input/60 transition-colors peer-checked:bg-brand peer-focus-visible:ring-3 peer-focus-visible:ring-brand/40"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute top-[3px] left-[3px] size-[22px] rounded-full bg-field shadow-sm transition-transform peer-checked:translate-x-[18px]"
+          />
+        </span>
+        <span className="flex flex-col gap-1">
+          <span className="text-[0.9rem] font-semibold text-foreground">
+            Hitung lembur
+          </span>
+          <span className="max-w-[620px] text-sm leading-relaxed text-muted-foreground">
+            Jam pulang yang lewat dari jadwal (minimal 30 menit, maks. 4 jam/hari) dibayar sebagai lembur: 1/173 gaji per
+            jam, jam pertama 1,5×, berikutnya 2×. Aktifkan hanya bila lembur di unit ini memang diperintahkan tertulis.
           </span>
         </span>
       </label>

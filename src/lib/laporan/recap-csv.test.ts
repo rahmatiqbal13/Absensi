@@ -4,7 +4,7 @@ import type { RecapRow } from "./attendance-recap";
 
 const row = (over: Partial<RecapRow>): RecapRow => ({
   employeeId: "e1", nama: "Budi", hadir: 20, terlambat: 1, pulangCepat: 0, diLuarLokasi: 0,
-  alpa: 0, cuti: 1, lain: 0, totalMenitTerlambat: 12, hariKerjaEfektif: 22, ...over,
+  alpa: 0, cuti: 1, lain: 0, totalMenitTerlambat: 12, menitLembur: 90, hariKerjaEfektif: 22, ...over,
 });
 
 describe("recapToCsv", () => {
@@ -12,8 +12,8 @@ describe("recapToCsv", () => {
     const csv = recapToCsv([row({})]);
     expect(csv.startsWith("﻿")).toBe(true);
     const lines = csv.replace(/^﻿/, "").split("\r\n");
-    expect(lines[0]).toBe("Nama,Hadir,Terlambat,Pulang Cepat,Di Luar Lokasi,Alpa,Cuti,Menit Terlambat,Hari Kerja Efektif");
-    expect(lines[1]).toBe("Budi,20,1,0,0,0,1,12,22");
+    expect(lines[0]).toBe("Nama,Hadir,Terlambat,Pulang Cepat,Di Luar Lokasi,Alpa,Cuti,Menit Terlambat,Menit Lembur,Hari Kerja Efektif");
+    expect(lines[1]).toBe("Budi,20,1,0,0,0,1,12,90,22");
     expect(lines[2]).toBe(""); // trailing CRLF
   });
 
@@ -30,6 +30,6 @@ describe("recapToCsv", () => {
 
   it("returns just the header + BOM for no rows", () => {
     const csv = recapToCsv([]);
-    expect(csv.replace(/^﻿/, "")).toBe("Nama,Hadir,Terlambat,Pulang Cepat,Di Luar Lokasi,Alpa,Cuti,Menit Terlambat,Hari Kerja Efektif\r\n");
+    expect(csv.replace(/^﻿/, "")).toBe("Nama,Hadir,Terlambat,Pulang Cepat,Di Luar Lokasi,Alpa,Cuti,Menit Terlambat,Menit Lembur,Hari Kerja Efektif\r\n");
   });
 });

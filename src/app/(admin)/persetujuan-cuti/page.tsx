@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { signLeaveAttachments } from "@/lib/leave/attachments";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,7 +23,7 @@ export default async function PersetujuanCutiPage({
   let query = db
     .from("leave_requests")
     .select(
-      "id, employee_id, jenis, tanggal_mulai, tanggal_selesai, alasan, employees!leave_requests_employee_id_fkey(nama, jabatan, branch_id, department_id, branches(nama))",
+      "id, employee_id, jenis, tanggal_mulai, tanggal_selesai, alasan, lampiran_url, employees!leave_requests_employee_id_fkey(nama, jabatan, branch_id, department_id, branches(nama))",
     )
     .eq("status", "pending")
     .order("created_at", { ascending: true });
@@ -59,6 +60,7 @@ export default async function PersetujuanCutiPage({
     tanggal_mulai: string;
     tanggal_selesai: string;
     alasan: string | null;
+    lampiran_url: string | null;
     employees: {
       nama: string;
       jabatan: string | null;
@@ -83,6 +85,14 @@ export default async function PersetujuanCutiPage({
     })),
   );
 
+  // Attachments live in a private bucket. These rows are already limited to
+  // what this viewer may decide (own approvals, or HR), so sign just those.
+  const attachmentUrls = await signLeaveAttachments(
+    createServiceRoleSupabaseClient(),
+    rows.map((r) => r.lampiran_url),
+    1800,
+  );
+
   const requests: PendingLeaveRequest[] = rows.map((row) => {
     const ctx = review.ok ? review.byRequest.get(row.id) : undefined;
     return {
@@ -95,6 +105,7 @@ export default async function PersetujuanCutiPage({
       tanggalMulai: row.tanggal_mulai,
       tanggalSelesai: row.tanggal_selesai,
       alasan: row.alasan,
+      lampiranUrl: row.lampiran_url ? attachmentUrls.get(row.lampiran_url) ?? null : null,
       review: ctx ?? null,
     };
   });

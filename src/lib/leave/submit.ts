@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveApprover } from "./approver";
 import { calculateLeaveDays, requiresBalanceCheck, hasSufficientBalance } from "./balance";
+import { getLeaveBalance } from "./balance-lookup";
+import { annualLeaveEligibleFrom, requiresAttachment } from "./eligibility";
 
 export type SubmitLeaveInput = {
   employeeId: string;
@@ -19,7 +21,7 @@ export async function submitLeaveRequest(
 ): Promise<SubmitLeaveResult> {
   const { data: employee, error: employeeErr } = await db
     .from("employees")
-    .select("id, role, atasan_id, designated_approver_id")
+    .select("id, role, atasan_id, designated_approver_id, tanggal_mulai_kerja")
     .eq("id", input.employeeId)
     .single();
   if (employeeErr || !employee) {
@@ -29,21 +31,32 @@ export async function submitLeaveRequest(
 
   const days = calculateLeaveDays(input.tanggalMulai, input.tanggalSelesai);
 
+  if (requiresAttachment(input.jenis, days) && !input.lampiranUrl) {
+    return { ok: false, error: "Cuti sakit lebih dari 1 hari wajib melampirkan surat dokter." };
+  }
+
+  if (input.jenis === "tahunan") {
+    // PRD §6: annual leave only after 12 consecutive months of service.
+    const eligibleFrom = annualLeaveEligibleFrom(employee.tanggal_mulai_kerja ?? null);
+    if (eligibleFrom && input.tanggalMulai < eligibleFrom) {
+      const label = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+        .format(new Date(`${eligibleFrom}T00:00:00Z`));
+      return {
+        ok: false,
+        error: `Cuti tahunan berlaku setelah 12 bulan bekerja, yaitu mulai ${label}.`,
+      };
+    }
+  }
+
   if (requiresBalanceCheck(input.jenis)) {
     const year = Number(input.tanggalMulai.slice(0, 4));
-    const { data: balance, error: balanceErr } = await db
-      .from("leave_balances")
-      .select("saldo_sisa")
-      .eq("employee_id", input.employeeId)
-      .eq("tahun", year)
-      .maybeSingle();
-
-    if (balanceErr) {
-      console.error("submitLeaveRequest: leave_balances lookup failed", balanceErr);
+    const res = await getLeaveBalance(db, input.employeeId, year);
+    if (!res.ok) {
+      console.error("submitLeaveRequest: leave_balances lookup failed", res.error);
       return { ok: false, error: "Gagal memeriksa saldo cuti." };
     }
 
-    const saldoSisa = balance?.saldo_sisa ?? 0;
+    const saldoSisa = res.balance.sisa;
     if (!hasSufficientBalance(saldoSisa, days)) {
       return {
         ok: false,

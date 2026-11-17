@@ -10,7 +10,8 @@ import {
 import type { AttendanceRowLite } from "@/lib/payroll/deduction";
 import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { shouldDeductAlpa } from "@/lib/payroll/absence-deduction";
-import { DEFAULT_TARIF_PPH21_PERSEN } from "@/lib/payroll/pph21";
+import { loadPph21Config } from "@/lib/payroll/pph21-config";
+import { logOptionalLookup } from "@/lib/supabase/missing-column";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -138,19 +139,30 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
   const potongAlpaFor = (id: string) =>
     !employeeAlpaRes.error && shouldDeductAlpa(companyPotongAlpa, alpaOverride.get(id));
 
-  // PPh 21 rate (0036). No silent fallback: a payslip with the wrong tax is
-  // worse than a payroll run that stops and says why.
-  const { data: taxRow, error: taxErr } = await db
-    .from("app_settings")
-    .select("tarif_pph21_persen")
-    .eq("id", 1)
-    .maybeSingle();
-  if (taxErr) {
-    console.error("generatePayroll: tarif_pph21_persen lookup failed", taxErr);
-    return { ok: false, error: "Gagal memuat tarif PPh 21. Pastikan migrasi database terbaru sudah dijalankan." };
+  // PPh 21 method + tables (0036/0039). No silent fallback.
+  const taxRes = await loadPph21Config(db);
+  if (!taxRes.ok) return { ok: false, error: taxRes.error };
+
+  // TER needs each employee's PTKP status (0039).
+  const { data: ptkpRows, error: ptkpErr } = await db
+    .from("employees")
+    .select("id, status_ptkp")
+    .eq("branch_id", period.branch_id);
+  if (ptkpErr && taxRes.config.metode === "ter") {
+    console.error("generatePayroll: status_ptkp lookup failed", ptkpErr);
+    return { ok: false, error: "Gagal memuat status PTKP karyawan." };
   }
-  const tarifPph21Persen =
-    taxRow?.tarif_pph21_persen == null ? DEFAULT_TARIF_PPH21_PERSEN : Number(taxRow.tarif_pph21_persen);
+  const ptkpById = new Map(((ptkpRows ?? []) as { id: string; status_ptkp: string }[]).map((r) => [r.id, r.status_ptkp]));
+
+  // Overtime toggle per schedule (0039). Tolerant: unreadable => no overtime paid.
+  const { data: otRows, error: otErr } = await db
+    .from("work_schedules")
+    .select("id, hitung_lembur")
+    .eq("branch_id", period.branch_id);
+  if (otErr) logOptionalLookup("generatePayroll: hitung_lembur", otErr, "0039");
+  const lemburBySchedule = new Map(
+    (otErr ? [] : (otRows ?? [])).map((r) => [r.id as string, r.hitung_lembur === true]),
+  );
 
   const employees = (employeesRes.data ?? []) as {
     id: string;
@@ -243,6 +255,7 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
         gajiPokok: Number(e.gaji_pokok),
         tanggalMulaiKerja: e.tanggal_mulai_kerja,
         potongAlpa: potongAlpaFor(e.id),
+        statusPtkp: ptkpById.get(e.id) ?? null,
       })),
       schedule: {
         jamMasuk: schedule.jam_masuk,
@@ -250,11 +263,12 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
         toleransiMenit: Number(schedule.toleransi_terlambat_menit),
         hariKerja: schedule.hari_kerja,
         potongTerlambat: fineBySchedule.get(schedule.id) ?? false,
+        hitungLembur: lemburBySchedule.get(schedule.id) ?? false,
       },
       holidayDates,
       attendancesByEmployee,
       approvedLeavesByEmployee,
-      tarifPph21Persen,
+      pph21: taxRes.config,
     }),
   );
 

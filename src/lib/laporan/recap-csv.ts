@@ -2,7 +2,7 @@ import type { RecapRow } from "./attendance-recap";
 
 const HEADER = [
   "Nama", "Hadir", "Terlambat", "Pulang Cepat", "Di Luar Lokasi",
-  "Alpa", "Cuti", "Menit Terlambat", "Hari Kerja Efektif",
+  "Alpa", "Cuti", "Menit Terlambat", "Menit Lembur", "Hari Kerja Efektif",
 ];
 
 function csvField(value: string | number): string {
@@ -19,7 +19,7 @@ export function recapToCsv(rows: RecapRow[]): string {
     lines.push(
       [
         r.nama, r.hadir, r.terlambat, r.pulangCepat, r.diLuarLokasi,
-        r.alpa, r.cuti, r.totalMenitTerlambat, r.hariKerjaEfektif,
+        r.alpa, r.cuti, r.totalMenitTerlambat, r.menitLembur, r.hariKerjaEfektif,
       ].map(csvField).join(","),
     );
   }

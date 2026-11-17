@@ -47,7 +47,7 @@ describe("generatePayroll", () => {
         case "leave_requests":
           return q({ data: [], error: null });
         case "app_settings":
-          return q({ data: { potong_alpa: false }, error: null });
+          return q({ data: { potong_alpa: false, metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
         default:
           throw new Error(`unexpected table ${table}`);
       }
@@ -75,6 +75,8 @@ describe("generatePayroll", () => {
             return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
           case "holidays":
             return q({ data: [{ tanggal: "2026-08-17" }, { tanggal: "2026-08-20" }], error: null });
+          case "app_settings":
+            return q({ data: { metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
           default:
             return q({ data: [], error: null });
         }
@@ -91,6 +93,7 @@ describe("generatePayroll", () => {
   it("returns a fixed Indonesian message when a reference-data lookup errors", async () => {
     from.mockImplementation((table: string) => {
       if (table === "payroll_periods") return q({ data: periodRow(), error: null });
+      if (table === "app_settings") return q({ data: { metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
       if (table === "employees") return q({ data: null, error: { message: "boom" } });
       return q({ data: [], error: null });
     });
@@ -142,6 +145,8 @@ describe("generatePayroll", () => {
             ],
             error: null,
           });
+        case "app_settings":
+          return q({ data: { metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
         default:
           return q({ data: [], error: null });
       }
@@ -158,6 +163,7 @@ describe("generatePayroll", () => {
   it("refuses to run when an employee has no schedule at all", async () => {
     from.mockImplementation((table: string) => {
       if (table === "payroll_periods") return q({ data: periodRow(), error: null });
+      if (table === "app_settings") return q({ data: { metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
       if (table === "employees")
         return q({ data: [{ id: "e1", gaji_pokok: 1, tanggal_mulai_kerja: null, department_id: "d-x" }], error: null });
       if (table === "work_schedules")
@@ -186,7 +192,7 @@ describe("generatePayroll", () => {
             return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5] }], error: null });
           case "app_settings":
             // Rate 0 here keeps these assertions about alpa only; PPh 21 has its own tests.
-            return q({ data: opts.company === null ? null : { potong_alpa: opts.company, tarif_pph21_persen: 0 }, error: null });
+            return q({ data: opts.company === null ? null : { potong_alpa: opts.company, metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
           default:
             return q({ data: [], error: null });
         }
@@ -239,7 +245,7 @@ describe("generatePayroll", () => {
     }
 
     it("withholds the configured rate from the earned wage", async () => {
-      mockBranch({ data: { potong_alpa: false, tarif_pph21_persen: "1.00" }, error: null });
+      mockBranch({ data: { potong_alpa: false, metode_pph21: "tarif_tetap", tarif_pph21_persen: "1.00" }, error: null });
       await generatePayroll("p1");
       expect(rpc.mock.calls[0][1].p_rows[0]).toMatchObject({
         tarif_pph21: 1,
@@ -256,10 +262,86 @@ describe("generatePayroll", () => {
     });
   });
 
+  describe("PPh 21 TER and overtime", () => {
+    // August 2026; one employee at 10,000,000, on time every weekday, leaving
+    // at 19:00 WIB (2h past a 17:00 end) only on 3 Aug.
+    function mockBranch(opts: { hitungLembur: boolean; statusPtkp: string }) {
+      from.mockImplementation((table: string) => {
+        switch (table) {
+          case "payroll_periods":
+            return q({ data: periodRow(), error: null });
+          case "employees":
+            return q({
+              data: [{ id: "e1", gaji_pokok: 10_000_000, tanggal_mulai_kerja: "2026-01-01", department_id: null, potong_alpa: null, status_ptkp: opts.statusPtkp }],
+              error: null,
+            });
+          case "work_schedules":
+            return q({
+              data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1, 2, 3, 4, 5], hitung_lembur: opts.hitungLembur }],
+              error: null,
+            });
+          case "app_settings":
+            return q({ data: { potong_alpa: false, metode_pph21: "ter", tarif_pph21_persen: 1 }, error: null });
+          case "pph21_ter_rates":
+            return q({
+              data: [
+                { kategori: "A", batas_bawah: 0, tarif_persen: 0 },
+                { kategori: "A", batas_bawah: 9_650_001, tarif_persen: 2 },
+                { kategori: "A", batas_bawah: 10_050_001, tarif_persen: 2.25 },
+                { kategori: "B", batas_bawah: 0, tarif_persen: 0 },
+                { kategori: "B", batas_bawah: 9_200_001, tarif_persen: 1.5 },
+                { kategori: "C", batas_bawah: 0, tarif_persen: 0 },
+              ],
+              error: null,
+            });
+          case "pph21_ptkp_kategori":
+            return q({ data: [{ status_ptkp: "TK/0", kategori: "A" }, { status_ptkp: "K/1", kategori: "B" }], error: null });
+          case "attendances": {
+            const days = ["03", "04", "05", "06", "07", "10", "11", "12", "13", "14", "17", "18", "19", "20", "21", "24", "25", "26", "27", "28", "31"];
+            return q({
+              data: days.map((d) => ({
+                employee_id: "e1",
+                tanggal: `2026-08-${d}`,
+                status: "tepat_waktu",
+                jam_masuk: `2026-08-${d}T01:55:00Z`,
+                jam_pulang: d === "03" ? `2026-08-${d}T12:00:00Z` : `2026-08-${d}T10:00:00Z`,
+              })),
+              error: null,
+            });
+          }
+          default:
+            return q({ data: [], error: null });
+        }
+      });
+      rpc.mockResolvedValue({ data: 1, error: null });
+    }
+    const row = () => rpc.mock.calls[0][1].p_rows[0];
+
+    it("withholds TER by the employee's PTKP category", async () => {
+      mockBranch({ hitungLembur: false, statusPtkp: "K/1" });
+      await generatePayroll("p1");
+      expect(row()).toMatchObject({ penghasilan_bruto: 10_000_000, kategori_ter: "B", tarif_pph21: 1.5, potongan_pph21: 150_000, gaji_akhir: 9_850_000 });
+    });
+
+    it("adds paid overtime to the gross before TER when the schedule pays overtime", async () => {
+      mockBranch({ hitungLembur: true, statusPtkp: "TK/0" });
+      await generatePayroll("p1");
+      // 120 min: 1/173 × 10,000,000 × (1.5 + 2) = 202,312.14
+      expect(row()).toMatchObject({ menit_lembur: 120, upah_lembur: 202_312.14, penghasilan_bruto: 10_202_312.14, kategori_ter: "A", tarif_pph21: 2.25 });
+    });
+
+    it("pays no overtime when the schedule does not", async () => {
+      mockBranch({ hitungLembur: false, statusPtkp: "TK/0" });
+      await generatePayroll("p1");
+      expect(row()).toMatchObject({ menit_lembur: 0, upah_lembur: 0, tarif_pph21: 2 });
+    });
+  });
+
   it("maps a finalized-period RPC error", async () => {
     from.mockImplementation((table: string) => {
       if (table === "payroll_periods") return q({ data: periodRow(), error: null });
       if (table === "work_schedules") return q({ data: [{ id: "s1", branch_id: "b1", department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 15, hari_kerja: [1] }], error: null });
+      if (table === "app_settings") return q({ data: { metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
       return q({ data: [], error: null });
     });
     rpc.mockResolvedValue({ data: null, error: { message: "payroll period is finalized" } });

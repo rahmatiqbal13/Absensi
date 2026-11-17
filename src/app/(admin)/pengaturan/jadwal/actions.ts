@@ -56,6 +56,7 @@ export async function saveSchedule(
     hari_kerja: parsed.value.hariKerja,
     toleransi_terlambat_menit: parsed.value.toleransiMenit,
     potong_terlambat: formData.get("potongTerlambat") === "on",
+    hitung_lembur: formData.get("hitungLembur") === "on",
   };
 
   // Update-or-insert by hand: the uniqueness rules are partial indexes

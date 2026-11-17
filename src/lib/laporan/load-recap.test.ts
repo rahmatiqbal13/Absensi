@@ -110,3 +110,25 @@ describe("loadRecap", () => {
     expect(result.rows[1]).toMatchObject({ hariKerjaEfektif: 5, hadir: 1 });
   });
 });
+
+describe("loadRecap — atasan team scope", () => {
+  it("filters employees to the atasan's direct reports", async () => {
+    const eqCalls: [string, unknown][] = [];
+    const employees: Record<string, unknown> = {};
+    for (const m of ["select", "gte", "lte", "in", "is", "order", "limit", "or"]) employees[m] = () => employees;
+    employees.eq = (col: string, val: unknown) => {
+      eqCalls.push([col, val]);
+      return employees;
+    };
+    employees.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
+    const db = makeDb({
+      branches: q({ data: { nama: "Kantor Pusat" }, error: null }),
+      work_schedules: q({ data: [{ id: "s1", branch_id: FILTERS.branchId, department_id: null, jam_masuk: "09:00:00", jam_pulang: "17:00:00", toleransi_terlambat_menit: 0, hari_kerja: [1] }], error: null }),
+      employees,
+      holidays: q({ data: [], error: null }),
+    });
+    const result = await loadRecap(db, { ...FILTERS, atasanId: "atasan-1" });
+    expect(result).toMatchObject({ ok: true, rows: [] });
+    expect(eqCalls).toContainEqual(["atasan_id", "atasan-1"]);
+  });
+});

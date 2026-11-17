@@ -11,7 +11,10 @@ export async function getMonthlyTrend(
   db: SupabaseClient,
   yearMonth: string,
   branchId?: string,
+  /** Limit to these employees (an atasan's team). */
+  employeeIds?: string[],
 ): Promise<MonthlyTrendResult> {
+  if (employeeIds && employeeIds.length === 0) return { ok: true, points: [] };
   const startDate = `${yearMonth}-01`;
   const [year, month] = yearMonth.split("-").map(Number);
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -22,7 +25,7 @@ export async function getMonthlyTrend(
   // (src/lib/dashboard/attendance-summary.ts): select the related `employees`
   // row with `!inner` (a real join, so a mismatch excludes the row) and filter
   // on the dotted `employees.branch_id` path.
-  const query = branchId
+  let query = branchId
     ? db
         .from("attendances")
         .select("tanggal, status, employees!inner(branch_id)")
@@ -35,6 +38,7 @@ export async function getMonthlyTrend(
         .gte("tanggal", startDate)
         .lte("tanggal", endDate);
 
+  if (employeeIds) query = query.in("employee_id", employeeIds);
   const { data, error } = await query;
 
   if (error) {

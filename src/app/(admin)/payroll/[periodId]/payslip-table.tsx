@@ -25,6 +25,8 @@ export type PayslipView = {
   gajiPokok: number;
   hariKerjaEfektif: number;
   totalPotongan: number;
+  /** Paid overtime; 0 when the schedule does not pay overtime. */
+  upahLembur?: number;
   tarifPph21: number;
   potonganPph21: number;
   gajiAkhir: number;
@@ -70,11 +72,12 @@ export function PayslipTable({
   const totals = rows.reduce(
     (a, r) => ({
       gajiPokok: a.gajiPokok + r.gajiPokok,
+      upahLembur: a.upahLembur + (r.upahLembur ?? 0),
       totalPotongan: a.totalPotongan + r.totalPotongan,
       potonganPph21: a.potonganPph21 + r.potonganPph21,
       gajiAkhir: a.gajiAkhir + r.gajiAkhir,
     }),
-    { gajiPokok: 0, totalPotongan: 0, potonganPph21: 0, gajiAkhir: 0 },
+    { gajiPokok: 0, upahLembur: 0, totalPotongan: 0, potonganPph21: 0, gajiAkhir: 0 },
   );
 
   return (
@@ -130,6 +133,7 @@ export function PayslipTable({
                   <TableHead>Nama</TableHead>
                   <TableHead className="text-right">Gaji Pokok</TableHead>
                   <TableHead className="text-right">Hari Efektif</TableHead>
+                  <TableHead className="text-right">Lembur</TableHead>
                   <TableHead className="text-right">Potongan Absensi</TableHead>
                   <TableHead className="text-right">PPh 21</TableHead>
                   <TableHead className="text-right">Gaji Akhir</TableHead>
@@ -143,6 +147,9 @@ export function PayslipTable({
                       <TableCell className="font-medium text-foreground">{row.nama}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatRupiah(row.gajiPokok)}</TableCell>
                       <TableCell className="text-right tabular-nums">{row.hariKerjaEfektif}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.upahLembur ? formatRupiah(row.upahLembur) : "—"}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         <span className={row.totalPotongan > 0 ? "text-destructive" : undefined}>
                           {formatRupiah(row.totalPotongan)}
@@ -176,7 +183,7 @@ export function PayslipTable({
                     </TableRow>
                     {expanded === row.id && (
                       <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/40">
+                        <TableCell colSpan={8} className="bg-muted/40">
                           <ul className="space-y-1 text-xs text-muted-foreground">
                             {row.rincian.map((r) => (
                               <li key={r.tanggal} className="flex flex-wrap gap-x-4">
@@ -200,6 +207,7 @@ export function PayslipTable({
                   <TableCell className="font-medium">Total</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.gajiPokok)}</TableCell>
                   <TableCell />
+                  <TableCell className="text-right tabular-nums">{formatRupiah(totals.upahLembur)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.totalPotongan)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.potonganPph21)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatRupiah(totals.gajiAkhir)}</TableCell>
@@ -220,6 +228,12 @@ export function PayslipTable({
                     <dd className="text-right tabular-nums">{formatRupiah(row.gajiPokok)}</dd>
                     <dt className="text-muted-foreground">Hari Efektif</dt>
                     <dd className="text-right tabular-nums">{row.hariKerjaEfektif}</dd>
+                    {row.upahLembur ? (
+                      <>
+                        <dt className="text-muted-foreground">Lembur</dt>
+                        <dd className="text-right tabular-nums">{formatRupiah(row.upahLembur)}</dd>
+                      </>
+                    ) : null}
                     <dt className="text-muted-foreground">Potongan Absensi</dt>
                     <dd className={`text-right tabular-nums ${row.totalPotongan > 0 ? "text-destructive" : ""}`}>{formatRupiah(row.totalPotongan)}</dd>
                     <dt className="text-muted-foreground">PPh 21{row.tarifPph21 > 0 ? ` (${formatPersen(row.tarifPph21)})` : ""}</dt>

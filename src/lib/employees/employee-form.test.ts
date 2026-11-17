@@ -24,7 +24,7 @@ describe("validateEmployeeInput", () => {
         nama: "Budi Santoso",
         email: "budi@contoh.co.id",
         jabatan: "Staff",
-        statusKontrak: "tetap",
+        statusKontrak: "tetap", statusPtkp: "TK/0",
         tanggalMulaiKerja: "2026-02-01",
         gajiPokok: 8_000_000,
         role: "karyawan",
@@ -71,5 +71,19 @@ describe("validateEmployeeInput", () => {
   it("rejects a non-ISO tanggalMulaiKerja", () => {
     const result = validateEmployeeInput({ ...base, tanggalMulaiKerja: "01/02/2026" });
     expect(result).toEqual({ ok: false, error: "Tanggal mulai kerja harus format YYYY-MM-DD." });
+  });
+});
+
+describe("validateEmployeeInput — PTKP", () => {
+  const base = {
+    nama: "A", email: "a@b.id", jabatan: "Staf", tanggalMulaiKerja: "2025-01-01",
+    branchId: "b1", role: "karyawan", gajiPokok: "1000",
+  } as Record<string, FormDataEntryValue | null>;
+  it("defaults to TK/0 and accepts the eight statuses", () => {
+    expect(validateEmployeeInput(base)).toMatchObject({ ok: true, value: { statusPtkp: "TK/0" } });
+    expect(validateEmployeeInput({ ...base, statusPtkp: "K/3" })).toMatchObject({ ok: true, value: { statusPtkp: "K/3" } });
+  });
+  it("rejects anything else", () => {
+    expect(validateEmployeeInput({ ...base, statusPtkp: "K/4" })).toEqual({ ok: false, error: "Status PTKP tidak valid." });
   });
 });

@@ -31,8 +31,17 @@ export async function getTodaySummary(
   db: SupabaseClient,
   branchId?: string,
   ctx?: TodayContext,
+  /** Limit to these employees (an atasan's team, PRD §6). */
+  employeeIds?: string[],
 ): Promise<AttendanceSummaryResult> {
   const today = toJakartaDateOnly(new Date());
+  if (employeeIds && employeeIds.length === 0) {
+    return {
+      ok: true,
+      summary: { hadir: 0, terlambat: 0, alpa: 0, other: 0, total: 0, pulangCepat: 0, diLuarLokasi: 0, cuti: 0 },
+    };
+  }
+  const inTeam = (id: string) => !employeeIds || employeeIds.includes(id);
 
   // Leave + non-working-day context needed to attribute "no attendance row
   // today" correctly for the `alpa` figure (mirrors the precedence in
@@ -61,13 +70,14 @@ export async function getTodaySummary(
   // `leave_requests`, which has two (`employee_id` and `approver_id`) and
   // therefore needs an explicit `!leave_requests_employee_id_fkey` hint to
   // disambiguate — so no such hint is needed here.
-  const attendanceQuery = branchId
+  let attendanceQuery = branchId
     ? db
         .from("attendances")
         .select("status, employees!inner(branch_id)")
         .eq("tanggal", today)
         .eq("employees.branch_id", branchId)
     : db.from("attendances").select("status").eq("tanggal", today);
+  if (employeeIds) attendanceQuery = attendanceQuery.in("employee_id", employeeIds);
 
   const { data: attendanceRows, error: attendanceError } = await attendanceQuery;
   if (attendanceError) {
@@ -82,6 +92,7 @@ export async function getTodaySummary(
   if (branchId) {
     employeeQuery = employeeQuery.eq("branch_id", branchId);
   }
+  if (employeeIds) employeeQuery = employeeQuery.in("id", employeeIds);
   const { count: total, error: employeeError } = await employeeQuery;
   if (employeeError) {
     console.error("getTodaySummary: employees count query failed", employeeError);
@@ -103,13 +114,13 @@ export async function getTodaySummary(
   // `ctx.onLeave` is already branch-scoped when `branchId` is given. Employees
   // on approved leave today are `cuti`, not `alpa`. When `branchId` is given and
   // that branch is not a working day today, nobody is `alpa`.
-  const onLeaveCount = context.onLeave.size;
+  const onLeaveCount = [...context.onLeave].filter(inTeam).length;
   const nonWorkingForBranch = branchId
     ? context.workingByBranch.get(branchId) === false
     : false;
   // Employees whose own (department) schedule has today off are not `alpa`
   // either; skip those already counted as on leave.
-  const offTodayCount = [...context.offToday].filter((id) => !context.onLeave.has(id)).length;
+  const offTodayCount = [...context.offToday].filter((id) => inTeam(id) && !context.onLeave.has(id)).length;
   const alpa = nonWorkingForBranch
     ? 0
     : Math.max(alpaRows + noRecord - onLeaveCount - offTodayCount, 0);
@@ -123,7 +134,7 @@ export async function getTodaySummary(
   // `!leave_requests_employee_id_fkey` hint to disambiguate; `!inner` turns it
   // into a filtering join (same pattern as the attendances query above). The
   // unscoped path needs no join at all — just the `employee_id` column.
-  const leaveQuery = branchId
+  let leaveQuery = branchId
     ? db
         .from("leave_requests")
         .select("employee_id, employees!leave_requests_employee_id_fkey!inner(branch_id)")
@@ -138,6 +149,7 @@ export async function getTodaySummary(
         .lte("tanggal_mulai", today)
         .gte("tanggal_selesai", today);
 
+  if (employeeIds) leaveQuery = leaveQuery.in("employee_id", employeeIds);
   const { data: leaveRows, error: leaveError } = await leaveQuery;
   if (leaveError) {
     console.error("getTodaySummary: leave_requests query failed", leaveError);

@@ -5,10 +5,22 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
 export type EmployeeFieldValues = {
-  nama: string; email: string; jabatan: string; statusKontrak: string;
+  nama: string; email: string; jabatan: string; statusKontrak: string; statusPtkp?: string;
   tanggalMulaiKerja: string; gajiPokok: string; role: string;
   branchId: string; departmentId: string; atasanId: string; designatedApproverId: string;
 };
+
+// TK = tidak kawin, K = kawin; the digit is dependants (max 3).
+const PTKP_OPTIONS = [
+  { value: "TK/0", label: "TK/0 — tidak kawin, tanpa tanggungan" },
+  { value: "TK/1", label: "TK/1 — tidak kawin, 1 tanggungan" },
+  { value: "TK/2", label: "TK/2 — tidak kawin, 2 tanggungan" },
+  { value: "TK/3", label: "TK/3 — tidak kawin, 3 tanggungan" },
+  { value: "K/0", label: "K/0 — kawin, tanpa tanggungan" },
+  { value: "K/1", label: "K/1 — kawin, 1 tanggungan" },
+  { value: "K/2", label: "K/2 — kawin, 2 tanggungan" },
+  { value: "K/3", label: "K/3 — kawin, 3 tanggungan" },
+];
 
 const ROLE_OPTIONS = [
   { value: "karyawan", label: "Karyawan" },
@@ -64,6 +76,13 @@ export function EmployeeFormFields({
       <Section title="Kepegawaian">
         <Field id="statusKontrak" label="Status Kontrak">
           <Input name="statusKontrak" defaultValue={defaults.statusKontrak ?? "tetap"} />
+        </Field>
+        <Field id="statusPtkp" label="Status PTKP (PPh 21)">
+          <NativeSelect name="statusPtkp" defaultValue={defaults.statusPtkp ?? "TK/0"}>
+            {PTKP_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </NativeSelect>
         </Field>
         <Field id="tanggalMulaiKerja" label="Tanggal Mulai Kerja">
           <Input name="tanggalMulaiKerja" type="date" defaultValue={defaults.tanggalMulaiKerja} required />

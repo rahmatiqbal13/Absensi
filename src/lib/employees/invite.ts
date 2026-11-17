@@ -6,6 +6,7 @@ export type InviteEmployeeInput = {
   email: string;
   jabatan: string;
   statusKontrak: string;
+  statusPtkp?: string;
   tanggalMulaiKerja: string;
   gajiPokok: number;
   role: Role;
@@ -68,6 +69,7 @@ export async function inviteEmployee(
       designated_approver_id: input.designatedApproverId,
       jabatan: input.jabatan,
       status_kontrak: input.statusKontrak,
+      ...(input.statusPtkp ? { status_ptkp: input.statusPtkp } : {}),
       tanggal_mulai_kerja: input.tanggalMulaiKerja,
       gaji_pokok: input.gajiPokok,
       role: input.role,

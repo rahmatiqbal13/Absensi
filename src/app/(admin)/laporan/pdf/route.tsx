@@ -38,6 +38,8 @@ export async function GET(request: Request) {
   const recap = await loadRecap(db, {
     branchId: cabang,
     departmentId: dept,
+    // An atasan only ever exports their own team (PRD §6).
+    atasanId: me.role === "atasan" ? me.id : null,
     from: range.from,
     to: range.to,
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { summarizeRincian, deductionLines, loadPayslipDetail, type PayslipDetail } from "./payslip-detail";
+import { summarizeRincian, deductionLines, earningLines, totalPenerimaan, formatDurasi, loadPayslipDetail, type PayslipDetail } from "./payslip-detail";
 import type { RincianHarianEntry } from "./deduction";
 import type { CurrentEmployee } from "@/lib/auth/session";
 
@@ -29,6 +29,7 @@ const baseSlip = (o: Partial<PayslipDetail> = {}): PayslipDetail => ({
   periode: { bulan: 8, tahun: 2026, label: "Agustus 2026", status: "final" },
   karyawan: { nama: "A", jabatan: "-", email: "-", departemen: null, cabang: "-", statusKontrak: "-", tanggalMulaiKerja: null },
   gajiPokok: 1_000_000, hariKerjaEfektif: 20, gajiHarian: 50_000, totalPotonganAbsensi: 50_000,
+  menitLembur: 0, upahLembur: 0, kategoriTer: null,
   tarifPph21: 1, potonganPph21: 9_500, gajiAkhir: 940_500,
   ringkasan: summarizeRincian([day({ jenis: "alpa", status: "alpa", potongan: 50_000 })]),
   ...o,
@@ -46,6 +47,19 @@ describe("deductionLines", () => {
   it("falls back to the stored total when the daily breakdown does not add up", () => {
     const lines = deductionLines(baseSlip({ totalPotonganAbsensi: 75_000, tarifPph21: 0, potonganPph21: 0 }));
     expect(lines).toEqual([{ label: "Potongan absensi", amount: 75_000 }]);
+  });
+});
+
+describe("earnings with overtime and TER label", () => {
+  it("adds an overtime line, a TER-labelled tax line, and totals gross earnings", () => {
+    const slip = baseSlip({ menitLembur: 135, upahLembur: 150_000, kategoriTer: "A", tarifPph21: 1.25 });
+    expect(earningLines(slip)).toEqual([
+      { label: "Gaji pokok", amount: 1_000_000 },
+      { label: "Lembur (2 jam 15 menit)", amount: 150_000 },
+    ]);
+    expect(totalPenerimaan(slip)).toBe(1_150_000);
+    expect(deductionLines(slip).at(-1)?.label).toBe("PPh 21 (TER A · 1,25%)");
+    expect(formatDurasi(45)).toBe("45 menit");
   });
 });
 

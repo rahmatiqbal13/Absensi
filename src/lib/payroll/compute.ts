@@ -1,7 +1,8 @@
 import { effectiveWorkDays } from "./effective-days";
 import { dailyWage } from "./daily-wage";
 import { round2 } from "./round";
-import { pph21 } from "./pph21";
+import { computePph21, type Pph21Config, type TerKategori } from "./pph21";
+import { overtimeMinutes, overtimePay } from "./overtime";
 import {
   dayDeduction,
   leaveCoversDate,
@@ -15,6 +16,8 @@ export type PayrollEmployee = {
   tanggalMulaiKerja: string | null;
   /** Deduct a day's wage per alpa day — see shouldDeductAlpa(). Default false. */
   potongAlpa?: boolean;
+  /** TK/0 … K/3 — selects the TER category. */
+  statusPtkp?: string | null;
 };
 
 export type PayrollSchedule = {
@@ -23,6 +26,8 @@ export type PayrollSchedule = {
   toleransiMenit: number;
   hariKerja: number[];
   potongTerlambat: boolean;
+  /** Pay workday overtime past jamPulang (migration 0039). Default false. */
+  hitungLembur?: boolean;
 };
 
 // PP 36/2021 caps the total of wage deductions (pemotongan) at 50% of each wage
@@ -55,7 +60,12 @@ export type PayslipRow = {
   hari_kerja_efektif: number;
   gaji_harian: number;
   total_potongan_absensi: number;
+  menit_lembur: number;
+  upah_lembur: number;
+  /** Gross for the month: gaji pokok − attendance deductions + overtime pay. */
+  penghasilan_bruto: number;
   tarif_pph21: number;
+  kategori_ter: TerKategori | null;
   potongan_pph21: number;
   gaji_akhir: number;
   rincian_harian: RincianHarianEntry[];
@@ -69,11 +79,13 @@ export function computePayrollForBranch(input: {
   holidayDates: string[];
   attendancesByEmployee: Map<string, Map<string, AttendanceRowLite>>;
   approvedLeavesByEmployee: Map<string, ApprovedLeave[]>;
-  /** PPh 21 rate in percent, withheld from the earned wage. Default 0. */
+  /** Flat PPh 21 rate in percent; used when `pph21` is not given. Default 0. */
   tarifPph21Persen?: number;
+  /** PPh 21 method + tables (TER or flat). Overrides tarifPph21Persen. */
+  pph21?: Pph21Config;
 }): PayslipRow[] {
   const { year, month, employees, schedule, holidayDates, attendancesByEmployee, approvedLeavesByEmployee } = input;
-  const tarifPph21 = input.tarifPph21Persen ?? 0;
+  const pph21Config: Pph21Config = input.pph21 ?? { metode: "tarif_tetap", tarifPersen: input.tarifPph21Persen ?? 0 };
 
   return employees.map((emp) => {
     const { fullMonthDays, accrualDays } = effectiveWorkDays({
@@ -104,9 +116,27 @@ export function computePayrollForBranch(input: {
     const total_potongan_absensi = round2(
       rincian_harian.reduce((sum, r) => sum + r.potongan, 0),
     );
-    const penghasilanBruto = Math.max(0, round2(emp.gajiPokok - total_potongan_absensi));
-    const potongan_pph21 = pph21(penghasilanBruto, tarifPph21);
-    const gaji_akhir = Math.max(0, round2(penghasilanBruto - potongan_pph21));
+
+    // Workday overtime, only on days the employee actually worked.
+    let menit_lembur = 0;
+    let upah_lembur = 0;
+    if (schedule.hitungLembur) {
+      for (const r of rincian_harian) {
+        if (r.jenis !== "kerja" && r.jenis !== "luar_kantor") continue;
+        const m = overtimeMinutes(attendance.get(r.tanggal)?.jam_pulang ?? null, schedule.jamPulang);
+        if (m > 0) {
+          r.menit_lembur = m;
+          menit_lembur += m;
+          upah_lembur += overtimePay(m, emp.gajiPokok);
+        }
+      }
+      upah_lembur = round2(upah_lembur);
+    }
+
+    const penghasilan_bruto = round2(Math.max(0, emp.gajiPokok - total_potongan_absensi) + upah_lembur);
+    const tax = computePph21(pph21Config, penghasilan_bruto, emp.statusPtkp);
+    const potongan_pph21 = tax.amount;
+    const gaji_akhir = Math.max(0, round2(penghasilan_bruto - potongan_pph21));
 
     return {
       employee_id: emp.id,
@@ -118,7 +148,11 @@ export function computePayrollForBranch(input: {
       hari_kerja_efektif: fullMonthDays.length,
       gaji_harian: wage,
       total_potongan_absensi,
-      tarif_pph21: tarifPph21,
+      menit_lembur,
+      upah_lembur,
+      penghasilan_bruto,
+      tarif_pph21: tax.tarifPersen,
+      kategori_ter: tax.kategori,
       potongan_pph21,
       gaji_akhir,
       rincian_harian,

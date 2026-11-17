@@ -5,6 +5,8 @@ export type EmployeeFormInput = {
   email: string;
   jabatan: string;
   statusKontrak: string;
+  /** TK/0 … K/3 — PTKP status for PPh 21 (migration 0039). */
+  statusPtkp: string;
   tanggalMulaiKerja: string;
   gajiPokok: number;
   role: Role;
@@ -15,6 +17,7 @@ export type EmployeeFormInput = {
 };
 
 const ROLES: Role[] = ["karyawan", "atasan", "hr_admin", "super_admin"];
+export const PTKP_STATUSES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,6 +57,10 @@ export function validateEmployeeInput(
   if (!Number.isFinite(gajiPokok) || gajiPokok < 0) {
     return { ok: false, error: "Gaji pokok harus angka >= 0." };
   }
+  const statusPtkp = str(raw.statusPtkp) || "TK/0";
+  if (!(PTKP_STATUSES as readonly string[]).includes(statusPtkp)) {
+    return { ok: false, error: "Status PTKP tidak valid." };
+  }
   if ((role === "hr_admin" || role === "super_admin") && !designatedApproverId) {
     return { ok: false, error: "Approver pengganti wajib untuk role HR Admin / Super Admin." };
   }
@@ -61,7 +68,7 @@ export function validateEmployeeInput(
   return {
     ok: true,
     value: {
-      nama, email, jabatan, statusKontrak: statusKontrak || "tetap",
+      nama, email, jabatan, statusKontrak: statusKontrak || "tetap", statusPtkp,
       tanggalMulaiKerja, gajiPokok, role: role as Role, branchId,
       departmentId: orNull(raw.departmentId),
       atasanId: orNull(raw.atasanId),

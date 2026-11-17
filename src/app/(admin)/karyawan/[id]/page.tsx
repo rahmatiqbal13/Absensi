@@ -1,5 +1,7 @@
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { notFound, redirect } from "next/navigation";
-import { History } from "lucide-react";
+import { FileBarChart, History } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { RoleBadge } from "@/components/role-badge";
@@ -28,7 +30,7 @@ export default async function KaryawanDetailPage({
   const { data: emp, error } = await db
     .from("employees")
     .select(
-      "id, nama, email, jabatan, status_kontrak, tanggal_mulai_kerja, gaji_pokok, role, status, branch_id, department_id, atasan_id, designated_approver_id",
+      "id, nama, email, jabatan, status_kontrak, status_ptkp, tanggal_mulai_kerja, gaji_pokok, role, status, branch_id, department_id, atasan_id, designated_approver_id",
     )
     .eq("id", id)
     .maybeSingle();
@@ -80,6 +82,11 @@ export default async function KaryawanDetailPage({
           <>
             <RoleBadge role={emp.role as Role} />
             <StatusPill status={emp.status as "aktif" | "nonaktif"} />
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/laporan/karyawan/${emp.id}`}>
+                <FileBarChart className="size-4" aria-hidden="true" /> Laporan kehadiran
+              </Link>
+            </Button>
           </>
         }
       />
@@ -92,6 +99,7 @@ export default async function KaryawanDetailPage({
               email: emp.email,
               jabatan: emp.jabatan,
               statusKontrak: emp.status_kontrak,
+              statusPtkp: emp.status_ptkp ?? "TK/0",
               tanggalMulaiKerja: emp.tanggal_mulai_kerja,
               gajiPokok: String(emp.gaji_pokok),
               role: emp.role,

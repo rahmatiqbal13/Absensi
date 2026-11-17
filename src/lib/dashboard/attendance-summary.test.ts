@@ -321,3 +321,16 @@ describe("getTodaySummary", () => {
     expect(result.summary.alpa).toBe(0);
   });
 });
+
+describe("getTodaySummary — team scope", () => {
+  it("returns zeros for an atasan without a team, without querying", async () => {
+    const from = vi.fn();
+    const ctx = { today: "2026-08-03", workingByBranch: new Map(), offToday: new Set<string>(), onLeave: new Set<string>() };
+    const res = await getTodaySummary({ from } as never, undefined, ctx, []);
+    expect(res).toEqual({
+      ok: true,
+      summary: { hadir: 0, terlambat: 0, alpa: 0, other: 0, total: 0, pulangCepat: 0, diLuarLokasi: 0, cuti: 0 },
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+});

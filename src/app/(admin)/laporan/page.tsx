@@ -79,6 +79,8 @@ export default async function LaporanPage({
       ? await loadRecap(db, {
           branchId: defaultCabang,
           departmentId: dept || null,
+          // An atasan sees only their own team (PRD §6).
+          atasanId: employee.role === "atasan" ? employee.id : null,
           from: range.from,
           to: range.to,
         })
@@ -94,8 +96,9 @@ export default async function LaporanPage({
           alpa: acc.alpa + r.alpa,
           cuti: acc.cuti + r.cuti,
           menit: acc.menit + r.totalMenitTerlambat,
+          lembur: acc.lembur + r.menitLembur,
         }),
-        { hadir: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0, alpa: 0, cuti: 0, menit: 0 },
+        { hadir: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0, alpa: 0, cuti: 0, menit: 0, lembur: 0 },
       )
     : null;
 
@@ -104,7 +107,7 @@ export default async function LaporanPage({
       <PageHeader
         eyebrow="Angka"
         title="Laporan Kehadiran"
-        description="Rekap per karyawan untuk rentang tanggal terpilih."
+        description="Rekap per karyawan untuk rentang tanggal terpilih. Klik nama untuk melihat jam masuk dan pulang hariannya."
         actions={
           recap.ok ? (
             <>
@@ -153,9 +156,14 @@ export default async function LaporanPage({
             },
             { key: "cuti", header: "Cuti", align: "right", cell: (r) => r.cuti, mobileLabel: "Cuti" },
             { key: "menit", header: "Menit Terlambat", align: "right", cell: (r) => r.totalMenitTerlambat, mobileLabel: "Menit Terlambat" },
+            { key: "lembur", header: "Menit Lembur", align: "right", cell: (r) => r.menitLembur, mobileLabel: "Menit Lembur" },
           ]}
           rows={recap.rows}
           rowKey={(r) => r.employeeId}
+          // Per-employee daily report (jam masuk / pulang), same date range.
+          rowHref={(r) =>
+            `/laporan/karyawan/${r.employeeId}?${new URLSearchParams({ dari, sampai }).toString()}`
+          }
           emptyState={<EmptyState icon={FileBarChart} message="Tidak ada karyawan aktif untuk filter ini." />}
           footer={
             totals ? (
@@ -168,6 +176,7 @@ export default async function LaporanPage({
                 <TableCell className="text-right tabular-nums">{totals.alpa}</TableCell>
                 <TableCell className="text-right tabular-nums">{totals.cuti}</TableCell>
                 <TableCell className="text-right tabular-nums">{totals.menit}</TableCell>
+                <TableCell className="text-right tabular-nums">{totals.lembur}</TableCell>
               </>
             ) : undefined
           }
@@ -188,6 +197,7 @@ export default async function LaporanPage({
                         ["Alpa", totals.alpa],
                         ["Cuti", totals.cuti],
                         ["Menit Terlambat", totals.menit],
+                        ["Menit Lembur", totals.lembur],
                       ] as const
                     ).map(([k, v]) => (
                       <div key={k} className="contents">

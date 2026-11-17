@@ -13,6 +13,7 @@ import { getTodayExceptions } from "@/lib/dashboard/today-exceptions";
 import { getRecentActivity } from "@/lib/dashboard/recent-activity";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { PageHeader, SectionTitle } from "@/components/page-header";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
 import { AttendanceTrendChart } from "@/components/attendance-trend-chart";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
@@ -47,7 +48,19 @@ export default async function DashboardPage({
   const branchId = branch && branchList.some((b) => b.id === branch) ? branch : undefined;
   const branchName = branchId ? branchList.find((b) => b.id === branchId)?.nama : undefined;
   const isHrAdmin = employee.role === "hr_admin" || employee.role === "super_admin";
-  const showBranchBreakdown = !branchId && branchList.length > 1;
+  // PRD §6: an atasan sees only their own team; HR sees every branch.
+  const isAtasan = employee.role === "atasan";
+  let teamIds: string[] | undefined;
+  if (isAtasan) {
+    const { data: team, error: teamErr } = await db
+      .from("employees")
+      .select("id")
+      .eq("atasan_id", employee.id)
+      .eq("status", "aktif");
+    if (teamErr) console.error("DashboardPage: team lookup failed", teamErr);
+    teamIds = (team ?? []).map((t) => t.id as string);
+  }
+  const showBranchBreakdown = !isAtasan && !branchId && branchList.length > 1;
 
   // Access tier: migration 0009 widened `is_admin_role()` to include `atasan`,
   // so an `atasan` reaches this page and sees the org-wide *aggregates* (the
@@ -67,8 +80,8 @@ export default async function DashboardPage({
 
   const ym = toJakartaDateOnly(new Date()).slice(0, 7);
   const [summary, trend, approvals, pendingPreview, exceptions, breakdown, activity] = await Promise.all([
-    getTodaySummary(db, branchId, ctx),
-    getMonthlyTrend(db, ym, branchId),
+    getTodaySummary(db, branchId, ctx, teamIds),
+    getMonthlyTrend(db, ym, branchId, teamIds),
     getPendingApprovalCount(db, employee),
     getPendingApprovalPreview(db, employee, 3),
     showExceptions ? getTodayExceptions(db, branchId, ctx) : Promise.resolve(null),
@@ -81,8 +94,9 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <AutoRefresh intervalMs={60_000} />
       <PageHeader
-        eyebrow={`Papan hari ini${branchName ? ` · ${branchName}` : ""}`}
+        eyebrow={`Papan hari ini${isAtasan ? " · Tim saya" : ""}${branchName ? ` · ${branchName}` : ""}`}
         title={new Intl.DateTimeFormat("id-ID", {
           weekday: "long",
           day: "numeric",

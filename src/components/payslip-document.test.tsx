@@ -12,7 +12,7 @@ const slip: PayslipDetail = {
     cabang: "Kantor Pusat", statusKontrak: "PKWT", tanggalMulaiKerja: "2025-03-01",
   },
   gajiPokok: 5_000_000, hariKerjaEfektif: 21, gajiHarian: 238_095.24,
-  totalPotonganAbsensi: 238_095.24, tarifPph21: 1, potonganPph21: 47_619.05, gajiAkhir: 4_714_285.71,
+  totalPotonganAbsensi: 238_095.24, menitLembur: 0, upahLembur: 0, kategoriTer: null, tarifPph21: 1, potonganPph21: 47_619.05, gajiAkhir: 4_714_285.71,
   ringkasan: {
     hariDinilai: 21, hadir: 20, terlambat: 2, pulangCepat: 0, luarKantor: 0, alpa: 1, cuti: 0,
     menitTerlambat: 25, menitPulangCepat: 0, potonganAlpa: 238_095.24, potonganKeterlambatan: 0,

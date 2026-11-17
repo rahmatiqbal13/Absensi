@@ -1,10 +1,11 @@
 // src/lib/laporan/attendance-recap.ts
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
+import { overtimeMinutes } from "@/lib/payroll/overtime";
 
 export type RecapEmployee = { id: string; nama: string; tanggalMulaiKerja: string | null };
-export type RecapAttendanceRow = { tanggal: string; status: string; jam_masuk: string | null };
+export type RecapAttendanceRow = { tanggal: string; status: string; jam_masuk: string | null; jam_pulang?: string | null };
 export type RecapLeave = { employeeId: string; tanggalMulai: string; tanggalSelesai: string };
-export type RecapSchedule = { jamMasuk: string; jamPulang: string; toleransiMenit: number; hariKerja: number[] };
+export type RecapSchedule = { jamMasuk: string; jamPulang: string; toleransiMenit: number; hariKerja: number[]; hitungLembur?: boolean };
 
 export type RecapRow = {
   employeeId: string;
@@ -17,6 +18,8 @@ export type RecapRow = {
   cuti: number;
   lain: number;
   totalMenitTerlambat: number;
+  /** Workday overtime minutes (only when the schedule pays overtime). */
+  menitLembur: number;
   hariKerjaEfektif: number;
 };
 
@@ -57,7 +60,7 @@ export function computeAttendanceRecap(input: {
     const row: RecapRow = {
       employeeId: emp.id, nama: emp.nama,
       hadir: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0, alpa: 0, cuti: 0, lain: 0,
-      totalMenitTerlambat: 0, hariKerjaEfektif: 0,
+      totalMenitTerlambat: 0, menitLembur: 0, hariKerjaEfektif: 0,
     };
 
     for (const tanggal of allDates) {
@@ -76,6 +79,9 @@ export function computeAttendanceRecap(input: {
       if (!att) {
         row.alpa += 1;
         continue;
+      }
+      if (schedule.hitungLembur && att.status !== "alpa") {
+        row.menitLembur += overtimeMinutes(att.jam_pulang ?? null, schedule.jamPulang);
       }
       switch (att.status) {
         case "tepat_waktu":

@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { terbilangRupiah } from "@/lib/format/terbilang";
-import { deductionLines, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
+import { deductionLines, earningLines, totalPenerimaan, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
 
 export type PayslipOrg = {
   nama: string;
@@ -149,14 +149,16 @@ export function PayslipDocument({
         <View style={s.cols}>
           <View style={s.col}>
             <Text style={s.colHead}>PENERIMAAN</Text>
-            <View style={s.line}>
-              <Text>Gaji pokok</Text>
-              <Text style={s.num}>{formatRupiah(slip.gajiPokok)}</Text>
-            </View>
+            {earningLines(slip).map((p) => (
+              <View key={p.label} style={s.line}>
+                <Text>{p.label}</Text>
+                <Text style={s.num}>{formatRupiah(p.amount)}</Text>
+              </View>
+            ))}
             <View style={s.spacer} />
             <View style={s.lineTotal}>
               <Text>Total penerimaan</Text>
-              <Text style={s.num}>{formatRupiah(slip.gajiPokok)}</Text>
+              <Text style={s.num}>{formatRupiah(totalPenerimaan(slip))}</Text>
             </View>
           </View>
           <View style={s.col}>
@@ -182,7 +184,7 @@ export function PayslipDocument({
           </View>
           <Text style={s.netWords}>Terbilang: {terbilangRupiah(slip.gajiAkhir)}</Text>
           <Text style={s.calc}>
-            {`${formatRupiah(slip.gajiPokok)} - ${formatRupiah(totalPotongan(slip))} = ${formatRupiah(slip.gajiAkhir)}`}
+            {`${formatRupiah(totalPenerimaan(slip))} - ${formatRupiah(totalPotongan(slip))} = ${formatRupiah(slip.gajiAkhir)}`}
           </Text>
         </View>
 

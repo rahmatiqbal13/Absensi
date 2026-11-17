@@ -27,6 +27,8 @@ export type RincianHarianEntry = {
   menit_pulang_cepat: number;
   potongan: number;
   catatan?: string;
+  /** Paid workday overtime, minutes (only when the schedule pays overtime). */
+  menit_lembur?: number;
 };
 
 export type LeaveCoverage = { covered: boolean; jenis?: string };

@@ -1,7 +1,7 @@
 import { Download } from "lucide-react";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { terbilangRupiah } from "@/lib/format/terbilang";
-import { deductionLines, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
+import { deductionLines, earningLines, totalPenerimaan, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,13 +88,15 @@ export async function PayslipSheet({ slip }: { slip: PayslipDetail }) {
           <h2 id="slip-penerimaan" className="rounded-t-xl bg-muted/60 px-4 py-2.5 text-[0.7rem] font-semibold tracking-[0.14em] text-muted-foreground">
             PENERIMAAN
           </h2>
-          <div className="flex justify-between gap-3 border-t border-border px-4 py-2.5 text-sm">
-            <span>Gaji pokok</span>
-            <Money value={slip.gajiPokok} />
-          </div>
+          {earningLines(slip).map((p) => (
+            <div key={p.label} className="flex justify-between gap-3 border-t border-border px-4 py-2.5 text-sm">
+              <span>{p.label}</span>
+              <Money value={p.amount} />
+            </div>
+          ))}
           <div className="mt-auto flex justify-between gap-3 border-t border-foreground/80 px-4 py-3 text-sm font-semibold">
             <span>Total penerimaan</span>
-            <Money value={slip.gajiPokok} />
+            <Money value={totalPenerimaan(slip)} />
           </div>
         </section>
 
@@ -125,7 +127,7 @@ export async function PayslipSheet({ slip }: { slip: PayslipDetail }) {
         </div>
         <p className="mt-1 text-sm italic text-muted-foreground">Terbilang: {terbilangRupiah(slip.gajiAkhir)}</p>
         <p className="mt-1 font-mono text-xs text-muted-foreground tabular-nums">
-          {formatRupiah(slip.gajiPokok)} − {formatRupiah(totalPotongan(slip))} = {formatRupiah(slip.gajiAkhir)}
+          {formatRupiah(totalPenerimaan(slip))} − {formatRupiah(totalPotongan(slip))} = {formatRupiah(slip.gajiAkhir)}
         </p>
       </section>
 

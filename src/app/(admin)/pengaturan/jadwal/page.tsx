@@ -23,7 +23,8 @@ export default async function JadwalPage() {
       hari_kerja: number[];
       toleransi_terlambat_menit: number;
       potong_terlambat: boolean | null;
-    }>(db, "jam_masuk, jam_pulang, hari_kerja, toleransi_terlambat_menit, potong_terlambat"),
+      hitung_lembur: boolean | null;
+    }>(db, "jam_masuk, jam_pulang, hari_kerja, toleransi_terlambat_menit, potong_terlambat, hitung_lembur"),
   ]);
   if (branchRes.error) console.error("jadwal: branches query failed", branchRes.error);
   if (deptRes.error) console.error("jadwal: departments query failed", deptRes.error);
@@ -35,6 +36,7 @@ export default async function JadwalPage() {
     hariKerja: s.hari_kerja,
     toleransiMenit: s.toleransi_terlambat_menit,
     potongTerlambat: s.potong_terlambat === true,
+    hitungLembur: s.hitung_lembur === true,
   });
   const branchDefault = new Map(
     schedRes.data.filter((s) => s.department_id === null).map((s) => [s.branch_id, toDefaults(s)]),
