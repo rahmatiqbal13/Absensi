@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendPush } from "./push";
 
 export type NotificationJenis = "lupa_absen" | "slip_gaji" | "kontrak";
 
@@ -26,10 +27,25 @@ export async function createNotifications(
   const { data, error } = await service
     .from("notifications")
     .upsert([...rows], { onConflict: "employee_id,jenis,kunci", ignoreDuplicates: true })
-    .select("id");
+    .select("id, employee_id, jenis, kunci, judul, isi, link");
   if (error) {
     console.error("createNotifications: insert failed", rows[0].jenis, error);
     return { ok: false };
   }
-  return { ok: true, created: data?.length ?? 0 };
+  // Only the rows this call actually inserted reach the device (0055), so a
+  // repeated cron run never buzzes a phone twice.
+  const created = (data ?? []) as (NewNotification & { id: string })[];
+  if (created.length > 0) {
+    await sendPush(
+      service,
+      created.map((n) => ({
+        employeeId: n.employee_id,
+        title: n.judul,
+        body: n.isi,
+        link: n.link,
+        tag: `${n.jenis}:${n.kunci}`,
+      })),
+    ).catch((e) => console.error("createNotifications: push failed", e));
+  }
+  return { ok: true, created: created.length };
 }

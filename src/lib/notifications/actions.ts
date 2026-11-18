@@ -1,7 +1,9 @@
 "use server";
 
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { NotificationJenis } from "./create";
+import { sendPush } from "./push";
 
 export type NotificationItem = {
   id: string;
@@ -70,4 +72,64 @@ export async function markMyNotificationsRead(): Promise<void> {
     .eq("employee_id", user.id)
     .is("read_at", null);
   if (error) console.error("markMyNotificationsRead: update failed", error);
+}
+
+export type PushSubscriptionInput = { endpoint: string; keys: { p256dh: string; auth: string } };
+
+function validSubscription(sub: unknown): sub is PushSubscriptionInput {
+  const s = sub as PushSubscriptionInput | null;
+  if (!s || typeof s.endpoint !== "string" || typeof s.keys?.p256dh !== "string" || typeof s.keys?.auth !== "string") return false;
+  try {
+    return new URL(s.endpoint).protocol === "https:" && s.endpoint.length < 1000;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remembers this device for Web Push (0055). Saved with the service role so a
+ * browser that changes hands (shared PC) moves to the person now signed in.
+ */
+export async function savePushSubscription(sub: unknown): Promise<{ ok: boolean }> {
+  if (!validSubscription(sub)) return { ok: false };
+  const db = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { ok: false };
+  const userAgent = (await headers()).get("user-agent")?.slice(0, 300) ?? null;
+  const service = createServiceRoleSupabaseClient();
+  const { data: existing } = await service.from("push_subscriptions").select("employee_id").eq("endpoint", sub.endpoint).maybeSingle();
+  const { error } = await service
+    .from("push_subscriptions")
+    .upsert(
+      { employee_id: user.id, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_agent: userAgent },
+      { onConflict: "endpoint" },
+    );
+  if (error) {
+    console.error("savePushSubscription: upsert failed", error);
+    return { ok: false };
+  }
+  // First time on this device (for this person): a test notice proves it works.
+  if (existing?.employee_id !== user.id) {
+    await sendPush(service, [
+      {
+        employeeId: user.id,
+        title: "Notifikasi aktif",
+        body: "Pengingat absen dan slip gaji akan muncul di perangkat ini, walau aplikasi ditutup.",
+        link: "/absen",
+        tag: "push-aktif",
+      },
+    ]).catch(() => {});
+  }
+  return { ok: true };
+}
+
+/** Forgets this device (the user turned device notifications off). */
+export async function removePushSubscription(endpoint: string): Promise<{ ok: boolean }> {
+  if (typeof endpoint !== "string" || !endpoint) return { ok: false };
+  const db = await createServerSupabaseClient();
+  const { error } = await db.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  if (error) console.error("removePushSubscription: delete failed", error);
+  return { ok: !error };
 }

@@ -5,7 +5,12 @@ import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
 import { isMagang } from "@/lib/employees/contracts";
 import { NotificationBell } from "@/components/notification-bell";
-import { getMyNotifications, markMyNotificationsRead } from "@/lib/notifications/actions";
+import {
+  getMyNotifications,
+  markMyNotificationsRead,
+  removePushSubscription,
+  savePushSubscription,
+} from "@/lib/notifications/actions";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
@@ -30,7 +35,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
         avatarUrl={avatarUrl ?? undefined}
         brand={<BrandMark size="md" />}
         footer={<AppFooter />}
-        notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}
+        notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} push={{ save: savePushSubscription, remove: removePushSubscription }} />}
       >
         {children}
       </AdminShell>
@@ -38,7 +43,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
   }
 
   return (
-    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />} notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />} hideSlipGaji={isMagang(employee.statusKontrak)}>
+    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />} notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} push={{ save: savePushSubscription, remove: removePushSubscription }} />} hideSlipGaji={isMagang(employee.statusKontrak)}>
       {children}
     </EmployeeShell>
   );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { NotificationFeed, NotificationItem } from "@/lib/notifications/actions";
 import { useNow } from "@/lib/time/use-now";
+import { DevicePushToggle } from "@/components/device-push-toggle";
 import { cn } from "@/lib/utils";
 
 const REFRESH_MS = 2 * 60_000;
@@ -31,10 +32,13 @@ const ICON = { lupa_absen: Clock, slip_gaji: FileText, kontrak: FileSignature } 
 export function NotificationBell({
   load,
   markRead,
+  push,
   className,
 }: {
   load: () => Promise<NotificationFeed>;
   markRead: () => Promise<void>;
+  /** Web Push on this device (shown at the bottom of the list). */
+  push?: { save: (sub: unknown) => Promise<{ ok: boolean }>; remove: (endpoint: string) => Promise<{ ok: boolean }> };
   className?: string;
 }) {
   const [feed, setFeed] = useState<NotificationFeed>({ unread: 0, items: [] });
@@ -98,6 +102,11 @@ export function NotificationBell({
               </li>
             ))}
           </ul>
+        )}
+        {push && (
+          <div className="border-t border-border px-4 py-3">
+            <DevicePushToggle save={push.save} remove={push.remove} />
+          </div>
         )}
       </PopoverContent>
     </Popover>
