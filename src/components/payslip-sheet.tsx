@@ -29,8 +29,10 @@ export async function PayslipSheet({ slip, pdfHref }: { slip: PayslipDetail; pdf
     ["Jabatan", slip.karyawan.jabatan],
     ["Departemen", slip.karyawan.departemen ?? "-"],
     ["Cabang", slip.karyawan.cabang],
-    ["Status kontrak", slip.karyawan.statusKontrak],
+    ["Status kontrak", slip.karyawan.kontrak?.status ?? slip.karyawan.statusKontrak],
+    ...(slip.karyawan.kontrak ? [["Periode kontrak", slip.karyawan.kontrak.periode] as [string, string]] : []),
     ["Mulai bekerja", formatTanggal(slip.karyawan.tanggalMulaiKerja)],
+    ...(slip.karyawan.masaKerja ? [["Masa kerja", slip.karyawan.masaKerja] as [string, string]] : []),
     ["Hari kerja", `${slip.hariKerjaEfektif} hari`],
     ["Upah harian", formatRupiah(slip.gajiHarian)],
   ];

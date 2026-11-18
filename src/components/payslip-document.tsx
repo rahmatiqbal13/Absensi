@@ -97,8 +97,10 @@ export function PayslipDocument({
     ["Cabang", slip.karyawan.cabang],
   ];
   const infoRight: [string, string][] = [
-    ["Status kontrak", slip.karyawan.statusKontrak],
+    ["Status kontrak", slip.karyawan.kontrak?.status ?? slip.karyawan.statusKontrak],
+    ...(slip.karyawan.kontrak ? [["Periode kontrak", slip.karyawan.kontrak.periode] as [string, string]] : []),
     ["Mulai bekerja", formatTanggal(slip.karyawan.tanggalMulaiKerja)],
+    ...(slip.karyawan.masaKerja ? [["Masa kerja", slip.karyawan.masaKerja] as [string, string]] : []),
     ["Hari kerja", `${slip.hariKerjaEfektif} hari`],
     ["Upah harian", formatRupiah(slip.gajiHarian)],
   ];

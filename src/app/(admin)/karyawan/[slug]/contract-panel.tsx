@@ -35,8 +35,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   CONTRACT_LABEL,
   addDays,
-  daysBetween,
+  formatLama,
   formatLamaHari,
+  formatLamaKontrak,
   formatTanggal,
   sortContracts,
   summarizeContracts,
@@ -87,6 +88,10 @@ export function ContractPanel({
       <Card>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
+            <p className="text-sm">
+              Mulai bekerja <b>{formatTanggal(tanggalMulaiKerja)}</b> · masa kerja{" "}
+              <b>{tanggalMulaiKerja <= today ? formatLama(tanggalMulaiKerja, addDays(today, 1)) : "belum mulai"}</b>
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <ContractStateBadge summary={summary} />
               {cur && <span className="text-sm font-semibold">{CONTRACT_LABEL[cur.jenis]}</span>}
@@ -141,7 +146,7 @@ export function ContractPanel({
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {formatTanggal(c.tanggal_mulai)} – {c.tanggal_selesai ? formatTanggal(c.tanggal_selesai) : "tanpa batas waktu"}
-                      {c.tanggal_selesai && ` · ${formatLamaHari(daysBetween(c.tanggal_mulai, c.tanggal_selesai) + 1)}`}
+                      {c.tanggal_selesai && ` · ${formatLamaKontrak(c)}`}
                     </p>
                     {c.catatan && <p className="text-sm text-muted-foreground italic">“{c.catatan}”</p>}
                   </div>

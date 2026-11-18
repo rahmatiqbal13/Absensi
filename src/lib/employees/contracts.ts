@@ -158,10 +158,56 @@ export function formatTanggal(d: string): string {
   );
 }
 
-/** "2 tahun 3 bulan" from a day count (30-day months, for display only). */
+/** Whole calendar months from `from` up to (not including) `to`. */
+function fullMonths(from: string, to: string): number {
+  const [y1, m1, d1] = from.split("-").map(Number);
+  const [y2, m2, d2] = to.split("-").map(Number);
+  return (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+}
+
+/**
+ * Calendar length "3 tahun 4 bulan" from `from` to `to` (exclusive). Used for
+ * masa kerja (start date → today) and contract length (start → end + 1 day,
+ * so 1 Jan–31 Des reads "1 tahun").
+ */
+export function formatLama(from: string, to: string): string {
+  const months = fullMonths(from, to);
+  if (months <= 0) {
+    const days = Math.max(0, daysBetween(from, to));
+    return `${days} hari`;
+  }
+  const tahun = Math.floor(months / 12);
+  const bulan = months % 12;
+  return [tahun ? `${tahun} tahun` : null, bulan ? `${bulan} bulan` : null].filter(Boolean).join(" ");
+}
+
+/** Length of a contract with an inclusive end date. */
+export function formatLamaKontrak(c: Pick<Contract, "tanggal_mulai" | "tanggal_selesai">): string | null {
+  return c.tanggal_selesai ? formatLama(c.tanggal_mulai, addDays(c.tanggal_selesai, 1)) : null;
+}
+
+/** "2 tahun 3 bulan" for a total day count (sum of several contracts). */
 export function formatLamaHari(days: number): string {
-  const tahun = Math.floor(days / 365);
-  const bulan = Math.floor((days % 365) / 30);
-  const parts = [tahun ? `${tahun} tahun` : null, bulan ? `${bulan} bulan` : null].filter(Boolean);
-  return parts.length ? parts.join(" ") : `${days} hari`;
+  return formatLama("2000-01-01", addDays("2000-01-01", days));
+}
+
+/**
+ * The contract in force on `date` (latest one started on or before it), with
+ * "kontrak ke-N" counted as of that date — for a payslip of a past month.
+ */
+export function contractOn(list: readonly Contract[], date: string): { contract: Contract; kontrakKe: number } | null {
+  const started = sortContracts(list).filter((c) => c.tanggal_mulai <= date);
+  const contract = started[0];
+  if (!contract) return null;
+  return { contract, kontrakKe: started.filter((c) => c.jenis === "pkwt").length };
+}
+
+/** For the payslip: { status: "PKWT ke-4", periode: "1 Januari 2026 – 31 Desember 2026" }. */
+export function describeContract(contract: Contract, kontrakKe: number): { status: string; periode: string } {
+  const status =
+    contract.jenis === "pkwt" ? `PKWT ke-${kontrakKe}` : contract.jenis === "pkwtt" ? "PKWTT (tetap)" : "Magang";
+  const periode = contract.tanggal_selesai
+    ? `${formatTanggal(contract.tanggal_mulai)} – ${formatTanggal(contract.tanggal_selesai)}`
+    : `sejak ${formatTanggal(contract.tanggal_mulai)}`;
+  return { status, periode };
 }

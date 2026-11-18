@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  contractOn,
+  describeContract,
+  formatLama,
+  formatLamaKontrak,
   contractReminderStage,
   isMagang,
   summarizeContracts,
@@ -88,5 +92,36 @@ describe("isMagang", () => {
     expect(isMagang("magang kampus")).toBe(true);
     expect(isMagang("PKWT")).toBe(false);
     expect(isMagang(null)).toBe(false);
+  });
+});
+
+describe("formatLama", () => {
+  it("counts calendar years and months", () => {
+    expect(formatLama("2023-07-17", "2026-11-18")).toBe("3 tahun 4 bulan");
+    expect(formatLama("2023-07-17", "2026-07-17")).toBe("3 tahun");
+    expect(formatLama("2026-11-01", "2026-11-18")).toBe("17 hari");
+  });
+  it("reads a 1 Jan – 31 Dec contract as exactly 1 year", () => {
+    expect(formatLamaKontrak({ tanggal_mulai: "2026-01-01", tanggal_selesai: "2026-12-31" })).toBe("1 tahun");
+    expect(formatLamaKontrak({ tanggal_mulai: "2026-07-01", tanggal_selesai: "2026-12-31" })).toBe("6 bulan");
+    expect(formatLamaKontrak({ tanggal_mulai: "2026-01-01", tanggal_selesai: null })).toBeNull();
+  });
+});
+
+describe("contractOn", () => {
+  const history = [
+    c({ id: "k1", tanggal_mulai: "2023-07-17", tanggal_selesai: "2023-12-31" }),
+    c({ id: "k2", tanggal_mulai: "2024-01-01", tanggal_selesai: "2024-12-31" }),
+    c({ id: "k3", tanggal_mulai: "2025-01-01", tanggal_selesai: "2025-12-31" }),
+    c({ id: "k4", tanggal_mulai: "2026-01-01", tanggal_selesai: "2026-12-31" }),
+  ];
+  it("picks the contract in force on a date, counted as of that date", () => {
+    expect(contractOn(history, "2026-11-30")).toMatchObject({ contract: { id: "k4" }, kontrakKe: 4 });
+    expect(contractOn(history, "2024-06-30")).toMatchObject({ contract: { id: "k2" }, kontrakKe: 2 });
+    expect(contractOn(history, "2023-01-31")).toBeNull();
+  });
+  it("describes it for the payslip", () => {
+    const on = contractOn(history, "2026-11-30")!;
+    expect(describeContract(on.contract, on.kontrakKe)).toEqual({ status: "PKWT ke-4", periode: "1 Januari 2026 – 31 Desember 2026" });
   });
 });

@@ -27,7 +27,7 @@ describe("summarizeRincian", () => {
 const baseSlip = (o: Partial<PayslipDetail> = {}): PayslipDetail => ({
   id: "s1",
   periode: { bulan: 8, tahun: 2026, label: "Agustus 2026", status: "final" },
-  karyawan: { nama: "A", jabatan: "-", email: "-", departemen: null, cabang: "-", statusKontrak: "-", tanggalMulaiKerja: null },
+  karyawan: { nama: "A", jabatan: "-", email: "-", departemen: null, cabang: "-", statusKontrak: "-", tanggalMulaiKerja: null, kontrak: null, masaKerja: null },
   gajiPokok: 1_000_000, hariKerjaEfektif: 20, gajiHarian: 50_000, totalPotonganAbsensi: 50_000,
   menitLembur: 0, upahLembur: 0, kategoriTer: null,
   tarifPph21: 1, potonganPph21: 9_500, gajiAkhir: 940_500,
@@ -102,5 +102,39 @@ describe("loadPayslipDetail access", () => {
 
   it("rejects a malformed id without querying", async () => {
     expect(await loadPayslipDetail(db(null), viewer("hr_admin"), "nope")).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it("shows the contract in force and masa kerja as of the period's last day", async () => {
+    const slipRow = {
+      ...row("final"),
+      employees: { nama: "Rahmat", jabatan: "Staf", email: "r@x", status_kontrak: "PKWT", tanggal_mulai_kerja: "2023-07-17", departments: null },
+    };
+    const contracts = [
+      { id: "k1", jenis: "pkwt", tanggal_mulai: "2023-07-17", tanggal_selesai: "2023-12-31", catatan: null },
+      { id: "k2", jenis: "pkwt", tanggal_mulai: "2024-01-01", tanggal_selesai: "2024-12-31", catatan: null },
+      { id: "k3", jenis: "pkwt", tanggal_mulai: "2025-01-01", tanggal_selesai: "2025-12-31", catatan: null },
+      { id: "k4", jenis: "pkwt", tanggal_mulai: "2026-01-01", tanggal_selesai: "2026-12-31", catatan: null },
+    ];
+    const tables = {
+      from: (t: string) => {
+        const q: Record<string, unknown> = {};
+        q.select = () => q;
+        q.eq = () => q;
+        q.maybeSingle = () => Promise.resolve({ data: slipRow, error: null });
+        if (t === "employee_contracts") q.then = (r: (v: unknown) => unknown) => Promise.resolve({ data: contracts, error: null }).then(r);
+        return q;
+      },
+    } as never;
+    const res = await loadPayslipDetail(tables, viewer("karyawan"), ID);
+    // Period is Agustus 2026 -> as of 31 Aug 2026.
+    expect(res).toMatchObject({
+      ok: true,
+      slip: {
+        karyawan: {
+          kontrak: { status: "PKWT ke-4", periode: "1 Januari 2026 – 31 Desember 2026" },
+          masaKerja: "3 tahun 1 bulan",
+        },
+      },
+    });
   });
 });

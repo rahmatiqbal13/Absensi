@@ -5,6 +5,7 @@ import { round2 } from "./round";
 import { formatPersen } from "./pph21";
 import { monthLabel } from "@/lib/format/month";
 import { isMissingColumn, logOptionalLookup } from "@/lib/supabase/missing-column";
+import { addDays, contractOn, describeContract, formatLama, type Contract } from "@/lib/employees/contracts";
 
 /** Everything a payslip shows — shared by the web view and the PDF. */
 export type PayslipDetail = {
@@ -18,6 +19,10 @@ export type PayslipDetail = {
     cabang: string;
     statusKontrak: string;
     tanggalMulaiKerja: string | null;
+    /** Contract in force at the end of the period: "PKWT ke-4" + "1 Januari 2026 – 31 Desember 2026". */
+    kontrak: { status: string; periode: string } | null;
+    /** Masa kerja at the end of the period, e.g. "3 tahun 4 bulan". */
+    masaKerja: string | null;
   };
   gajiPokok: number;
   hariKerjaEfektif: number;
@@ -169,6 +174,21 @@ export async function loadPayslipDetail(
 
   const period = row.payroll_periods;
   const emp = row.employees;
+
+  // As of the last day of the period, so an old slip keeps its own facts.
+  const periodEnd = period
+    ? new Date(Date.UTC(period.tahun, period.bulan, 0)).toISOString().slice(0, 10)
+    : null;
+  const { data: contractRows, error: contractErr } = await db
+    .from("employee_contracts")
+    .select("id, jenis, tanggal_mulai, tanggal_selesai, catatan")
+    .eq("employee_id", row.employee_id);
+  if (contractErr) logOptionalLookup("loadPayslipDetail: employee_contracts", contractErr, "0049/0050");
+  const on = periodEnd && !contractErr ? contractOn((contractRows ?? []) as Contract[], periodEnd) : null;
+  const masaKerja =
+    periodEnd && emp?.tanggal_mulai_kerja && emp.tanggal_mulai_kerja <= periodEnd
+      ? formatLama(emp.tanggal_mulai_kerja, addDays(periodEnd, 1))
+      : null;
   const rincian = row.rincian_harian ?? [];
   return {
     ok: true,
@@ -189,6 +209,8 @@ export async function loadPayslipDetail(
         cabang: period?.branches?.nama ?? "-",
         statusKontrak: emp?.status_kontrak ?? "-",
         tanggalMulaiKerja: emp?.tanggal_mulai_kerja ?? null,
+        kontrak: on ? describeContract(on.contract, on.kontrakKe) : null,
+        masaKerja,
       },
       gajiPokok: Number(row.gaji_pokok),
       hariKerjaEfektif: row.hari_kerja_efektif,

@@ -10,6 +10,7 @@ const slip: PayslipDetail = {
   karyawan: {
     nama: "Budi Santoso", jabatan: "Staf Gudang", email: "budi@x.id", departemen: "Gudang",
     cabang: "Kantor Pusat", statusKontrak: "PKWT", tanggalMulaiKerja: "2025-03-01",
+    kontrak: { status: "PKWT ke-2", periode: "1 Januari 2026 – 31 Desember 2026" }, masaKerja: "1 tahun 6 bulan",
   },
   gajiPokok: 5_000_000, hariKerjaEfektif: 21, gajiHarian: 238_095.24,
   totalPotonganAbsensi: 238_095.24, menitLembur: 0, upahLembur: 0, kategoriTer: null, tarifPph21: 1, potonganPph21: 47_619.05, gajiAkhir: 4_714_285.71,
@@ -25,7 +26,10 @@ const render = (o: Partial<PayslipOrg> = {}, sl: Partial<PayslipDetail> = {}) =>
 describe("PayslipDocument", () => {
   it("has the org letterhead, employee data and period", () => {
     const text = treeText(render());
-    for (const t of ["PT Contoh", "Jl. Merdeka 1", "SLIP GAJI", "Agustus 2026", "Budi Santoso", "Staf Gudang", "Gudang"]) {
+    for (const t of [
+      "PT Contoh", "Jl. Merdeka 1", "SLIP GAJI", "Agustus 2026", "Budi Santoso", "Staf Gudang", "Gudang",
+      "PKWT ke-2", "Periode kontrak", "1 Januari 2026 – 31 Desember 2026", "Masa kerja", "1 tahun 6 bulan",
+    ]) {
       expect(text).toContain(t);
     }
   });
