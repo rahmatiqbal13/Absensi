@@ -3,6 +3,7 @@ import { resolveApprover } from "./approver";
 import { calculateLeaveDays, requiresBalanceCheck, hasSufficientBalance } from "./balance";
 import { getLeaveBalance } from "./balance-lookup";
 import { annualLeaveEligibleFrom, requiresAttachment } from "./eligibility";
+import { isMagang } from "@/lib/employees/contracts";
 
 export type SubmitLeaveInput = {
   employeeId: string;
@@ -21,7 +22,7 @@ export async function submitLeaveRequest(
 ): Promise<SubmitLeaveResult> {
   const { data: employee, error: employeeErr } = await db
     .from("employees")
-    .select("id, role, atasan_id, designated_approver_id, tanggal_mulai_kerja")
+    .select("id, role, atasan_id, designated_approver_id, tanggal_mulai_kerja, status_kontrak")
     .eq("id", input.employeeId)
     .single();
   if (employeeErr || !employee) {
@@ -50,10 +51,14 @@ export async function submitLeaveRequest(
 
   if (requiresBalanceCheck(input.jenis)) {
     const year = Number(input.tanggalMulai.slice(0, 4));
-    const res = await getLeaveBalance(db, input.employeeId, year);
+    const res = await getLeaveBalance(db, input.employeeId, year, { magang: isMagang(employee.status_kontrak) });
     if (!res.ok) {
       console.error("submitLeaveRequest: leave_balances lookup failed", res.error);
       return { ok: false, error: "Gagal memeriksa saldo cuti." };
+    }
+
+    if (res.balance.awal === 0 && isMagang(employee.status_kontrak)) {
+      return { ok: false, error: "Anak magang tidak mendapat jatah cuti tahunan. Gunakan izin khusus atau cuti sakit." };
     }
 
     const saldoSisa = res.balance.sisa;

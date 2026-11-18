@@ -7,6 +7,7 @@ const BASE_EMPLOYEE = {
   atasan_id: "atasan-1",
   designated_approver_id: "super-admin-1",
   tanggal_mulai_kerja: "2024-01-15",
+  status_kontrak: "PKWT",
 };
 
 function makeMockDb(opts: {
@@ -117,6 +118,26 @@ describe("submitLeaveRequest", () => {
   it("treats a missing balance row as the full default allowance, like the approval RPC", async () => {
     const db = makeMockDb({ balanceRow: null });
     const result = await submitLeaveRequest(db as any, BASE_INPUT);
+    expect(result).toEqual({ ok: true, requestId: "leave-request-1" });
+  });
+
+  it("refuses annual leave for an intern, even with a 12-day balance row", async () => {
+    const db = makeMockDb({ employee: { status_kontrak: "Magang" } });
+    const result = await submitLeaveRequest(db as any, BASE_INPUT);
+    expect(result).toEqual({
+      ok: false,
+      error: "Anak magang tidak mendapat jatah cuti tahunan. Gunakan izin khusus atau cuti sakit.",
+    });
+    expect(db.__insertMock).not.toHaveBeenCalled();
+  });
+
+  it("still lets an intern take sick leave", async () => {
+    const db = makeMockDb({ employee: { status_kontrak: "Magang" } });
+    const result = await submitLeaveRequest(db as any, {
+      ...BASE_INPUT,
+      jenis: "sakit",
+      tanggalSelesai: "2026-10-01",
+    });
     expect(result).toEqual({ ok: true, requestId: "leave-request-1" });
   });
 

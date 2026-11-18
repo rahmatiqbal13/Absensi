@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { CalendarDays, Paperclip } from "lucide-react";
 import { getLeaveBalance } from "@/lib/leave/balance-lookup";
+import { isMagang } from "@/lib/employees/contracts";
 import { annualLeaveEligibleFrom } from "@/lib/leave/eligibility";
 import { leaveJenisLabel } from "@/lib/leave/labels";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
@@ -46,8 +47,9 @@ export default async function CutiPage() {
   // saldo cuti"). Same default as the approval RPC when no row exists yet.
   const today = toJakartaDateOnly(new Date());
   const tahun = Number(today.slice(0, 4));
+  const magang = isMagang(employee.statusKontrak);
   const [balanceRes, { data: me }] = await Promise.all([
-    getLeaveBalance(db, employee.id, tahun),
+    getLeaveBalance(db, employee.id, tahun, { magang }),
     db.from("employees").select("tanggal_mulai_kerja").eq("id", employee.id).maybeSingle(),
   ]);
   if (!balanceRes.ok) console.error("CutiPage: balance lookup failed", balanceRes.error);
@@ -66,8 +68,15 @@ export default async function CutiPage() {
               </span>
               <span className="text-sm opacity-85">dari {balanceRes.balance.awal} hari</span>
             </p>
-            <p className="mt-1 text-sm opacity-85">Terpakai {balanceRes.balance.terpakai} hari.</p>
-            {notYetEligible && (
+            <p className="mt-1 text-sm opacity-85">
+              Terpakai {balanceRes.balance.terpakai} hari. Sisa cuti hangus pada 31 Desember {tahun}.
+            </p>
+            {magang && (
+              <p className="mt-3 rounded-lg bg-primary-foreground/15 px-3 py-2 text-sm">
+                Anak magang tidak mendapat jatah cuti tahunan. Cuti sakit dan izin khusus tetap bisa diajukan.
+              </p>
+            )}
+            {!magang && notYetEligible && (
               <p className="mt-3 rounded-lg bg-primary-foreground/15 px-3 py-2 text-sm">
                 Cuti tahunan bisa diajukan mulai{" "}
                 <b>{formatDate(eligibleFrom!)}</b> (setelah 12 bulan bekerja). Cuti sakit dan izin khusus tetap bisa

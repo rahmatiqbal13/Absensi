@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculateLeaveDays, requiresBalanceCheck } from "./balance";
 import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { annualAllowance } from "./balance-lookup";
+import { isMagang } from "@/lib/employees/contracts";
 
 /**
  * Everything an approver needs beside the request itself: how many *working*
@@ -12,8 +14,6 @@ import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
  * balance; `workingDays` is the count the employee is actually absent from a
  * scheduled shift. The panel shows both so the reviewer sees the real charge.
  */
-
-const DEFAULT_SALDO_AWAL = 12; // mirrors `coalesce(v_saldo_awal, 12)` in the approval RPC
 
 export type ReviewRequestInput = {
   id: string;
@@ -121,7 +121,7 @@ export async function loadLeaveReviewContext(
 
   const none = Promise.resolve({ data: [] as never[], error: null });
 
-  const [schedRes, holRes, balRes, teamLeaveRes, teamRes, deptRes] = await Promise.all([
+  const [schedRes, holRes, balRes, teamLeaveRes, teamRes, deptRes, kontrakRes] = await Promise.all([
     branchIds.length
       ? loadSchedules<{ hari_kerja: number[] | null }>(db, "hari_kerja", branchIds)
       : none,
@@ -148,9 +148,14 @@ export async function loadLeaveReviewContext(
       ? db.from("employees").select("department_id, branch_id").eq("status", "aktif").in("department_id", deptIds)
       : none,
     deptIds.length ? db.from("departments").select("id, nama").in("id", deptIds) : none,
+    // Interns get 0 annual leave (0052).
+    balanceEmployeeIds.length
+      ? db.from("employees").select("id, status_kontrak").in("id", balanceEmployeeIds)
+      : none,
   ]);
 
-  const err = schedRes.error ?? holRes.error ?? balRes.error ?? teamLeaveRes.error ?? teamRes.error ?? deptRes.error;
+  const err =
+    schedRes.error ?? holRes.error ?? balRes.error ?? teamLeaveRes.error ?? teamRes.error ?? deptRes.error ?? kontrakRes.error;
   if (err) {
     console.error("loadLeaveReviewContext: query failed", err);
     return { ok: false, error: "Gagal memuat saldo dan jadwal tim." };
@@ -163,6 +168,11 @@ export async function loadLeaveReviewContext(
   }[];
   const holidays = (holRes.data ?? []) as { tanggal: string; branch_id: string | null }[];
 
+  const magang = new Set(
+    ((kontrakRes.data ?? []) as { id: string; status_kontrak: string | null }[])
+      .filter((e) => isMagang(e.status_kontrak))
+      .map((e) => e.id),
+  );
   const balanceKey = (emp: string, year: number) => `${emp}:${year}`;
   const balances = new Map<string, { awal: number; terpakai: number }>();
   for (const b of (balRes.data ?? []) as {
@@ -172,7 +182,7 @@ export async function loadLeaveReviewContext(
     saldo_terpakai: number | string | null;
   }[]) {
     balances.set(balanceKey(b.employee_id, Number(b.tahun)), {
-      awal: b.saldo_awal == null ? DEFAULT_SALDO_AWAL : Number(b.saldo_awal),
+      awal: annualAllowance(b.saldo_awal, magang.has(b.employee_id)),
       terpakai: Number(b.saldo_terpakai ?? 0),
     });
   }
@@ -218,7 +228,7 @@ export async function loadLeaveReviewContext(
     if (requiresBalanceCheck(r.jenis)) {
       const tahun = Number(r.tanggalMulai.slice(0, 4));
       const b = balances.get(balanceKey(r.employeeId, tahun));
-      const awal = b?.awal ?? DEFAULT_SALDO_AWAL;
+      const awal = b?.awal ?? annualAllowance(null, magang.has(r.employeeId));
       balance = { awal, sisa: awal - (b?.terpakai ?? 0), tahun };
       chargedDays = calculateLeaveDays(r.tanggalMulai, r.tanggalSelesai);
     }
