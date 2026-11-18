@@ -53,6 +53,21 @@ describe("AdminShell", () => {
     expect(screen.getAllByRole("link", { name: "Dashboard" }).length).toBeGreaterThan(0);
   });
 
+  it("gives every admin role their own Absen / Cuti / Riwayat / Slip gaji", () => {
+    for (const role of ["atasan", "hr_admin", "super_admin"] as const) {
+      const { unmount } = renderShell(role);
+      for (const [name, href] of [
+        ["Absen", "/absen"],
+        ["Cuti saya", "/cuti"],
+        ["Riwayat absen", "/riwayat"],
+        ["Slip gaji saya", "/slip-gaji"],
+      ]) {
+        expect(screen.getAllByRole("link", { name })[0]).toHaveAttribute("href", href);
+      }
+      unmount();
+    }
+  });
+
   it("renders page content and the footer", () => {
     renderShell("hr_admin", <div>konten admin</div>);
     expect(screen.getByText("konten admin")).toBeInTheDocument();

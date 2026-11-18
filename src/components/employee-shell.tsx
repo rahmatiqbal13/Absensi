@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Clock, FileText, ListChecks, User } from "lucide-react";
+import { CalendarDays, Clock, FileText, LayoutDashboard, ListChecks, User } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +19,15 @@ export function EmployeeShell({
   footer,
   notifications,
   hideSlipGaji = false,
+  adminHref,
   children,
 }: {
   brand: React.ReactNode;
   footer: React.ReactNode;
   /** Interns (status magang) have no payroll, so no Slip Gaji tab. */
   hideSlipGaji?: boolean;
+  /** For HR / atasan / super admin: a way back to the admin panel. */
+  adminHref?: string;
   /** The notification bell, rendered by the server layout. */
   notifications?: React.ReactNode;
   children: React.ReactNode;
@@ -36,6 +39,15 @@ export function EmployeeShell({
       <header className="flex h-14 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
         {brand}
         <div className="flex items-center gap-1">
+          {adminHref && (
+            <Link
+              href={adminHref}
+              className="mr-1 inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <LayoutDashboard className="size-4" aria-hidden="true" />
+              Panel admin
+            </Link>
+          )}
           {notifications}
           <ThemeToggle />
         </div>

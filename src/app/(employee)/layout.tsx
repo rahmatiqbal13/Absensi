@@ -16,6 +16,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       footer={<AppFooter />}
       notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}
       hideSlipGaji={isMagang(employee?.statusKontrak)}
+      adminHref={employee && employee.role !== "karyawan" ? "/dashboard" : undefined}
     >
       {children}
     </EmployeeShell>

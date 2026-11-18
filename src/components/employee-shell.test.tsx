@@ -56,4 +56,16 @@ describe("EmployeeShell", () => {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
   });
+
+  it("offers a way back to the admin panel only when given one", () => {
+    const { unmount } = renderShell();
+    expect(screen.queryByRole("link", { name: /panel admin/i })).not.toBeInTheDocument();
+    unmount();
+    render(
+      <EmployeeShell brand={<div>Brand</div>} footer={<footer>footer</footer>} adminHref="/dashboard">
+        <div>content</div>
+      </EmployeeShell>,
+    );
+    expect(screen.getByRole("link", { name: /panel admin/i })).toHaveAttribute("href", "/dashboard");
+  });
 });

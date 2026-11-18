@@ -6,7 +6,11 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   CalendarCheck,
+  CalendarDays,
   ClipboardCheck,
+  Clock,
+  FileText,
+  ListChecks,
   LayoutDashboard,
   Menu,
   Settings,
@@ -61,6 +65,16 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         tint: "#C4B5FD",
         countKey: "pendingCorrection",
       },
+    ],
+  },
+  {
+    // PRD: admins who are employees clock in through the same flow as everyone.
+    title: "Absensi saya",
+    items: [
+      { href: "/absen", label: "Absen", Icon: Clock, tint: "#86EFAC" },
+      { href: "/cuti", label: "Cuti saya", Icon: CalendarDays, tint: "#86EFAC" },
+      { href: "/riwayat", label: "Riwayat absen", Icon: ListChecks, tint: "#86EFAC" },
+      { href: "/slip-gaji", label: "Slip gaji saya", Icon: FileText, tint: "#86EFAC" },
     ],
   },
   { title: "Orang", items: [{ href: "/karyawan", label: "Karyawan", Icon: Users, tint: "#7DD3FC", hrAdminOnly: true }] },
