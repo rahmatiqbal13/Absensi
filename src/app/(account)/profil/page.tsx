@@ -6,7 +6,10 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ProfilForm } from "./profil-form";
-import { removePhoto, updatePhone, uploadPhoto } from "./actions";
+import { removePhoto, updatePhone, uploadPhoto, changePassword, withdrawMyConsent } from "./actions";
+import { PrivacySection } from "./privacy-section";
+import { hasActiveConsent } from "@/lib/consent/consent";
+import { ChangePasswordForm } from "./change-password-form";
 
 const ROLE_LABEL: Record<string, string> = {
   karyawan: "Karyawan", atasan: "Atasan", hr_admin: "HR Admin", super_admin: "Super Admin",
@@ -43,7 +46,10 @@ export default async function ProfilPage() {
     );
   }
 
-  const photoUrl = await signProfilePhotoUrl(db, row?.foto_profil_url ?? null);
+  const [photoUrl, consentActive] = await Promise.all([
+    signProfilePhotoUrl(db, row?.foto_profil_url ?? null),
+    hasActiveConsent(db, me.id),
+  ]);
   const branchNama = (row?.branches as unknown as { nama: string } | null)?.nama ?? "-";
   const deptNama = (row?.departments as unknown as { nama: string } | null)?.nama ?? "-";
 
@@ -96,6 +102,10 @@ export default async function ProfilPage() {
         uploadPhoto={uploadPhoto}
         removePhoto={removePhoto}
       />
+
+      <ChangePasswordForm changePassword={changePassword} />
+
+      <PrivacySection consentActive={consentActive} withdraw={withdrawMyConsent} />
 
       <div className="border-t border-border pt-4">
         <SignOutButton className="w-full justify-center rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted sm:w-auto" />

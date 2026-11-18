@@ -108,7 +108,12 @@ function makeMockDb(
     },
     consents: {
       select: () => ({
-        eq: () => ({ eq: () => ({ limit: () => Promise.resolve({ data: consentRows, error: null }) }) }),
+        eq: () => ({
+          eq: () => {
+            const limit = () => Promise.resolve({ data: consentRows, error: null });
+            return { limit, is: () => ({ limit }) };
+          },
+        }),
       }),
     },
     attendances: {

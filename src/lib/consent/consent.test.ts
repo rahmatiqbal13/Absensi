@@ -4,7 +4,8 @@ import { hasActiveConsent, recordConsent, CONSENT_JENIS_LOKASI_FOTO, CONSENT_POL
 function makeMockDb(overrides: Partial<any> = {}) {
   // Create spies for each method in the chain so we can verify arguments
   const limitMock = vi.fn().mockResolvedValue({ data: [], error: null });
-  const secondEqMock = vi.fn().mockReturnValue({ limit: limitMock });
+  const isMock = vi.fn().mockReturnValue({ limit: limitMock });
+  const secondEqMock = vi.fn().mockReturnValue({ limit: limitMock, is: isMock });
   const firstEqMock = vi.fn().mockReturnValue({ eq: secondEqMock });
   const selectMock = vi.fn().mockReturnValue({ eq: firstEqMock });
   const insertMock = vi.fn().mockReturnValue({
@@ -28,12 +29,30 @@ function makeMockDb(overrides: Partial<any> = {}) {
     __firstEqMock: firstEqMock,
     __secondEqMock: secondEqMock,
     __limitMock: limitMock,
+    __isMock: isMock,
     __insertMock: insertMock,
     ...overrides,
   };
 
   return db;
 }
+
+describe("hasActiveConsent withdrawal (0054)", () => {
+  it("ignores withdrawn consents", async () => {
+    const db = makeMockDb();
+    db.__limitMock.mockResolvedValue({ data: [{ id: "c1" }], error: null });
+    expect(await hasActiveConsent(db as any, "employee-1")).toBe(true);
+    expect(db.__isMock).toHaveBeenCalledWith("dicabut_at", null);
+  });
+
+  it("falls back to the plain check before the column exists, never blocking clock-in", async () => {
+    const db = makeMockDb();
+    db.__limitMock
+      .mockResolvedValueOnce({ data: null, error: { code: "42703", message: "column consents.dicabut_at does not exist" } })
+      .mockResolvedValueOnce({ data: [{ id: "c1" }], error: null });
+    expect(await hasActiveConsent(db as any, "employee-1")).toBe(true);
+  });
+});
 
 describe("hasActiveConsent", () => {
   it("returns false when no consent row exists", async () => {
@@ -49,7 +68,7 @@ describe("hasActiveConsent", () => {
 
   it("returns true when a consent row exists for the right jenis", async () => {
     const limitMock = vi.fn().mockResolvedValue({ data: [{ id: "consent-1" }], error: null });
-    const secondEqMock = vi.fn().mockReturnValue({ limit: limitMock });
+    const secondEqMock = vi.fn().mockReturnValue({ limit: limitMock, is: () => ({ limit: limitMock }) });
     const firstEqMock = vi.fn().mockReturnValue({ eq: secondEqMock });
     const selectMock = vi.fn().mockReturnValue({ eq: firstEqMock });
 

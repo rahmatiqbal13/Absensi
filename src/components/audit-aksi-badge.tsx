@@ -24,6 +24,7 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   branch_kiosk_reset: { label: "Link & Kode Kiosk Diganti", variant: "info" },
   contract_added: { label: "Kontrak Ditambahkan", variant: "success" },
   contract_deleted: { label: "Kontrak Dihapus", variant: "danger" },
+  consent_withdrawn: { label: "Persetujuan Data Ditarik", variant: "neutral" },
   attendance_evidence_viewed: { label: "Foto & Lokasi Absen Dibuka", variant: "neutral" },
 };
 

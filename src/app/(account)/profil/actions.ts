@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { profilePhotoPath, PROFILE_PHOTO_BUCKET } from "@/lib/profile/photo";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { validatePasswordChange } from "@/lib/auth/change-password";
+import { withinRateLimit } from "@/lib/security/rate-limit";
+import { withdrawConsent } from "@/lib/consent/consent";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -101,4 +105,52 @@ export async function removePhoto(): Promise<Result> {
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Changes the signed-in user's password after re-checking the current one.
+ * The check uses a throwaway client so the live session cookies are untouched,
+ * and is rate-limited so an unattended open session can't be used to guess
+ * the old password.
+ */
+export async function changePassword(formData: FormData): Promise<Result> {
+  const { db, me, denied } = await gate();
+  if (denied) return denied;
+
+  const current = String(formData.get("current") ?? "");
+  const next = String(formData.get("next") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  const valid = validatePasswordChange({ current, next, confirm });
+  if (!valid.ok) return valid;
+
+  const allowed = await withinRateLimit(createServiceRoleSupabaseClient(), [
+    { key: `pwchange:emp:${me!.id}`, max: 5, windowSeconds: 15 * 60 },
+  ]);
+  if (!allowed) return { ok: false, error: "Terlalu banyak percobaan. Coba lagi dalam 15 menit." };
+
+  const verifier = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: authErr } = await verifier.auth.signInWithPassword({ email: me!.email, password: current });
+  if (authErr) return { ok: false, error: "Kata sandi saat ini salah." };
+  // "local" ends only this throwaway session; the default ("global") would
+  // also sign the user out of the session they are using right now.
+  await verifier.auth.signOut({ scope: "local" }).catch(() => {});
+
+  const { error } = await db.auth.updateUser({ password: next });
+  if (error) {
+    console.error("changePassword: update failed", error);
+    if (/weak|short/i.test(error.message)) return { ok: false, error: "Kata sandi baru terlalu lemah. Gunakan kombinasi yang lebih panjang." };
+    return { ok: false, error: "Gagal mengganti kata sandi. Coba lagi." };
+  }
+  return { ok: true };
+}
+
+/** UU PDP: withdraw consent to location/photo processing (re-asked at the next clock-in). */
+export async function withdrawMyConsent(): Promise<Result> {
+  const { db, denied } = await gate();
+  if (denied) return denied;
+  const r = await withdrawConsent(db);
+  if (r.ok) revalidatePath("/profil");
+  return r;
 }
