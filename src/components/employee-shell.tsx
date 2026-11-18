@@ -17,10 +17,13 @@ const NAV = [
 export function EmployeeShell({
   brand,
   footer,
+  notifications,
   children,
 }: {
   brand: React.ReactNode;
   footer: React.ReactNode;
+  /** The notification bell, rendered by the server layout. */
+  notifications?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -28,7 +31,10 @@ export function EmployeeShell({
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex h-14 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
         {brand}
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          {notifications}
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))]">

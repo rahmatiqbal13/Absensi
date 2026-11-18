@@ -8,12 +8,11 @@ import { scheduleMinutes } from "@/lib/payroll/minutes";
  * clock-out time, on a non-working day of their schedule, on a holiday, during
  * approved leave, before their start date, or to super admins (system
  * accounts that don't clock in). At most once per employee per day — the
- * caller records who was reminded (attendance_reminders).
+ * caller passes who was already notified today (notifications, jenis lupa_absen).
  */
 export type ReminderEmployee = {
   id: string;
   nama: string;
-  email: string;
   role: string;
   branch_id: string;
   department_id: string | null;
@@ -51,7 +50,7 @@ export function dueReminders(input: {
 
   const due: DueReminder[] = [];
   for (const e of input.employees) {
-    if (e.role === "super_admin" || !e.email) continue;
+    if (e.role === "super_admin") continue;
     if (input.attended.has(e.id) || input.reminded.has(e.id) || input.onLeave.has(e.id)) continue;
     if (e.tanggal_mulai_kerja && e.tanggal_mulai_kerja > input.tanggal) continue;
     if (orgHoliday || branchHoliday.has(e.branch_id)) continue;

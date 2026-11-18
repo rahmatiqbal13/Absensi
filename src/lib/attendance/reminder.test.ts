@@ -11,7 +11,6 @@ const at = (hhmm: string) => {
 const EMP: ReminderEmployee = {
   id: "e1",
   nama: "Budi",
-  email: "budi@contoh.id",
   role: "karyawan",
   branch_id: "b1",
   department_id: null,

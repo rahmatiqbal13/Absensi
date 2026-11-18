@@ -3,6 +3,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { EmployeeShell } from "@/components/employee-shell";
 import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
+import { NotificationBell } from "@/components/notification-bell";
+import { getMyNotifications, markMyNotificationsRead } from "@/lib/notifications/actions";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
@@ -27,6 +29,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
         avatarUrl={avatarUrl ?? undefined}
         brand={<BrandMark size="md" />}
         footer={<AppFooter />}
+        notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}
       >
         {children}
       </AdminShell>
@@ -34,7 +37,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
   }
 
   return (
-    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />}>
+    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />} notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}>
       {children}
     </EmployeeShell>
   );

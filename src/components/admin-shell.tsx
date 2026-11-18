@@ -203,6 +203,7 @@ function SidebarBody({
   brand,
   pendingLeave,
   pendingCorrection,
+  notifications,
   onNavigate,
 }: {
   employee: CurrentEmployee;
@@ -210,6 +211,7 @@ function SidebarBody({
   brand: React.ReactNode;
   pendingLeave: number;
   pendingCorrection: number;
+  notifications?: React.ReactNode;
   onNavigate?: () => void;
 }) {
   return (
@@ -226,6 +228,7 @@ function SidebarBody({
         <div className="min-w-0 flex-1">
           <UserMenu employee={employee} avatarUrl={avatarUrl} />
         </div>
+        {notifications && <div className="[&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
         <ThemeToggle className="text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground" />
       </div>
     </div>
@@ -239,6 +242,7 @@ export function AdminShell({
   footer,
   pendingLeave = 0,
   pendingCorrection = 0,
+  notifications,
   children,
 }: {
   employee: CurrentEmployee;
@@ -247,6 +251,8 @@ export function AdminShell({
   footer: React.ReactNode;
   pendingLeave?: number;
   pendingCorrection?: number;
+  /** The notification bell, rendered by the server layout. */
+  notifications?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -260,41 +266,45 @@ export function AdminShell({
           brand={brand}
           pendingLeave={pendingLeave}
           pendingCorrection={pendingCorrection}
+          notifications={notifications}
         />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-[58px] shrink-0 items-center justify-between bg-sidebar px-4 text-sidebar-foreground lg:hidden">
           <ProductLogo size={30} />
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <button
-                type="button"
-                aria-label="Buka menu"
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-sidebar-foreground/25 px-3.5 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          <div className="flex items-center gap-2">
+            {notifications && <div className="[&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Buka menu"
+                  className="inline-flex h-10 items-center gap-2 rounded-full border border-sidebar-foreground/25 px-3.5 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                >
+                  <Menu className="size-4" aria-hidden="true" />
+                  Menu
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[280px] border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:w-[280px]"
               >
-                <Menu className="size-4" aria-hidden="true" />
-                Menu
-              </button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-[280px] border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:w-[280px]"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>Menu navigasi</SheetTitle>
-                <SheetDescription>Menu navigasi admin</SheetDescription>
-              </SheetHeader>
-              <SidebarBody
-                employee={employee}
-                avatarUrl={avatarUrl}
-                brand={brand}
-                pendingLeave={pendingLeave}
-                pendingCorrection={pendingCorrection}
-                onNavigate={() => setOpen(false)}
-              />
-            </SheetContent>
-          </Sheet>
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Menu navigasi</SheetTitle>
+                  <SheetDescription>Menu navigasi admin</SheetDescription>
+                </SheetHeader>
+                <SidebarBody
+                  employee={employee}
+                  avatarUrl={avatarUrl}
+                  brand={brand}
+                  pendingLeave={pendingLeave}
+                  pendingCorrection={pendingCorrection}
+                  onNavigate={() => setOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
         </header>
 
         <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col px-4 pt-5 pb-10 lg:px-10 lg:pt-9 lg:pb-12">

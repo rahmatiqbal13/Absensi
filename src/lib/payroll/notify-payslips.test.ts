@@ -1,12 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-const sendEmailBatch = vi.fn();
-vi.mock("@/lib/email/send", async (orig) => ({
-  ...(await orig<typeof import("@/lib/email/send")>()),
-  sendEmailBatch: (...a: unknown[]) => sendEmailBatch(...a),
-}));
-vi.mock("@/lib/app-url", () => ({ appUrl: () => "https://tapabsen.vercel.app" }));
-
+import { describe, it, expect, vi } from "vitest";
 import { notifyPayslipsPublished } from "./notify-payslips";
 
 function q(result: unknown) {
@@ -17,38 +9,45 @@ function q(result: unknown) {
   return b;
 }
 
-function db(slips: unknown[], period: unknown = { bulan: 11, tahun: 2026 }) {
-  return {
+function makeDb(slips: unknown[], period: unknown = { bulan: 11, tahun: 2026 }) {
+  const upsert = vi.fn((rows: unknown[]) => q({ data: rows.map((_, i) => ({ id: `n${i}` })), error: null }));
+  const db = {
     from: (t: string) =>
-      t === "payroll_periods" ? q({ data: period, error: null }) : q({ data: slips, error: null }),
-  } as never;
+      t === "payroll_periods"
+        ? q({ data: period, error: null })
+        : t === "notifications"
+          ? { upsert }
+          : q({ data: slips, error: null }),
+  };
+  return { db: db as never, upsert };
 }
 
-beforeEach(() => {
-  sendEmailBatch.mockReset();
-  sendEmailBatch.mockImplementation(async (m: unknown[]) => ({ sent: m.length, failed: 0 }));
-});
-
 describe("notifyPayslipsPublished", () => {
-  it("emails active employees a link to the slip, without amounts", async () => {
-    const res = await notifyPayslipsPublished(
-      db([
-        { employees: { nama: "Budi", email: "budi@contoh.id", status: "aktif" } },
-        { employees: { nama: "Sari", email: "sari@contoh.id", status: "nonaktif" } },
-      ]),
-      "p1",
-    );
-    expect(res).toEqual({ sent: 1, failed: 0 });
-    const [msgs] = sendEmailBatch.mock.calls[0] as [{ to: string; subject: string; text: string }[]];
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toMatchObject({ to: "budi@contoh.id", subject: "Slip gaji November 2026 sudah terbit" });
-    expect(msgs[0].text).toContain("https://tapabsen.vercel.app/slip-gaji/2026-11");
-    expect(msgs[0].text).not.toMatch(/Rp|\d{3}\.\d{3}/);
+  it("notifies active employees once per period, linking to Slip Gaji, without amounts", async () => {
+    const { db, upsert } = makeDb([
+      { employee_id: "e1", employees: { status: "aktif" } },
+      { employee_id: "e2", employees: { status: "nonaktif" } },
+    ]);
+    expect(await notifyPayslipsPublished(db, "p1")).toEqual({ created: 1 });
+    const [rows, opts] = upsert.mock.calls[0] as unknown as [{ isi: string; judul: string }[], unknown];
+    expect(rows).toEqual([
+      {
+        employee_id: "e1",
+        jenis: "slip_gaji",
+        kunci: "p1",
+        judul: "Slip gaji November 2026 sudah terbit",
+        isi: "Lihat dan unduh PDF-nya di menu Slip Gaji.",
+        link: "/slip-gaji/2026-11",
+      },
+    ]);
+    expect(opts).toEqual({ onConflict: "employee_id,jenis,kunci", ignoreDuplicates: true });
+    expect(rows[0].judul + rows[0].isi).not.toMatch(/Rp|\d{3}\.\d{3}/);
   });
 
-  it("sends nothing when the period can't be read", async () => {
+  it("creates nothing when the period can't be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await notifyPayslipsPublished(db([], null), "p1")).toEqual({ sent: 0, failed: 0 });
-    expect(sendEmailBatch).not.toHaveBeenCalled();
+    const { db, upsert } = makeDb([], null);
+    expect(await notifyPayslipsPublished(db, "p1")).toEqual({ created: 0 });
+    expect(upsert).not.toHaveBeenCalled();
   });
 });

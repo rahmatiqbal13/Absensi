@@ -1,46 +1,42 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendEmailBatch, escapeHtml } from "@/lib/email/send";
-import { appUrl } from "@/lib/app-url";
 import { monthLabel } from "@/lib/format/month";
 import { paths } from "@/lib/routing/paths";
+import { createNotifications } from "@/lib/notifications/create";
 
 /**
- * Tells every active employee with a payslip in a just-finalized period that
- * it is ready. Finalizing is one-way (a final period can't be reopened), so
- * this runs once per period. The email carries no amounts — only a link to the
- * slip behind login. Needs the service role: HR can't read every employee's
- * email under RLS in all setups, and this runs after the response.
+ * An in-app notification for every active employee with a payslip in a
+ * just-finalized period, linking to the slip (view + PDF download in menu
+ * Slip Gaji). No amounts in the notice. Finalizing is one-way and the
+ * notification is keyed by period, so each employee gets it once.
+ * `db` must be the service-role client.
  */
-export async function notifyPayslipsPublished(
-  db: SupabaseClient,
-  periodId: string,
-): Promise<{ sent: number; failed: number }> {
+export async function notifyPayslipsPublished(db: SupabaseClient, periodId: string): Promise<{ created: number }> {
   const [periodRes, slipRes] = await Promise.all([
     db.from("payroll_periods").select("bulan, tahun").eq("id", periodId).maybeSingle(),
-    db.from("payslips").select("employees(nama, email, status)").eq("payroll_period_id", periodId),
+    db.from("payslips").select("employee_id, employees(status)").eq("payroll_period_id", periodId),
   ]);
   if (periodRes.error || slipRes.error || !periodRes.data) {
     console.error("notifyPayslipsPublished: lookup failed", periodRes.error ?? slipRes.error ?? "period not found");
-    return { sent: 0, failed: 0 };
+    return { created: 0 };
   }
   const { bulan, tahun } = periodRes.data as { bulan: number; tahun: number };
   const periode = `${monthLabel(bulan)} ${tahun}`;
-  const link = `${appUrl()}${paths.slipGaji(bulan, tahun)}`;
 
-  type Emp = { nama: string; email: string; status: string };
-  const recipients = ((slipRes.data ?? []) as unknown as { employees: Emp | Emp[] | null }[])
-    .map((r) => (Array.isArray(r.employees) ? r.employees[0] : r.employees))
-    .filter((e): e is Emp => !!e?.email && e.status === "aktif");
+  type Emp = { status: string };
+  const recipients = ((slipRes.data ?? []) as unknown as { employee_id: string; employees: Emp | Emp[] | null }[])
+    .filter((r) => (Array.isArray(r.employees) ? r.employees[0] : r.employees)?.status === "aktif")
+    .map((r) => r.employee_id);
 
-  return sendEmailBatch(
-    recipients.map((e) => ({
-      to: e.email,
-      subject: `Slip gaji ${periode} sudah terbit`,
-      text: `Halo ${e.nama},\n\nSlip gaji Anda untuk ${periode} sudah bisa dilihat dan diunduh.\n\nBuka: ${link}\n`,
-      html:
-        `<p>Halo ${escapeHtml(e.nama)},</p>` +
-        `<p>Slip gaji Anda untuk <b>${escapeHtml(periode)}</b> sudah bisa dilihat dan diunduh.</p>` +
-        `<p><a href="${escapeHtml(link)}">Lihat slip gaji</a></p>`,
+  const res = await createNotifications(
+    db,
+    recipients.map((employee_id) => ({
+      employee_id,
+      jenis: "slip_gaji",
+      kunci: periodId,
+      judul: `Slip gaji ${periode} sudah terbit`,
+      isi: "Lihat dan unduh PDF-nya di menu Slip Gaji.",
+      link: paths.slipGaji(bulan, tahun),
     })),
   );
+  return { created: res.ok ? res.created : 0 };
 }

@@ -38,49 +38,6 @@ export async function sendEmail(msg: {
   }
 }
 
-export type EmailMessage = { to: string; subject: string; html: string; text: string };
-
-const BATCH_SIZE = 100; // Resend's per-request maximum for /emails/batch
-
-/**
- * Many emails in as few requests as possible (Resend's batch endpoint, 100 per
- * call) — one request per employee would hit the 2 requests/second limit of
- * the free plan. Returns how many were accepted; failures are logged.
- */
-export async function sendEmailBatch(msgs: readonly EmailMessage[]): Promise<{ sent: number; failed: number }> {
-  if (msgs.length === 0) return { sent: 0, failed: 0 };
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) {
-    console.info("sendEmailBatch: RESEND_API_KEY / EMAIL_FROM not set, skipping", msgs.length, msgs[0].subject);
-    return { sent: 0, failed: msgs.length };
-  }
-  let sent = 0;
-  let failed = 0;
-  for (let i = 0; i < msgs.length; i += BATCH_SIZE) {
-    const chunk = msgs.slice(i, i + BATCH_SIZE);
-    try {
-      const res = await fetch("https://api.resend.com/emails/batch", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(chunk.map((m) => ({ from, to: [m.to], subject: m.subject, html: m.html, text: m.text }))),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (res.ok) {
-        sent += chunk.length;
-      } else {
-        const body = await res.text().catch(() => "");
-        console.error("sendEmailBatch: Resend rejected", res.status, body.slice(0, 300));
-        failed += chunk.length;
-      }
-    } catch (e) {
-      console.error("sendEmailBatch: request failed", e);
-      failed += chunk.length;
-    }
-  }
-  return { sent, failed };
-}
-
 /** Escape text for safe interpolation into email HTML. */
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);

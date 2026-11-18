@@ -3,6 +3,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
 import { ProductLogo } from "@/components/product-logo";
+import { NotificationBell } from "@/components/notification-bell";
+import { getMyNotifications, markMyNotificationsRead } from "@/lib/notifications/actions";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
@@ -63,6 +65,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       footer={<AppFooter />}
       pendingLeave={pendingLeave ?? 0}
       pendingCorrection={pendingCorrection ?? 0}
+      notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}
     >
       {children}
     </AdminShell>
