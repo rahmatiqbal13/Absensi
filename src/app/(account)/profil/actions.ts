@@ -8,6 +8,8 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { validatePasswordChange } from "@/lib/auth/change-password";
 import { withinRateLimit } from "@/lib/security/rate-limit";
 import { withdrawConsent } from "@/lib/consent/consent";
+import { validatePersonalData } from "@/lib/employees/personal-data";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -153,4 +155,31 @@ export async function withdrawMyConsent(): Promise<Result> {
   const r = await withdrawConsent(db);
   if (r.ok) revalidatePath("/profil");
   return r;
+}
+
+/**
+ * Saves the employee's own data diri. The first save with a tanggal lahir
+ * also gets them a nomor pegawai (built by the database, 0056).
+ */
+export async function updatePersonalData(
+  formData: FormData,
+): Promise<{ ok: true; nomorPegawai: string | null; nomorBaru: boolean } | { ok: false; error: string }> {
+  const { db, me, denied } = await gate();
+  if (denied) return denied;
+  const parsed = validatePersonalData(Object.fromEntries(formData), toJakartaDateOnly(new Date()));
+  if (!parsed.ok) return parsed;
+
+  const { data: before } = await db.from("employees").select("nomor_pegawai").eq("id", me!.id).maybeSingle();
+  const { data, error } = await db
+    .from("employees")
+    .update(parsed.value)
+    .eq("id", me!.id)
+    .select("nomor_pegawai");
+  if (error || !data?.length) {
+    console.error("updatePersonalData: update failed", error);
+    return { ok: false, error: "Gagal menyimpan data diri." };
+  }
+  revalidatePath("/profil");
+  const nomor = (data[0].nomor_pegawai as string | null) ?? null;
+  return { ok: true, nomorPegawai: nomor, nomorBaru: !!nomor && !before?.nomor_pegawai };
 }

@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { formatNomorPegawai } from "@/lib/employees/personal-data";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { terbilangRupiah } from "@/lib/format/terbilang";
 import { deductionLines, earningLines, totalPenerimaan, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
@@ -92,6 +93,7 @@ export function PayslipDocument({
   const contact = [org.alamat, [org.telepon, org.email].filter(Boolean).join(" · ")].filter(Boolean);
   const infoLeft: [string, string][] = [
     ["Nama", slip.karyawan.nama],
+    ...(slip.karyawan.nomorPegawai ? [["No. pegawai", formatNomorPegawai(slip.karyawan.nomorPegawai)!] as [string, string]] : []),
     ["Jabatan", slip.karyawan.jabatan],
     ["Departemen", slip.karyawan.departemen ?? "-"],
     ["Cabang", slip.karyawan.cabang],

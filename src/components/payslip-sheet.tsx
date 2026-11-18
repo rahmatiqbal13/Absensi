@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import { formatNomorPegawai } from "@/lib/employees/personal-data";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { terbilangRupiah } from "@/lib/format/terbilang";
 import { deductionLines, earningLines, totalPenerimaan, totalPotongan, type PayslipDetail } from "@/lib/payroll/payslip-detail";
@@ -26,6 +27,7 @@ export async function PayslipSheet({ slip, pdfHref }: { slip: PayslipDetail; pdf
 
   const info: [string, string][] = [
     ["Nama", slip.karyawan.nama],
+    ...(slip.karyawan.nomorPegawai ? [["No. pegawai", formatNomorPegawai(slip.karyawan.nomorPegawai)!] as [string, string]] : []),
     ["Jabatan", slip.karyawan.jabatan],
     ["Departemen", slip.karyawan.departemen ?? "-"],
     ["Cabang", slip.karyawan.cabang],

@@ -6,7 +6,9 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { signProfilePhotoUrl } from "@/lib/profile/photo";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ProfilForm } from "./profil-form";
-import { removePhoto, updatePhone, uploadPhoto, changePassword, withdrawMyConsent } from "./actions";
+import { removePhoto, updatePhone, uploadPhoto, changePassword, withdrawMyConsent, updatePersonalData } from "./actions";
+import { PersonalDataForm } from "./personal-data-form";
+import { formatNomorPegawai, type PersonalData } from "@/lib/employees/personal-data";
 import { PrivacySection } from "./privacy-section";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { ChangePasswordForm } from "./change-password-form";
@@ -46,10 +48,18 @@ export default async function ProfilPage() {
     );
   }
 
-  const [photoUrl, consentActive] = await Promise.all([
+  const [photoUrl, consentActive, personalRes] = await Promise.all([
     signProfilePhotoUrl(db, row?.foto_profil_url ?? null),
     hasActiveConsent(db, me.id),
+    // Own query: before migration 0056 these columns don't exist and the
+    // section is simply hidden.
+    db
+      .from("employees")
+      .select("nomor_pegawai, tempat_lahir, tanggal_lahir, jenis_kelamin, agama, alamat_ktp, alamat_domisili, pendidikan_terakhir")
+      .eq("id", me.id)
+      .maybeSingle(),
   ]);
+  const personal = personalRes.error ? null : (personalRes.data as (PersonalData & { nomor_pegawai: string | null }) | null);
   const branchNama = (row?.branches as unknown as { nama: string } | null)?.nama ?? "-";
   const deptNama = (row?.departments as unknown as { nama: string } | null)?.nama ?? "-";
 
@@ -78,11 +88,18 @@ export default async function ProfilPage() {
           <span className="mt-1 self-start rounded-full bg-info px-2.5 py-0.5 text-xs font-semibold text-info-foreground">
             {ROLE_LABEL[row?.role ?? me.role] ?? "-"}
           </span>
+          {personal?.nomor_pegawai && (
+            <span className="font-mono text-sm tabular-nums text-primary-foreground/90">
+              <span className="sr-only">Nomor pegawai: </span>
+              {formatNomorPegawai(personal.nomor_pegawai)}
+            </span>
+          )}
         </div>
       </section>
 
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3 rounded-xl border border-border bg-card p-4 text-sm">
         {[
+          ["No. Pegawai", formatNomorPegawai(personal?.nomor_pegawai) ?? "Belum ada — isi tanggal lahir di Data diri"],
           ["Email", me.email],
           ["Departemen", deptNama],
           ["Mulai Kerja", row?.tanggal_mulai_kerja ?? "-"],
@@ -102,6 +119,10 @@ export default async function ProfilPage() {
         uploadPhoto={uploadPhoto}
         removePhoto={removePhoto}
       />
+
+      {personal && (
+        <PersonalDataForm defaults={personal} nomorPegawai={personal.nomor_pegawai} save={updatePersonalData} />
+      )}
 
       <ChangePasswordForm changePassword={changePassword} />
 

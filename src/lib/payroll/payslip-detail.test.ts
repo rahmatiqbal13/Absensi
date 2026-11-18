@@ -27,7 +27,7 @@ describe("summarizeRincian", () => {
 const baseSlip = (o: Partial<PayslipDetail> = {}): PayslipDetail => ({
   id: "s1",
   periode: { bulan: 8, tahun: 2026, label: "Agustus 2026", status: "final" },
-  karyawan: { nama: "A", jabatan: "-", email: "-", departemen: null, cabang: "-", statusKontrak: "-", tanggalMulaiKerja: null, kontrak: null, masaKerja: null },
+  karyawan: { nama: "A", jabatan: "-", email: "-", departemen: null, cabang: "-", statusKontrak: "-", tanggalMulaiKerja: null, kontrak: null, masaKerja: null, nomorPegawai: null },
   gajiPokok: 1_000_000, hariKerjaEfektif: 20, gajiHarian: 50_000, totalPotonganAbsensi: 50_000,
   menitLembur: 0, upahLembur: 0, kategoriTer: null,
   tarifPph21: 1, potonganPph21: 9_500, gajiAkhir: 940_500,

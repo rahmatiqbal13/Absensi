@@ -18,7 +18,9 @@ import { KaryawanTabs } from "./karyawan-tabs";
 import { updateEmployee, setEmployeeStatus, createPasswordResetLink } from "../actions";
 import { ResetPasswordLinkButton } from "./reset-password-link-button";
 import { ContractPanel } from "./contract-panel";
-import { addContract, deleteContract } from "./contract-actions";
+import { addContract, correctBirthDate, deleteContract } from "./contract-actions";
+import { PersonalDataCard } from "./personal-data-card";
+import { formatNomorPegawai, type PersonalData } from "@/lib/employees/personal-data";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import type { Contract } from "@/lib/employees/contracts";
 
@@ -62,6 +64,7 @@ export default async function KaryawanDetailPage({
     { data: approvers, error: approversError },
     { data: audit, error: auditError },
     { data: contracts, error: contractsError },
+    { data: personal, error: personalError },
   ] = await Promise.all([
     db.from("branches").select("id, nama").order("nama"),
     db.from("departments").select("id, nama").order("nama"),
@@ -76,6 +79,12 @@ export default async function KaryawanDetailPage({
       .from("employee_contracts")
       .select("id, jenis, tanggal_mulai, tanggal_selesai, catatan")
       .eq("employee_id", id),
+    // 0056 columns, own query so a pre-migration database just hides the card.
+    db
+      .from("employees")
+      .select("nomor_pegawai, tempat_lahir, tanggal_lahir, jenis_kelamin, agama, alamat_ktp, alamat_domisili, pendidikan_terakhir")
+      .eq("id", id)
+      .maybeSingle(),
   ]);
   // Pre-0049 the table doesn't exist: show an empty contract history.
   if (contractsError) console.error("KaryawanDetailPage: contracts lookup failed", contractsError);
@@ -96,7 +105,14 @@ export default async function KaryawanDetailPage({
       <PageHeader
         eyebrow="Orang"
         title={emp.nama}
-        description={emp.email}
+        description={[
+          emp.email,
+          !personalError && (personal as { nomor_pegawai?: string | null } | null)?.nomor_pegawai
+            ? `No. pegawai ${formatNomorPegawai((personal as { nomor_pegawai: string }).nomor_pegawai)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={
           <>
             <RoleBadge role={emp.role as Role} />
@@ -117,6 +133,14 @@ export default async function KaryawanDetailPage({
       />
       <KaryawanTabs
         detailSlot={
+          <div className="space-y-4">
+          {!personalError && personal && (
+            <PersonalDataCard
+              data={personal as PersonalData}
+              nomorPegawai={(personal as { nomor_pegawai: string | null }).nomor_pegawai}
+              correctBirthDate={correctBirthDate.bind(null, emp.id)}
+            />
+          )}
           <EditEmployeeForm
             employeeId={emp.id}
             defaults={{
@@ -141,6 +165,7 @@ export default async function KaryawanDetailPage({
             currentStatus={emp.status as "aktif" | "nonaktif"}
             isSelf={me.id === emp.id}
           />
+          </div>
         }
         kontrakSlot={
           <ContractPanel

@@ -23,6 +23,8 @@ export type PayslipDetail = {
     kontrak: { status: string; periode: string } | null;
     /** Masa kerja at the end of the period, e.g. "3 tahun 4 bulan". */
     masaKerja: string | null;
+    /** 17-digit nomor pegawai (0056), null until assigned. */
+    nomorPegawai: string | null;
   };
   gajiPokok: number;
   hariKerjaEfektif: number;
@@ -179,6 +181,12 @@ export async function loadPayslipDetail(
   const periodEnd = period
     ? new Date(Date.UTC(period.tahun, period.bulan, 0)).toISOString().slice(0, 10)
     : null;
+  const { data: nomorRow, error: nomorErr } = await db
+    .from("employees")
+    .select("nomor_pegawai")
+    .eq("id", row.employee_id)
+    .maybeSingle();
+  if (nomorErr) logOptionalLookup("loadPayslipDetail: nomor_pegawai", nomorErr, "0056");
   const { data: contractRows, error: contractErr } = await db
     .from("employee_contracts")
     .select("id, jenis, tanggal_mulai, tanggal_selesai, catatan")
@@ -211,6 +219,7 @@ export async function loadPayslipDetail(
         tanggalMulaiKerja: emp?.tanggal_mulai_kerja ?? null,
         kontrak: on ? describeContract(on.contract, on.kontrakKe) : null,
         masaKerja,
+        nomorPegawai: nomorErr ? null : ((nomorRow as { nomor_pegawai?: string | null } | null)?.nomor_pegawai ?? null),
       },
       gajiPokok: Number(row.gaji_pokok),
       hariKerjaEfektif: row.hari_kerja_efektif,

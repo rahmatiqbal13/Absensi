@@ -94,3 +94,33 @@ export async function deleteContract(employeeId: string, contractId: string): Pr
   revalidatePath("/karyawan");
   return { ok: true };
 }
+
+/**
+ * HR correction of a mistyped tanggal lahir. Clearing nomor_pegawai in the
+ * same update lets the database (0056) rebuild it from the corrected date.
+ */
+export async function correctBirthDate(employeeId: string, formData: FormData): Promise<Result> {
+  const { db, me } = await hrOnly();
+  if (!me) return { ok: false, error: "Tidak diizinkan." };
+  if (!UUID_RE.test(employeeId)) return { ok: false, error: "Karyawan tidak valid." };
+  const tanggal = String(formData.get("tanggal_lahir") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || tanggal < "1930-01-01" || tanggal > new Date().toISOString().slice(0, 10)) {
+    return { ok: false, error: "Tanggal lahir tidak valid." };
+  }
+  const { data: before } = await db.from("employees").select("tanggal_lahir, nomor_pegawai").eq("id", employeeId).maybeSingle();
+  const { data, error } = await db
+    .from("employees")
+    .update({ tanggal_lahir: tanggal, nomor_pegawai: null })
+    .eq("id", employeeId)
+    .select("nomor_pegawai");
+  if (error || !data?.length) {
+    console.error("correctBirthDate: update failed", error);
+    return { ok: false, error: "Gagal menyimpan tanggal lahir." };
+  }
+  await audit(me.id, employeeId, "birth_date_corrected", {
+    before: before ?? null,
+    after: { tanggal_lahir: tanggal, nomor_pegawai: data[0].nomor_pegawai },
+  });
+  revalidatePath(routePatterns.karyawan, "page");
+  return { ok: true };
+}
