@@ -10,8 +10,15 @@ import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { readGpsQuality } from "@/lib/attendance/location-flags";
+import { withinRateLimit } from "@/lib/security/rate-limit";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+// Clock-in and clock-out share one bucket per employee. A real day needs two
+// submits plus a few retries; checked before the selfie upload so a script
+// can't fill storage with rejected attempts.
+const ABSEN_RATE_LIMIT = { max: 10, windowSeconds: 10 * 60 };
+const ABSEN_RATE_LIMITED_MESSAGE = "Terlalu banyak percobaan absen. Tunggu 10 menit, lalu coba lagi.";
 
 function isValidCoordinate(lat: number, long: number): boolean {
   return (
@@ -43,6 +50,11 @@ async function requireMobileEmployee() {
   if (!employee) {
     return { ok: false as const, error: "Anda belum masuk. Silakan login ulang." };
   }
+
+  const allowed = await withinRateLimit(createServiceRoleSupabaseClient(), [
+    { key: `absen:emp:${employee.id}`, ...ABSEN_RATE_LIMIT },
+  ]);
+  if (!allowed) return { ok: false as const, error: ABSEN_RATE_LIMITED_MESSAGE };
 
   return { ok: true as const, employee, authedDb };
 }

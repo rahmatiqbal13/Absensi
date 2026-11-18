@@ -29,12 +29,35 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleSupabaseClient: () => ({ from: fromMock }),
 }));
 
+const withinRateLimit = vi.fn();
+vi.mock("@/lib/security/rate-limit", () => ({
+  clientIp: async () => "9.9.9.9",
+  withinRateLimit: (...a: unknown[]) => withinRateLimit(...a),
+}));
+
 import { getKioskQr } from "./actions";
 import { QR_WINDOW_MS } from "@/lib/attendance/qr-token";
 
 beforeEach(() => {
   maybeSingleError.value = null;
   fromMock.mockClear();
+  withinRateLimit.mockReset();
+  withinRateLimit.mockResolvedValue(true);
+});
+
+describe("getKioskQr rate limiting", () => {
+  it("counts every lookup against the caller's IP", async () => {
+    await getKioskQr("good-key");
+    expect(withinRateLimit).toHaveBeenCalledWith(expect.anything(), [
+      { key: "kiosk:ip:9.9.9.9", max: 120, windowSeconds: 300 },
+    ]);
+  });
+
+  it("throws (transient for the display) without looking up the key when over the limit", async () => {
+    withinRateLimit.mockResolvedValue(false);
+    await expect(getKioskQr("good-key")).rejects.toThrow();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("getKioskQr", () => {
