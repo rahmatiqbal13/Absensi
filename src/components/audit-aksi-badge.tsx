@@ -10,6 +10,8 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   employee_deleted: { label: "Karyawan Dihapus", variant: "danger" },
   attendance_correction_approved: { label: "Koreksi Absensi Disetujui", variant: "success" },
   attendance_correction_rejected: { label: "Koreksi Absensi Ditolak", variant: "danger" },
+  payroll_paid: { label: "Payroll Dibayar", variant: "success" },
+  payroll_paid_undone: { label: "Status Dibayar Dibatalkan", variant: "neutral" },
   password_reset_link: { label: "Link Reset Sandi Dibuat", variant: "info" },
   leave_approved: { label: "Cuti Disetujui", variant: "success" },
   leave_rejected: { label: "Cuti Ditolak", variant: "danger" },

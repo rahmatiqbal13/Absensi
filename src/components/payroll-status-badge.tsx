@@ -1,14 +1,21 @@
-import { Lock, PencilLine } from "lucide-react";
+import { BadgeCheck, Lock, PencilLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-export type PayrollStatus = "draft" | "final";
+/** "dibayar" is a finalized period with a payment date (see migration 0045). */
+export type PayrollStatus = "draft" | "final" | "dibayar";
+
+export function payrollDisplayStatus(status: string, dibayarPada: string | null | undefined): PayrollStatus {
+  if (status === "final" && dibayarPada) return "dibayar";
+  return status === "final" ? "final" : "draft";
+}
 
 const CONFIG: Record<
   PayrollStatus,
-  { label: string; variant: "neutral" | "success"; Icon: typeof Lock }
+  { label: string; variant: "neutral" | "info" | "success"; Icon: typeof Lock }
 > = {
   draft: { label: "Draft", variant: "neutral", Icon: PencilLine },
-  final: { label: "Final", variant: "success", Icon: Lock },
+  final: { label: "Final", variant: "info", Icon: Lock },
+  dibayar: { label: "Dibayar", variant: "success", Icon: BadgeCheck },
 };
 
 export function PayrollStatusBadge({ status }: { status: PayrollStatus }) {

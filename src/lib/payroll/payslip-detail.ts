@@ -9,7 +9,7 @@ import { isMissingColumn, logOptionalLookup } from "@/lib/supabase/missing-colum
 /** Everything a payslip shows — shared by the web view and the PDF. */
 export type PayslipDetail = {
   id: string;
-  periode: { bulan: number; tahun: number; label: string; status: "draft" | "final" };
+  periode: { bulan: number; tahun: number; label: string; status: "draft" | "final"; dibayarPada?: string | null };
   karyawan: {
     nama: string;
     jabatan: string;
@@ -112,6 +112,7 @@ type Row = {
     bulan: number;
     tahun: number;
     status: "draft" | "final";
+    dibayar_pada?: string | null;
     branches: { nama: string } | null;
   } | null;
 };
@@ -142,7 +143,7 @@ export async function loadPayslipDetail(
           extra +
           "potongan_pph21, gaji_akhir, rincian_harian, " +
           "employees(nama, jabatan, email, status_kontrak, tanggal_mulai_kerja, departments(nama)), " +
-          "payroll_periods(bulan, tahun, status, branches(nama))",
+          "payroll_periods(bulan, tahun, status, dibayar_pada, branches(nama))",
       )
       .eq("id", payslipId)
       .maybeSingle();
@@ -178,6 +179,7 @@ export async function loadPayslipDetail(
         tahun: period?.tahun ?? 0,
         label: period ? `${monthLabel(period.bulan)} ${period.tahun}` : "-",
         status: period?.status ?? "draft",
+        dibayarPada: period?.dibayar_pada ?? null,
       },
       karyawan: {
         nama: emp?.nama ?? "-",

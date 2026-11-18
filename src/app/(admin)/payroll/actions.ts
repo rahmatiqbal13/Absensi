@@ -18,6 +18,8 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 
 const RPC_ERROR_MESSAGES: Record<string, string> = {
   "only hr admin may run payroll": "Hanya HR admin yang dapat menjalankan payroll.",
+  "payroll period is not finalized": "Finalisasi periode ini dulu sebelum menandainya dibayar.",
+  "payment date is in the future": "Tanggal pembayaran tidak boleh di masa depan.",
   "payroll period not found": "Periode payroll tidak ditemukan.",
   "payroll period is finalized": "Periode ini sudah difinalisasi dan terkunci.",
   "payroll period is already finalized": "Periode ini sudah difinalisasi sebelumnya.",
@@ -61,7 +63,16 @@ export async function createPayrollPeriod(
   return { ok: true };
 }
 
-export async function generatePayroll(periodId: string): Promise<ActionResult> {
+/**
+ * Builds the period's payslips. `employeeIds` limits it to the chosen people
+ * (still only active employees of the period's branch — anything else is
+ * ignored); omitted = everyone. Regenerating replaces ALL slips of the period,
+ * so the selection is the period's final list.
+ */
+export async function generatePayroll(periodId: string, employeeIds?: string[]): Promise<ActionResult> {
+  if (employeeIds && employeeIds.length === 0) {
+    return { ok: false, error: "Pilih minimal satu karyawan." };
+  }
   const db = await createServerSupabaseClient();
 
   const { data: period, error: periodErr } = await db
@@ -77,11 +88,14 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
   const { start, end } = monthBounds(period.tahun, period.bulan);
 
   const [employeesRes, scheduleRes, holidaysRes] = await Promise.all([
-    db
-      .from("employees")
-      .select("id, gaji_pokok, tanggal_mulai_kerja, department_id")
-      .eq("branch_id", period.branch_id)
-      .eq("status", "aktif"),
+    (() => {
+      const q = db
+        .from("employees")
+        .select("id, gaji_pokok, tanggal_mulai_kerja, department_id")
+        .eq("branch_id", period.branch_id)
+        .eq("status", "aktif");
+      return employeeIds ? q.in("id", employeeIds) : q;
+    })(),
     // Branch default + any department schedules; each employee picks theirs.
     loadSchedules<{
       id: string;
@@ -165,6 +179,10 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     (otErr ? [] : (otRows ?? [])).map((r) => [r.id as string, r.hitung_lembur === true]),
   );
 
+  if (employeeIds && (employeesRes.data ?? []).length === 0) {
+    return { ok: false, error: "Karyawan yang dipilih tidak aktif di cabang ini." };
+  }
+
   const employees = (employeesRes.data ?? []) as {
     id: string;
     gaji_pokok: number;
@@ -187,23 +205,23 @@ export async function generatePayroll(periodId: string): Promise<ActionResult> {
     groups.set(schedule.id, g);
   }
 
-  const employeeIds = employees.map((e) => e.id);
+  const activeIds = employees.map((e) => e.id);
 
   const [attendanceRes, leaveRes] = await Promise.all([
-    employeeIds.length
+    activeIds.length
       ? db
           .from("attendances")
           .select("employee_id, tanggal, status, jam_masuk, jam_pulang")
-          .in("employee_id", employeeIds)
+          .in("employee_id", activeIds)
           .gte("tanggal", start)
           .lte("tanggal", end)
       : Promise.resolve({ data: [], error: null }),
-    employeeIds.length
+    activeIds.length
       ? db
           .from("leave_requests")
           .select("employee_id, tanggal_mulai, tanggal_selesai, jenis")
           .eq("status", "approved")
-          .in("employee_id", employeeIds)
+          .in("employee_id", activeIds)
           .lte("tanggal_mulai", end)
           .gte("tanggal_selesai", start)
       : Promise.resolve({ data: [], error: null }),
@@ -294,4 +312,21 @@ export async function finalizePayroll(periodId: string): Promise<ActionResult> {
   revalidatePath(routePatterns.payrollPeriod, "page");
   revalidatePath("/payroll");
   return { ok: true };
+}
+
+/**
+ * Records (tanggal = "YYYY-MM-DD") or clears (tanggal = null) the payment of a
+ * finalized period. The RPC re-checks HR + final and writes the audit entry.
+ */
+export async function setPayrollPaid(periodId: string, tanggal: string | null): Promise<ActionResult> {
+  if (tanggal !== null && !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+    return { ok: false, error: "Tanggal pembayaran tidak valid." };
+  }
+  const db = await createServerSupabaseClient();
+  const { error } = await db.rpc("set_payroll_paid", { p_period_id: periodId, p_tanggal: tanggal });
+  if (error) return { ok: false, error: mapRpcError(error.message) };
+  revalidatePath(routePatterns.payrollPeriod, "page");
+  revalidatePath("/payroll");
+  revalidatePath("/slip-gaji");
+  return { ok: true, message: tanggal ? "Periode ditandai sudah dibayar." : "Status dibayar dibatalkan." };
 }

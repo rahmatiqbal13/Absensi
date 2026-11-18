@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { PayrollStatusBadge } from "./payroll-status-badge";
+import { PayrollStatusBadge, payrollDisplayStatus } from "./payroll-status-badge";
 
 describe("PayrollStatusBadge", () => {
   it("renders the Indonesian label and an icon for draft", () => {
@@ -18,5 +18,14 @@ describe("PayrollStatusBadge", () => {
     expect((draft.firstChild as HTMLElement).className).not.toBe(
       (final.firstChild as HTMLElement).className,
     );
+  });
+  it("labels a paid period as Dibayar", () => {
+    render(<PayrollStatusBadge status="dibayar" />);
+    expect(screen.getByText("Dibayar")).toBeInTheDocument();
+  });
+  it("derives dibayar only for a final period with a payment date", () => {
+    expect(payrollDisplayStatus("final", "2026-11-25")).toBe("dibayar");
+    expect(payrollDisplayStatus("final", null)).toBe("final");
+    expect(payrollDisplayStatus("draft", "2026-11-25")).toBe("draft");
   });
 });

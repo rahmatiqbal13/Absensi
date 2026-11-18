@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Wallet } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
-import { PayrollStatusBadge, type PayrollStatus } from "@/components/payroll-status-badge";
+import { PayrollStatusBadge, payrollDisplayStatus } from "@/components/payroll-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,7 +27,7 @@ export default async function PayrollPage() {
 
   const { data: periods, error: periodErr } = await db
     .from("payroll_periods")
-    .select("id, bulan, tahun, status, branches(nama, slug), payslips(gaji_akhir)")
+    .select("id, bulan, tahun, status, dibayar_pada, branches(nama, slug), payslips(gaji_akhir)")
     .order("tahun", { ascending: false })
     .order("bulan", { ascending: false });
 
@@ -101,7 +101,7 @@ export default async function PayrollPage() {
               key: "status",
               header: "Status",
               mobileLabel: "Status",
-              cell: (p) => <PayrollStatusBadge status={p.status as PayrollStatus} />,
+              cell: (p) => <PayrollStatusBadge status={payrollDisplayStatus(p.status, p.dibayar_pada)} />,
             },
           ]}
           rows={periods ?? []}

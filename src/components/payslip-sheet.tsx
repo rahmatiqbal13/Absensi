@@ -71,6 +71,11 @@ export async function PayslipSheet({ slip, pdfHref }: { slip: PayslipDetail; pdf
           {slip.periode.status !== "final" && (
             <Badge variant="warning" className="mt-1">Draf — belum final</Badge>
           )}
+          {slip.periode.status === "final" && slip.periode.dibayarPada && (
+            <Badge variant="success" className="mt-1">
+              Dibayar {new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${slip.periode.dibayarPada}T00:00:00Z`))}
+            </Badge>
+          )}
         </div>
       </header>
 

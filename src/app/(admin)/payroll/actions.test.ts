@@ -7,7 +7,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { createPayrollPeriod, generatePayroll, finalizePayroll } from "./actions";
+import { createPayrollPeriod, generatePayroll, finalizePayroll, setPayrollPaid } from "./actions";
 
 function periodRow() {
   return { id: "p1", branch_id: "b1", bulan: 8, tahun: 2026, status: "draft" };
@@ -381,5 +381,34 @@ describe("finalizePayroll", () => {
     rpc.mockResolvedValue({ data: null, error: null });
     const result = await finalizePayroll("p1");
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe("setPayrollPaid", () => {
+  it("records the payment date through the RPC", async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+    const result = await setPayrollPaid("p1", "2026-11-25");
+    expect(rpc).toHaveBeenCalledWith("set_payroll_paid", { p_period_id: "p1", p_tanggal: "2026-11-25" });
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it("clears it with null", async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+    await setPayrollPaid("p1", null);
+    expect(rpc).toHaveBeenCalledWith("set_payroll_paid", { p_period_id: "p1", p_tanggal: null });
+  });
+
+  it("rejects a malformed date without calling the database", async () => {
+    const result = await setPayrollPaid("p1", "25/11/2026");
+    expect(result).toEqual({ ok: false, error: "Tanggal pembayaran tidak valid." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("explains that a draft must be finalized first", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "payroll period is not finalized" } });
+    expect(await setPayrollPaid("p1", "2026-11-25")).toEqual({
+      ok: false,
+      error: "Finalisasi periode ini dulu sebelum menandainya dibayar.",
+    });
   });
 });

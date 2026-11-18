@@ -56,14 +56,20 @@ export async function employeeIdBySlug(
 export async function payrollPeriodId(db: SupabaseClient, branchSlug: string, periode: string): Promise<string | null> {
   const p = parsePeriodeSlug(periode);
   if (!p) return null;
+  // Two plain lookups rather than an embedded `branches!inner` filter: branches
+  // is readable per column only (0031), and the embedded filter did not resolve
+  // for signed-in users even though it did for the service role.
+  const { data: branch, error: branchErr } = await db.from("branches").select("id").eq("slug", branchSlug).maybeSingle();
+  if (branchErr) console.error("payrollPeriodId: branch lookup failed", branchErr);
+  if (!branch) return null;
   const { data, error } = await db
     .from("payroll_periods")
-    .select("id, branches!inner(slug)")
-    .eq("branches.slug", branchSlug)
+    .select("id")
+    .eq("branch_id", branch.id)
     .eq("bulan", p.bulan)
     .eq("tahun", p.tahun)
     .maybeSingle();
-  if (error) console.error("payrollPeriodId failed", error);
+  if (error) console.error("payrollPeriodId: period lookup failed", error);
   return data?.id ?? null;
 }
 
@@ -93,11 +99,13 @@ export async function payrollSlipPathById(db: SupabaseClient, payslipId: string)
 
 /** Payslip id of one employee (by slug) inside a payroll period, or null. */
 export async function payslipIdInPeriod(db: SupabaseClient, periodId: string, employeeSlug: string): Promise<string | null> {
+  const employee = await employeeIdBySlug(db, employeeSlug);
+  if (!employee) return null;
   const { data, error } = await db
     .from("payslips")
-    .select("id, employees!inner(slug)")
+    .select("id")
     .eq("payroll_period_id", periodId)
-    .eq("employees.slug", employeeSlug)
+    .eq("employee_id", employee.id)
     .maybeSingle();
   if (error) console.error("payslipIdInPeriod failed", error);
   return data?.id ?? null;

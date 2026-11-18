@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Download, FileBarChart } from "lucide-react";
+import { Download, FileSpreadsheet, FileBarChart } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
@@ -139,6 +139,11 @@ export default async function LaporanPage({
               <Button asChild variant="outline" size="sm">
                 <a href={`/laporan/csv?${queryString}`}>
                   <Download className="size-4" /> Unduh CSV
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a href={`/laporan/xlsx?${queryString}`}>
+                  <FileSpreadsheet className="size-4" /> Unduh Excel
                 </a>
               </Button>
               <Button asChild variant="outline" size="sm">
