@@ -1,6 +1,6 @@
+import { SubmitButton } from "@/components/submit-button";
 import { MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { acceptConsent } from "./actions";
 
@@ -35,9 +35,9 @@ export default async function ConsentPage({
             </Alert>
           )}
           <form action={acceptConsent} className="w-full">
-            <Button type="submit" size="lg" className="w-full">
+            <SubmitButton pendingLabel="Menyimpan…" size="lg" className="w-full">
               Saya Setuju
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>

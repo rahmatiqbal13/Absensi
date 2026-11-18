@@ -188,7 +188,8 @@ function UserMenu({ employee, avatarUrl }: { employee: CurrentEmployee; avatarUr
           <Link href="/profil">Profil</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
+        {/* Keep the menu open while signing out so the pending state stays visible. */}
+        <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
           <SignOutButton />
         </DropdownMenuItem>
       </DropdownMenuContent>

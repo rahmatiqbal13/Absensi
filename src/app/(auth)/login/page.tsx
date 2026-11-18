@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Field } from "@/components/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { login } from "./actions";
 
@@ -50,9 +50,9 @@ export default async function LoginPage({
         >
           Lupa kata sandi?
         </Link>
-        <Button type="submit" className="h-[50px] w-full rounded-xl text-[0.95rem]">
+        <SubmitButton pendingLabel="Sedang masuk…" className="h-[50px] w-full rounded-xl text-[0.95rem]">
           Masuk
-        </Button>
+        </SubmitButton>
       </form>
       <Link
         href="/set-password"

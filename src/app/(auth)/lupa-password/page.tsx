@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/submit-button";
 import { ArrowLeft, MailCheck } from "lucide-react";
 import { Field } from "@/components/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requestPasswordReset } from "./actions";
 
@@ -45,9 +45,9 @@ export default async function LupaPasswordPage({
             <Field id="email" label="Email">
               <Input id="email" name="email" type="email" required autoComplete="email" className="h-12 text-base" />
             </Field>
-            <Button type="submit" className="h-[50px] w-full rounded-xl text-[0.95rem]">
+            <SubmitButton pendingLabel="Mengirim…" className="h-[50px] w-full rounded-xl text-[0.95rem]">
               Kirim link reset
-            </Button>
+            </SubmitButton>
           </form>
         </>
       )}
