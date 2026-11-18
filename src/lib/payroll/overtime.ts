@@ -25,3 +25,29 @@ export function overtimePay(minutes: number, gajiPokok: number): number {
   const rest = Math.max(0, minutes - 60);
   return round2(hourly * 1.5 * (first / 60) + hourly * 2 * (rest / 60));
 }
+
+/** An approved lembur window for one day, "HH:MM" WIB (migration 0058). */
+export type ApprovedOvertime = { jamMulai: string; jamSelesai: string };
+
+/**
+ * Paid overtime minutes with pre-approval: only time inside an approved
+ * window, after the scheduled end, and before the real clock-out counts.
+ * Without an approval nothing is paid. Same 30-minute floor and 4-hour cap.
+ */
+export function approvedOvertimeMinutes(
+  jamPulangIso: string | null,
+  scheduleJamPulang: string,
+  approvals: readonly ApprovedOvertime[] | undefined,
+): number {
+  if (!jamPulangIso || !approvals?.length) return 0;
+  const actualEnd = jakartaMinutesOfDay(jamPulangIso);
+  const scheduleEnd = scheduleMinutes(scheduleJamPulang);
+  let total = 0;
+  for (const a of approvals) {
+    const start = Math.max(scheduleEnd, scheduleMinutes(a.jamMulai));
+    const end = Math.min(actualEnd, scheduleMinutes(a.jamSelesai));
+    if (end > start) total += end - start;
+  }
+  if (total < OVERTIME_MIN_MINUTES) return 0;
+  return Math.min(total, OVERTIME_MAX_MINUTES);
+}

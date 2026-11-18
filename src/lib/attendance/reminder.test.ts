@@ -96,4 +96,12 @@ describe("dueReminders", () => {
     });
     expect(d.jamMasuk).toBe("08:00");
   });
+
+  it("follows today's rostered shift, and skips a rostered libur (0059)", () => {
+    const siang = new Map([[EMP.id, new Map([[TANGGAL, { jamMasuk: "15:00", jamPulang: "23:00", toleransiMenit: 0 }]])]]);
+    expect(run({ rosters: siang, nowMinutes: at("08:30") })).toEqual([]);
+    expect(run({ rosters: siang, nowMinutes: at("15:00") })).toEqual(["e1"]);
+    const libur = new Map([[EMP.id, new Map([[TANGGAL, null]])]]);
+    expect(run({ rosters: libur })).toEqual([]);
+  });
 });

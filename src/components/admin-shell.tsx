@@ -8,10 +8,12 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   FileText,
   ListChecks,
   LayoutDashboard,
+  Megaphone,
   Menu,
   Settings,
   Users,
@@ -49,7 +51,7 @@ type NavItem = {
   /** Icon tint on the navy sidebar (redesign: one hue per area). */
   tint: string;
   hrAdminOnly?: boolean;
-  countKey?: "pendingLeave" | "pendingCorrection";
+  countKey?: "pendingLeave" | "pendingCorrection" | "pendingRequests";
 };
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -57,6 +59,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Hari ini",
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, tint: "#A5B4FC" },
+      { href: "/pengumuman", label: "Pengumuman", Icon: Megaphone, tint: "#A5B4FC" },
       { href: "/persetujuan-cuti", label: "Persetujuan cuti", Icon: CalendarCheck, tint: "#C4B5FD", countKey: "pendingLeave" },
       {
         href: "/persetujuan-koreksi",
@@ -65,6 +68,13 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         tint: "#C4B5FD",
         countKey: "pendingCorrection",
       },
+      {
+        href: "/persetujuan-pengajuan",
+        label: "Lembur & dinas luar",
+        Icon: ClipboardList,
+        tint: "#C4B5FD",
+        countKey: "pendingRequests",
+      },
     ],
   },
   {
@@ -72,7 +82,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Absensi saya",
     items: [
       { href: "/absen", label: "Absen", Icon: Clock, tint: "#86EFAC" },
-      { href: "/cuti", label: "Cuti saya", Icon: CalendarDays, tint: "#86EFAC" },
+      { href: "/cuti", label: "Pengajuan saya", Icon: CalendarDays, tint: "#86EFAC" },
       { href: "/riwayat", label: "Riwayat absen", Icon: ListChecks, tint: "#86EFAC" },
       { href: "/slip-gaji", label: "Slip gaji saya", Icon: FileText, tint: "#86EFAC" },
     ],
@@ -102,11 +112,13 @@ function AdminNav({
   role,
   pendingLeave,
   pendingCorrection,
+  pendingRequests = 0,
   onNavigate,
 }: {
   role: CurrentEmployee["role"];
   pendingLeave: number;
   pendingCorrection: number;
+  pendingRequests?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -124,7 +136,13 @@ function AdminNav({
           {g.items.map(({ href, label, Icon, tint, countKey }) => {
             const active = pathname === href || pathname?.startsWith(`${href}/`);
             const count =
-              countKey === "pendingLeave" ? pendingLeave : countKey === "pendingCorrection" ? pendingCorrection : 0;
+              countKey === "pendingLeave"
+                ? pendingLeave
+                : countKey === "pendingCorrection"
+                  ? pendingCorrection
+                  : countKey === "pendingRequests"
+                    ? pendingRequests
+                    : 0;
             return (
               <Link
                 key={href}
@@ -217,6 +235,7 @@ function SidebarBody({
   brand,
   pendingLeave,
   pendingCorrection,
+  pendingRequests = 0,
   notifications,
   onNavigate,
 }: {
@@ -225,6 +244,7 @@ function SidebarBody({
   brand: React.ReactNode;
   pendingLeave: number;
   pendingCorrection: number;
+  pendingRequests?: number;
   notifications?: React.ReactNode;
   onNavigate?: () => void;
 }) {
@@ -239,6 +259,7 @@ function SidebarBody({
         role={employee.role}
         pendingLeave={pendingLeave}
         pendingCorrection={pendingCorrection}
+        pendingRequests={pendingRequests}
         onNavigate={onNavigate}
       />
       <div className="mt-auto flex items-center gap-1 border-t border-sidebar-border pt-3.5">
@@ -258,6 +279,7 @@ export function AdminShell({
   footer,
   pendingLeave = 0,
   pendingCorrection = 0,
+  pendingRequests = 0,
   notifications,
   children,
 }: {
@@ -267,6 +289,7 @@ export function AdminShell({
   footer: React.ReactNode;
   pendingLeave?: number;
   pendingCorrection?: number;
+  pendingRequests?: number;
   /** The notification bell, rendered by the server layout. */
   notifications?: React.ReactNode;
   children: React.ReactNode;
@@ -282,6 +305,7 @@ export function AdminShell({
           brand={brand}
           pendingLeave={pendingLeave}
           pendingCorrection={pendingCorrection}
+          pendingRequests={pendingRequests}
           notifications={notifications}
         />
       </aside>

@@ -26,6 +26,8 @@ const rows = buildEmployeeDaily({
   ]),
   leaves: [{ tanggalMulai: "2026-08-05", tanggalSelesai: "2026-08-05", jenis: "sakit" }],
   joinDate: "2026-01-01",
+  // Tuesday's overtime was approved beforehand (0058).
+  approvedOvertime: new Map([["2026-08-04", [{ jamMulai: "17:00", jamSelesai: "19:00" }]]]),
 });
 
 describe("buildEmployeeDaily", () => {
@@ -90,5 +92,28 @@ describe("employeeDailyToCsv", () => {
     });
     expect(r.flagLokasi).toEqual(["akurasi_rendah", "lokasi_basi"]);
     expect(employeeDailyToCsv([r]).split("\r\n")[1]).toMatch(/,Akurasi GPS rendah; Lokasi GPS lama$/);
+  });
+});
+
+describe("buildEmployeeDaily with a shift roster (0059)", () => {
+  it("uses shift times, counts a rostered Saturday as a working day and a rostered libur as off", () => {
+    const rows = buildEmployeeDaily({
+      from: "2026-08-03",
+      to: "2026-08-08",
+      schedule: SCHEDULE,
+      holidays: new Map(),
+      attendance: new Map([at("08", "13:05", "21:00")]),
+      leaves: [],
+      joinDate: null,
+      roster: new Map([
+        ["2026-08-03", null],
+        ["2026-08-08", { nama: "Siang", jamMasuk: "13:00", jamPulang: "21:00", toleransiMenit: 15 }],
+      ]),
+    });
+    const sat = rows.find((r) => r.tanggal === "2026-08-08")!;
+    expect(sat).toMatchObject({ kind: "hadir", shift: "Siang", menitTerlambat: 0, menitPulangCepat: 0, keterangan: null });
+    expect(rows.find((r) => r.tanggal === "2026-08-03")).toMatchObject({ kind: "bukan_hari_kerja", keterangan: "Libur (roster)" });
+    // Tue–Fri regular (alpa, no attendance) + rostered Saturday = 5 working days.
+    expect(summarizeDaily(rows).hariKerja).toBe(5);
   });
 });

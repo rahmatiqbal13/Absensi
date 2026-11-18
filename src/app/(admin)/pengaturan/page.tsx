@@ -14,6 +14,7 @@ const HUB = [
   { href: "/pengaturan/audit", title: "Log audit", desc: "Riwayat perubahan data karyawan dan persetujuan cuti." },
   { href: "/pengaturan/departemen", title: "Departemen", desc: "Kelompokkan karyawan per departemen di tiap cabang." },
   { href: "/pengaturan/jadwal", title: "Jadwal kerja", desc: "Jam kerja, hari kerja, dan toleransi keterlambatan per cabang dan departemen." },
+  { href: "/pengaturan/shift", title: "Shift & roster", desc: "Shift per cabang dan roster mingguan: siapa masuk shift apa di tanggal berapa." },
   { href: "/pengaturan/cabang", title: "Cabang", desc: "Tambah, ubah nama atau alamat, hapus kantor cabang." },
   { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence per cabang dan departemen." },
 ];

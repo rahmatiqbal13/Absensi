@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { UserPlus, Users } from "lucide-react";
+import { FileUp, UserPlus, Users } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { RoleBadge } from "@/components/role-badge";
@@ -87,11 +87,18 @@ export default async function KaryawanPage({
         title="Karyawan"
         description="Kelola data karyawan dan onboarding."
         actions={
-          <Button asChild>
-            <Link href="/karyawan/baru">
-              <UserPlus className="size-4" /> Tambah Karyawan
-            </Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/karyawan/import">
+                <FileUp className="size-4" /> Import CSV
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/karyawan/baru">
+                <UserPlus className="size-4" /> Tambah Karyawan
+              </Link>
+            </Button>
+          </>
         }
       />
 

@@ -233,8 +233,9 @@ export default async function LaporanKaryawanPage({
                 header: "Keterangan",
                 mobileLabel: "Keterangan",
                 cell: (r: DailyRow) =>
-                  r.keterangan || r.catatan ? (
+                  r.keterangan || r.catatan || r.shift ? (
                     <span className="flex max-w-[28ch] flex-col text-sm">
+                      {r.shift && <span>Shift {r.shift}</span>}
                       {r.keterangan && <span>{r.keterangan}</span>}
                       {r.catatan && <span className="text-muted-foreground italic">“{r.catatan}”</span>}
                     </span>

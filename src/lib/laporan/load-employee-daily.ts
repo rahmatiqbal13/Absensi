@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CurrentEmployee } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { isMissingColumn, logOptionalLookup } from "@/lib/supabase/missing-column";
+import { loadApprovedOvertime } from "@/lib/requests/approved-overtime";
+import { loadRoster } from "@/lib/schedule/roster";
 import { buildEmployeeDaily, type DailyAttendance, type DailyRow, type DailySchedule } from "./employee-daily";
 
 export type EmployeeDailyReport = {
@@ -57,7 +59,7 @@ export async function loadEmployeeDailyReport(
     sched = await loadEmployeeSchedule(db, cols, branchId, emp.department_id as string | null);
   }
 
-  const [attRes, holRes, leaveRes, flagRes] = await Promise.all([
+  const [attRes, holRes, leaveRes, flagRes, approvedOvertime, rosters] = await Promise.all([
     db
       .from("attendances")
       .select("tanggal, status, jam_masuk, jam_pulang, catatan")
@@ -85,6 +87,8 @@ export async function loadEmployeeDailyReport(
       .eq("employee_id", employeeId)
       .gte("tanggal", from)
       .lte("tanggal", to),
+    loadApprovedOvertime(db, [employeeId], from, to),
+    loadRoster(db, [employeeId], from, to),
   ]);
   if (flagRes.error) logOptionalLookup("loadEmployeeDailyReport: flag_lokasi", flagRes.error, "0046");
   const flagsByDate = new Map(
@@ -127,6 +131,8 @@ export async function loadEmployeeDailyReport(
       jenis: l.jenis,
     })),
     joinDate: (emp.tanggal_mulai_kerja as string | null) ?? null,
+    approvedOvertime: new Map([...approvedOvertime].map(([k, v]) => [k.slice(employeeId.length + 1), v])),
+    roster: rosters.get(employeeId),
   });
 
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);

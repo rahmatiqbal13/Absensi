@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth/route-access";
 import { resolveApprover } from "@/lib/leave/approver";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { withRosterShift } from "@/lib/schedule/roster";
 import { correctedStatus, type ValidCorrection } from "./correction";
 
 // Every function here takes the SERVICE-ROLE client: attendance_corrections has
@@ -110,7 +111,7 @@ export async function decideCorrection(
 ): Promise<Result> {
   const { data: corr, error } = await service
     .from("attendance_corrections")
-    .select("id, employee_id, approver_id, jam_masuk, jam_pulang, status")
+    .select("id, employee_id, approver_id, tanggal, jam_masuk, jam_pulang, status")
     .eq("id", correctionId)
     .maybeSingle();
   if (error) {
@@ -140,7 +141,9 @@ export async function decideCorrection(
       if (schedErr) console.error("decideCorrection: schedule lookup failed", schedErr);
       return { ok: false, error: "Jadwal kerja karyawan belum diatur, status tidak bisa dihitung." };
     }
-    status = correctedStatus({ jamMasukIso: corr.jam_masuk, jamPulangIso: corr.jam_pulang, schedule });
+    // That day's rostered shift (0059), if any, is the yardstick.
+    const daySchedule = await withRosterShift(service, corr.employee_id, corr.tanggal, schedule);
+    status = correctedStatus({ jamMasukIso: corr.jam_masuk, jamPulangIso: corr.jam_pulang, schedule: daySchedule });
   }
 
   const { error: rpcErr } = await service.rpc("apply_attendance_correction", {

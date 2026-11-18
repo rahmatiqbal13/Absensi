@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { overtimeMinutes, overtimePay } from "./overtime";
+import { approvedOvertimeMinutes, overtimeMinutes, overtimePay } from "./overtime";
 
 describe("overtimeMinutes", () => {
   // 17:00 schedule end; times are Jakarta (UTC+7).
@@ -22,5 +22,28 @@ describe("overtimePay", () => {
     expect(overtimePay(120, g)).toBe(105_000);
     expect(overtimePay(30, g)).toBe(22_500);
     expect(overtimePay(0, g)).toBe(0);
+  });
+});
+
+
+describe("approvedOvertimeMinutes", () => {
+  // Clocked out 19:30 WIB, schedule ends 17:00.
+  const OUT = "2026-11-18T12:30:00Z";
+  it("pays nothing without an approval", () => {
+    expect(approvedOvertimeMinutes(OUT, "17:00", [])).toBe(0);
+    expect(approvedOvertimeMinutes(OUT, "17:00", undefined)).toBe(0);
+  });
+  it("caps by the real clock-out", () => {
+    expect(approvedOvertimeMinutes(OUT, "17:00", [{ jamMulai: "17:00", jamSelesai: "21:00" }])).toBe(150);
+  });
+  it("caps by the approved window", () => {
+    expect(approvedOvertimeMinutes(OUT, "17:00", [{ jamMulai: "17:00", jamSelesai: "18:00" }])).toBe(60);
+  });
+  it("never counts time before the scheduled end", () => {
+    expect(approvedOvertimeMinutes(OUT, "17:00", [{ jamMulai: "16:00", jamSelesai: "18:00" }])).toBe(60);
+  });
+  it("keeps the 30-minute floor and 4-hour cap", () => {
+    expect(approvedOvertimeMinutes("2026-11-18T10:20:00Z", "17:00", [{ jamMulai: "17:00", jamSelesai: "20:00" }])).toBe(0);
+    expect(approvedOvertimeMinutes("2026-11-18T16:00:00Z", "17:00", [{ jamMulai: "17:00", jamSelesai: "23:30" }])).toBe(240);
   });
 });

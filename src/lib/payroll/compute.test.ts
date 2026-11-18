@@ -153,3 +153,34 @@ describe("computePayrollForBranch", () => {
     expect(row.rincian_harian[0].potongan).toBe(0);
   });
 });
+
+describe("computePayrollForBranch with a shift roster (0059)", () => {
+  it("uses the rostered shift's times and working days", async () => {
+    const { computePayrollForBranch } = await import("./compute");
+    // August 2026. Regular Mon–Fri 09:00–17:00; on Sat 1 Aug the employee is
+    // rostered on Siang 13:00–21:00 and arrives 13:05 (within tolerance), and
+    // Mon 3 Aug is a rostered libur.
+    const [slip] = computePayrollForBranch({
+      year: 2026,
+      month: 8,
+      employees: [{ id: "e1", gajiPokok: 2_300_000, tanggalMulaiKerja: "2026-01-01" }],
+      schedule: { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, hariKerja: [1, 2, 3, 4, 5], potongTerlambat: true },
+      holidayDates: [],
+      attendancesByEmployee: new Map([
+        ["e1", new Map([["2026-08-01", { status: "tepat_waktu", jam_masuk: "2026-08-01T06:05:00Z", jam_pulang: "2026-08-01T14:00:00Z" }]])],
+      ]),
+      approvedLeavesByEmployee: new Map(),
+      rosterByEmployee: new Map([
+        ["e1", new Map([
+          ["2026-08-01", { nama: "Siang", jamMasuk: "13:00", jamPulang: "21:00", toleransiMenit: 15 }],
+          ["2026-08-03", null],
+        ])],
+      ]),
+    });
+    const sat = slip.rincian_harian.find((r) => r.tanggal === "2026-08-01")!;
+    expect(sat).toMatchObject({ jenis: "kerja", menit_terlambat: 0, menit_pulang_cepat: 0, potongan: 0 });
+    expect(slip.rincian_harian.some((r) => r.tanggal === "2026-08-03")).toBe(false);
+    // 21 weekdays in Aug 2026, minus the rostered libur, plus the rostered Saturday.
+    expect(slip.hari_kerja_efektif).toBe(21);
+  });
+});

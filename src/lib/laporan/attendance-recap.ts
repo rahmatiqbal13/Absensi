@@ -1,6 +1,7 @@
 // src/lib/laporan/attendance-recap.ts
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
-import { overtimeMinutes } from "@/lib/payroll/overtime";
+import { approvedOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
+import type { Roster } from "@/lib/schedule/roster";
 
 export type RecapEmployee = { id: string; nama: string; slug?: string; tanggalMulaiKerja: string | null };
 export type RecapAttendanceRow = { tanggal: string; status: string; jam_masuk: string | null; jam_pulang?: string | null };
@@ -48,6 +49,10 @@ export function computeAttendanceRecap(input: {
   holidayDates: string[];
   attendancesByEmployee: Map<string, Map<string, RecapAttendanceRow>>;
   approvedLeavesByEmployee: Map<string, RecapLeave[]>;
+  /** Approved lembur windows keyed "employeeId|YYYY-MM-DD" (0058). */
+  approvedOvertime?: Map<string, ApprovedOvertime[]>;
+  /** Shift roster per employee (0059). */
+  rosters?: Map<string, Roster>;
 }): RecapRow[] {
   const { from, to, employees, schedule, holidayDates, attendancesByEmployee, approvedLeavesByEmployee } = input;
   const holidays = new Set(holidayDates);
@@ -65,11 +70,19 @@ export function computeAttendanceRecap(input: {
       totalMenitTerlambat: 0, menitLembur: 0, hariKerjaEfektif: 0,
     };
 
+    const roster = input.rosters?.get(emp.id);
     for (const tanggal of allDates) {
-      const dow = new Date(`${tanggal}T00:00:00Z`).getUTCDay();
-      if (!workingDow.has(dow)) continue;
-      if (holidays.has(tanggal)) continue;
+      const rostered = roster?.get(tanggal);
+      if (roster?.has(tanggal)) {
+        if (rostered === null) continue; // rostered libur
+      } else {
+        const dow = new Date(`${tanggal}T00:00:00Z`).getUTCDay();
+        if (!workingDow.has(dow)) continue;
+        if (holidays.has(tanggal)) continue;
+      }
       if (emp.tanggalMulaiKerja && tanggal < emp.tanggalMulaiKerja) continue;
+      const dayLateThreshold = rostered ? scheduleMinutes(rostered.jamMasuk) + rostered.toleransiMenit : lateThreshold;
+      const dayJamPulang = rostered ? rostered.jamPulang : schedule.jamPulang;
 
       row.hariKerjaEfektif += 1;
 
@@ -83,7 +96,11 @@ export function computeAttendanceRecap(input: {
         continue;
       }
       if (schedule.hitungLembur && att.status !== "alpa") {
-        row.menitLembur += overtimeMinutes(att.jam_pulang ?? null, schedule.jamPulang);
+        row.menitLembur += approvedOvertimeMinutes(
+          att.jam_pulang ?? null,
+          dayJamPulang,
+          input.approvedOvertime?.get(`${emp.id}|${tanggal}`),
+        );
       }
       switch (att.status) {
         case "tepat_waktu":
@@ -92,7 +109,7 @@ export function computeAttendanceRecap(input: {
         case "terlambat":
           row.terlambat += 1;
           if (att.jam_masuk) {
-            row.totalMenitTerlambat += Math.max(0, jakartaMinutesOfDay(att.jam_masuk) - lateThreshold);
+            row.totalMenitTerlambat += Math.max(0, jakartaMinutesOfDay(att.jam_masuk) - dayLateThreshold);
           }
           break;
         case "pulang_cepat":

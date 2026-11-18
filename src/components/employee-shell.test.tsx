@@ -18,7 +18,7 @@ const renderShell = (children: React.ReactNode = <div>content</div>) =>
 describe("EmployeeShell", () => {
   it("renders the five bottom-nav items", () => {
     renderShell();
-    for (const name of ["Absen", "Cuti", "Riwayat", "Slip Gaji", "Profil"]) {
+    for (const name of ["Absen", "Pengajuan", "Riwayat", "Slip Gaji", "Profil"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
   });
@@ -30,7 +30,7 @@ describe("EmployeeShell", () => {
 
   it("gives each nav item a ≥44px touch target", () => {
     renderShell();
-    expect(screen.getByRole("link", { name: "Cuti" }).className).toMatch(/min-h-1[1-4]/);
+    expect(screen.getByRole("link", { name: "Pengajuan" }).className).toMatch(/min-h-1[1-4]/);
   });
 
   it("renders the header brand, the content, and the footer", () => {
@@ -52,7 +52,7 @@ describe("EmployeeShell", () => {
       </EmployeeShell>,
     );
     expect(screen.queryByRole("link", { name: "Slip Gaji" })).not.toBeInTheDocument();
-    for (const name of ["Absen", "Cuti", "Riwayat", "Profil"]) {
+    for (const name of ["Absen", "Pengajuan", "Riwayat", "Profil"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
   });

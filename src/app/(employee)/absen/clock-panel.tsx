@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
-import { CheckCircle2, QrCode, MapPin } from "lucide-react";
+import { Briefcase, CheckCircle2, QrCode, MapPin } from "lucide-react";
 import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import type { AttendanceStatus } from "@/lib/attendance/status";
@@ -111,6 +111,7 @@ export function ClockPanel({
   shift,
   qrEnabled,
   firstName,
+  dinasLuar = null,
   submitClockIn,
   submitClockOut,
 }: {
@@ -119,6 +120,8 @@ export function ClockPanel({
   office: BranchGeofence;
   shift: WorkShift;
   qrEnabled: boolean;
+  /** Approved dinas luar today: clock in from anywhere, no reason needed. */
+  dinasLuar?: { tujuan: string } | null;
   submitClockIn: (formData: FormData) => Promise<ActionResult>;
   submitClockOut: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -179,6 +182,7 @@ export function ClockPanel({
 
   const reasonRequired =
     !scanning &&
+    !dinasLuar &&
     ((geo.configured && geo.hasFix && !geo.withinRadius) ||
       geo.status === "denied" ||
       geo.status === "unavailable" ||
@@ -372,7 +376,17 @@ export function ClockPanel({
           )}
         </div>
       ) : (
-        <ProximityPanel office={office} onGeoChange={onGeoChange} />
+        <>
+          {dinasLuar && (
+            <p className="flex items-start gap-2 rounded-[14px] border border-border bg-info px-4 py-3 text-sm text-info-foreground">
+              <Briefcase className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>
+                Hari ini <b>dinas luar</b> ({dinasLuar.tujuan}). Absen dari lokasi mana pun, tanpa perlu alasan.
+              </span>
+            </p>
+          )}
+          <ProximityPanel office={office} onGeoChange={onGeoChange} />
+        </>
       )}
 
       <PhotoCaptureButton disabled={submitting || preparingPhoto} photo={photo} onPhotoChange={onPhotoChange} />

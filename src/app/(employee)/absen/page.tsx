@@ -1,9 +1,13 @@
+import Link from "next/link";
+import { Megaphone } from "lucide-react";
+import { activeDinasLuar } from "@/lib/requests/service";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { withRosterShift } from "@/lib/schedule/roster";
 import { loadOfficeLocation } from "@/lib/attendance/office-location";
 import { ClockPanel, type TodaysAttendance } from "./clock-panel";
 import { submitClockIn, submitClockOut } from "./actions";
@@ -40,7 +44,7 @@ export default async function AbsenPage() {
     .maybeSingle();
   const qrEnabled = qrRow?.qr_enabled ?? false;
 
-  const { data: schedule, error: scheduleErr } = await loadEmployeeSchedule<{
+  const { data: baseSchedule, error: scheduleErr } = await loadEmployeeSchedule<{
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
   }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branchId, employee.departmentId);
   if (scheduleErr) console.error("absen: work schedule query failed", scheduleErr);
@@ -49,6 +53,8 @@ export default async function AbsenPage() {
   // date, which is the previous day for any instant before 07:00 WIB and
   // would miss the row Task 6's clockIn() wrote under the Jakarta date.
   const today = toJakartaDateOnly(new Date());
+  // Today's rostered shift (0059) replaces the regular times in the ribbon.
+  const schedule = baseSchedule ? await withRosterShift(db, employee.id, today, baseSchedule) : null;
   const { data: attendance } = await db
     .from("attendances")
     .select("jam_masuk, jam_pulang, status")
@@ -74,6 +80,18 @@ export default async function AbsenPage() {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
+  const dinasLuar = await activeDinasLuar(db, employee.id, today);
+
+  // Latest announcement from the last 7 days (RLS: only those addressed to me).
+  const since = new Date(Date.parse(`${today}T00:00:00+07:00`) - 7 * 86_400_000).toISOString();
+  const { data: latestAnn } = await db
+    .from("announcements")
+    .select("id, judul, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
     <main className="mx-auto flex max-w-md flex-col gap-5 px-5 pt-4 pb-7">
       <div className="flex items-center justify-between">
@@ -88,7 +106,20 @@ export default async function AbsenPage() {
           {initials}
         </span>
       </div>
+      {latestAnn && (
+        <Link
+          href={`/pengumuman#${latestAnn.id}`}
+          className="flex items-center gap-3 rounded-[14px] border border-border bg-card px-4 py-3 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Megaphone className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs text-muted-foreground">Pengumuman</span>
+            <span className="block truncate text-sm font-semibold text-foreground">{latestAnn.judul}</span>
+          </span>
+        </Link>
+      )}
       <ClockPanel
+        dinasLuar={dinasLuar}
         todaysAttendance={todaysAttendance}
         office={{
           lat: office?.lat ?? 0,

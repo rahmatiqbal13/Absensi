@@ -2,7 +2,8 @@ import { effectiveWorkDays } from "./effective-days";
 import { dailyWage } from "./daily-wage";
 import { round2 } from "./round";
 import { computePph21, type Pph21Config, type TerKategori } from "./pph21";
-import { overtimeMinutes, overtimePay } from "./overtime";
+import { approvedOvertimeMinutes, overtimePay, type ApprovedOvertime } from "./overtime";
+import { dayPlan, type Roster } from "@/lib/schedule/roster";
 import {
   dayDeduction,
   leaveCoversDate,
@@ -83,6 +84,13 @@ export function computePayrollForBranch(input: {
   tarifPph21Persen?: number;
   /** PPh 21 method + tables (TER or flat). Overrides tarifPph21Persen. */
   pph21?: Pph21Config;
+  /**
+   * Approved lembur windows keyed "employeeId|YYYY-MM-DD" (0058). Overtime is
+   * paid only inside these, capped by the real clock-out.
+   */
+  approvedOvertime?: Map<string, ApprovedOvertime[]>;
+  /** Shift roster per employee id (0059): working days and that day's times. */
+  rosterByEmployee?: Map<string, Roster>;
 }): PayslipRow[] {
   const { year, month, employees, schedule, holidayDates, attendancesByEmployee, approvedLeavesByEmployee } = input;
   const pph21Config: Pph21Config = input.pph21 ?? { metode: "tarif_tetap", tarifPersen: input.tarifPph21Persen ?? 0 };
@@ -94,7 +102,21 @@ export function computePayrollForBranch(input: {
       hariKerja: schedule.hariKerja,
       holidayDates,
       joinDate: emp.tanggalMulaiKerja,
+      roster: input.rosterByEmployee?.get(emp.id),
     });
+    const roster = input.rosterByEmployee?.get(emp.id);
+    const holidaySet = new Set(holidayDates);
+    // The schedule for one date: a rostered shift's times, else the regular ones.
+    const scheduleOn = (tanggal: string): PayrollSchedule => {
+      if (!roster?.has(tanggal)) return schedule;
+      const plan = dayPlan(
+        { jamMasuk: schedule.jamMasuk, jamPulang: schedule.jamPulang, toleransiMenit: schedule.toleransiMenit, hariKerja: schedule.hariKerja },
+        tanggal,
+        holidaySet.has(tanggal),
+        roster,
+      );
+      return { ...schedule, jamMasuk: plan.jamMasuk, jamPulang: plan.jamPulang, toleransiMenit: plan.toleransiMenit };
+    };
     const wage = dailyWage(emp.gajiPokok, fullMonthDays.length);
     const attendance = attendancesByEmployee.get(emp.id) ?? new Map<string, AttendanceRowLite>();
     const leaves = approvedLeavesByEmployee.get(emp.id) ?? [];
@@ -104,7 +126,7 @@ export function computePayrollForBranch(input: {
         dayDeduction({
           tanggal,
           attendanceRow: attendance.get(tanggal) ?? null,
-          schedule,
+          schedule: scheduleOn(tanggal),
           dailyWage: wage,
           leave: leaveCoversDate(leaves, tanggal),
           potongAlpa: emp.potongAlpa ?? false,
@@ -117,13 +139,18 @@ export function computePayrollForBranch(input: {
       rincian_harian.reduce((sum, r) => sum + r.potongan, 0),
     );
 
-    // Workday overtime, only on days the employee actually worked.
+    // Workday overtime, only on days the employee actually worked, and only
+    // what was approved beforehand (0058).
     let menit_lembur = 0;
     let upah_lembur = 0;
     if (schedule.hitungLembur) {
       for (const r of rincian_harian) {
         if (r.jenis !== "kerja" && r.jenis !== "luar_kantor") continue;
-        const m = overtimeMinutes(attendance.get(r.tanggal)?.jam_pulang ?? null, schedule.jamPulang);
+        const m = approvedOvertimeMinutes(
+          attendance.get(r.tanggal)?.jam_pulang ?? null,
+          scheduleOn(r.tanggal).jamPulang,
+          input.approvedOvertime?.get(`${emp.id}|${r.tanggal}`),
+        );
         if (m > 0) {
           r.menit_lembur = m;
           menit_lembur += m;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Clock, FileSignature, FileText } from "lucide-react";
+import { Bell, ClipboardList, Clock, FileSignature, FileText, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { NotificationFeed, NotificationItem } from "@/lib/notifications/actions";
@@ -22,7 +22,7 @@ function relativeTime(iso: string, now: number): string {
   return RTF.format(Math.round(hours / 24), "day");
 }
 
-const ICON = { lupa_absen: Clock, slip_gaji: FileText, kontrak: FileSignature } as const;
+const ICON = { lupa_absen: Clock, slip_gaji: FileText, kontrak: FileSignature, pengumuman: Megaphone, pengajuan: ClipboardList } as const;
 
 /**
  * In-app notifications (lupa absen, slip gaji terbit). Polls every 2 minutes

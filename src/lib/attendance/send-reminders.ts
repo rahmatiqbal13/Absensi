@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { dueReminders, type ReminderEmployee, type ReminderSchedule } from "./reminder";
 import { loadSchedules } from "@/lib/schedule/resolve";
+import { loadRoster } from "@/lib/schedule/roster";
 import { jakartaMinutesOfDay } from "@/lib/payroll/minutes";
 import { createNotifications } from "@/lib/notifications/create";
 
@@ -46,7 +47,9 @@ export async function sendAttendanceReminders(db: SupabaseClient, now = new Date
   }
 
   const ids = (rows: { employee_id: string }[] | null) => new Set((rows ?? []).map((r) => r.employee_id));
+  const rosters = await loadRoster(db, ((empRes.data ?? []) as { id: string }[]).map((e) => e.id), tanggal, tanggal);
   const due = dueReminders({
+    rosters,
     tanggal,
     nowMinutes,
     employees: (empRes.data ?? []) as ReminderEmployee[],

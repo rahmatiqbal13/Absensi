@@ -673,4 +673,37 @@ describe("clockIn", () => {
       expect(retry).not.toHaveProperty("flag_lokasi_masuk");
     });
   });
+
+  describe("dinas luar (0058)", () => {
+    it("treats a far-away clock-in as in place and notes the destination", async () => {
+      const db = makeMockDb();
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: -7.25,
+        long: 112.75,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        dinasLuar: { tujuan: "Kampus Ketintang" },
+        now: new Date("2026-09-01T08:58:00+07:00"),
+      });
+      expect(result).toEqual({ ok: true, attendanceId: "attendance-1", status: "tepat_waktu" });
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "tepat_waktu", catatan: "Dinas luar: Kampus Ketintang" }),
+      );
+    });
+
+    it("still applies lateness on dinas luar", async () => {
+      const db = makeMockDb();
+      const result = await clockIn(db as any, {
+        employeeId: "employee-1",
+        lat: -7.25,
+        long: 112.75,
+        photoPath: "employee-1/masuk-1.jpg",
+        photoExpiresAt: "2026-12-01T00:00:00.000Z",
+        dinasLuar: { tujuan: "Kampus Ketintang" },
+        now: new Date("2026-09-01T09:40:00+07:00"),
+      });
+      expect(result).toMatchObject({ ok: true, status: "terlambat" });
+    });
+  });
 });

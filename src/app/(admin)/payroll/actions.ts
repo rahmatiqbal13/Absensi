@@ -15,6 +15,8 @@ import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { shouldDeductAlpa } from "@/lib/payroll/absence-deduction";
 import { loadPph21Config } from "@/lib/payroll/pph21-config";
 import { logOptionalLookup } from "@/lib/supabase/missing-column";
+import { loadApprovedOvertime } from "@/lib/requests/approved-overtime";
+import { loadRoster } from "@/lib/schedule/roster";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -211,7 +213,7 @@ export async function generatePayroll(periodId: string, employeeIds?: string[]):
 
   const activeIds = employees.map((e) => e.id);
 
-  const [attendanceRes, leaveRes] = await Promise.all([
+  const [attendanceRes, leaveRes, approvedOvertime, rosterByEmployee] = await Promise.all([
     activeIds.length
       ? db
           .from("attendances")
@@ -229,6 +231,10 @@ export async function generatePayroll(periodId: string, employeeIds?: string[]):
           .lte("tanggal_mulai", end)
           .gte("tanggal_selesai", start)
       : Promise.resolve({ data: [], error: null }),
+    // Only approved lembur is paid (0058).
+    loadApprovedOvertime(db, activeIds, start, end),
+    // Shift roster (0059): per-day times and working days.
+    loadRoster(db, activeIds, start, end),
   ]);
 
   if (attendanceRes.error || leaveRes.error) {
@@ -292,6 +298,8 @@ export async function generatePayroll(periodId: string, employeeIds?: string[]):
       attendancesByEmployee,
       approvedLeavesByEmployee,
       pph21: taxRes.config,
+      approvedOvertime,
+      rosterByEmployee,
     }),
   );
 

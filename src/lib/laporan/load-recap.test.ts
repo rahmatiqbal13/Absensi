@@ -14,7 +14,8 @@ function q(result: unknown) {
 const FILTERS = { branchId: "11111111-1111-1111-1111-111111111111", from: "2026-08-03", to: "2026-08-07" };
 
 function makeDb(tables: Record<string, unknown>) {
-  return { from: vi.fn((t: string) => tables[t]) } as never;
+  // work_requests (approved lembur, 0058) defaults to none.
+  return { from: vi.fn((t: string) => tables[t] ?? (t === "work_requests" || t === "shift_assignments" ? q({ data: [], error: null }) : undefined)) } as never;
 }
 
 describe("loadRecap", () => {

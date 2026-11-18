@@ -29,6 +29,8 @@ const AKSI_OPTIONS = [
   { value: "branch_kiosk_reset", label: "Link & Kode Kiosk Diganti" },
   { value: "contract_added", label: "Kontrak Ditambahkan" },
   { value: "contract_deleted", label: "Kontrak Dihapus" },
+  { value: "work_request_approved", label: "Pengajuan Disetujui" },
+  { value: "work_request_rejected", label: "Pengajuan Ditolak" },
   { value: "birth_date_corrected", label: "Tanggal Lahir Dikoreksi" },
   { value: "consent_withdrawn", label: "Persetujuan Data Ditarik" },
   { value: "attendance_evidence_viewed", label: "Foto & Lokasi Absen Dibuka" },

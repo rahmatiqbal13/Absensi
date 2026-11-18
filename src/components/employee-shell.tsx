@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/absen", label: "Absen", Icon: Clock },
-  { href: "/cuti", label: "Cuti", Icon: CalendarDays },
+  // Cuti, lembur & dinas luar: /cuti and /pengajuan share one tab strip.
+  { href: "/cuti", label: "Pengajuan", Icon: CalendarDays, also: ["/pengajuan"] },
   { href: "/riwayat", label: "Riwayat", Icon: ListChecks },
   { href: "/slip-gaji", label: "Slip Gaji", Icon: FileText },
   { href: "/profil", label: "Profil", Icon: User },
@@ -65,8 +66,10 @@ export function EmployeeShell({
           nav.length === 4 ? "grid-cols-4" : "grid-cols-5",
         )}
       >
-        {nav.map(({ href, label, Icon }) => {
-          const active = pathname === href || pathname?.startsWith(`${href}/`);
+        {nav.map((item) => {
+          const { href, label, Icon } = item;
+          const prefixes = [href, ...("also" in item ? item.also : [])];
+          const active = prefixes.some((p) => pathname === p || pathname?.startsWith(`${p}/`));
           return (
             <Link
               key={href}

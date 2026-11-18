@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { RequestTabs } from "@/components/request-tabs";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { LeaveStatusBadge, type LeaveStatus } from "@/components/leave-status-badge";
@@ -58,6 +59,7 @@ export default async function CutiPage() {
 
   return (
     <main className="mx-auto max-w-md space-y-6 p-4 pt-8">
+      <RequestTabs active="cuti" />
       <section aria-labelledby="saldo-heading" className="rounded-2xl bg-primary p-5 text-primary-foreground">
         <h2 id="saldo-heading" className="text-sm font-medium opacity-85">Sisa cuti tahunan {tahun}</h2>
         {balanceRes.ok ? (

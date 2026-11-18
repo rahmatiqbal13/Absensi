@@ -3,6 +3,7 @@ import { geofenceState, isGeofenceConfigured } from "./geofencing";
 import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { withRosterShift } from "@/lib/schedule/roster";
 import { loadOfficeLocation } from "./office-location";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
@@ -28,6 +29,8 @@ export type ClockInInput = {
   photoExpiresAt: string;
   catatan?: string;
   qrToken?: string;
+  /** Approved dinas luar today (0058): anywhere counts as in place, no reason needed. */
+  dinasLuar?: { tujuan: string } | null;
   /** GPS quality reported by the phone; see location-flags.ts. */
   accuracyMeters?: number;
   fixAgeSeconds?: number;
@@ -96,12 +99,14 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
   const branchQrSecret = typeof qrRow?.qr_secret === "string" ? qrRow.qr_secret : null;
 
   // The department's own schedule when it has one, else the branch default.
-  const { data: schedule, error: scheduleErr } = await loadEmployeeSchedule<{
+  const { data: baseSchedule, error: scheduleErr } = await loadEmployeeSchedule<{
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
   }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branch_id, employee.department_id);
-  if (scheduleErr || !schedule) {
+  if (scheduleErr || !baseSchedule) {
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }
+  // A rostered shift today (0059) replaces the regular times.
+  const schedule = await withRosterShift(db, input.employeeId, tanggal, baseSchedule);
 
   // The department's own pin when it has one, else the branch's (0037).
   const office = await loadOfficeLocation(db, branch, employee.branch_id, employee.department_id);
@@ -139,11 +144,13 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     : // No fix: the branch geofence may still be configured, so a non-QR
       // clock-in here must still be gated on a reason (not silently allowed).
       { configured: isGeofenceConfigured(office), distanceMeters: null, withinRadius: false };
-  // A verified QR proves presence; the geofence and its reason gate are skipped.
-  const withinRadius = qrVerified ? true : geo.withinRadius;
+  // A verified QR proves presence, and so does an approved dinas luar for the
+  // day: the geofence and its reason gate are skipped.
+  const withinRadius = qrVerified || !!input.dinasLuar ? true : geo.withinRadius;
 
-  // A whitespace-only catatan is not a reason — treat it as absent.
-  const catatan = input.catatan?.trim() || null;
+  // A whitespace-only catatan is not a reason — treat it as absent. On dinas
+  // luar the destination is recorded when nothing else was written.
+  const catatan = input.catatan?.trim() || (input.dinasLuar && !qrVerified ? `Dinas luar: ${input.dinasLuar.tujuan}` : null);
 
   // Only force a reason when the branch geofence is actually configured. If an
   // admin has not set the office point yet, do not block the employee for it.

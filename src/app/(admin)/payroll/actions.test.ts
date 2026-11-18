@@ -53,6 +53,9 @@ describe("generatePayroll", () => {
           return q({ data: [], error: null });
         case "leave_requests":
           return q({ data: [], error: null });
+        case "work_requests":
+        case "shift_assignments":
+          return q({ data: [], error: null });
         case "app_settings":
           return q({ data: { potong_alpa: false, metode_pph21: "tarif_tetap", tarif_pph21_persen: 0 }, error: null });
         default:
@@ -303,6 +306,12 @@ describe("generatePayroll", () => {
             });
           case "pph21_ptkp_kategori":
             return q({ data: [{ status_ptkp: "TK/0", kategori: "A" }, { status_ptkp: "K/1", kategori: "B" }], error: null });
+          case "work_requests":
+            // 3 Aug lembur approved 17:00–20:00; the clock-out at 19:00 caps it to 2h.
+            return q({
+              data: [{ employee_id: "e1", tanggal_mulai: "2026-08-03", jam_mulai: "17:00:00", jam_selesai: "20:00:00" }],
+              error: null,
+            });
           case "attendances": {
             const days = ["03", "04", "05", "06", "07", "10", "11", "12", "13", "14", "17", "18", "19", "20", "21", "24", "25", "26", "27", "28", "31"];
             return q({
@@ -335,6 +344,14 @@ describe("generatePayroll", () => {
       await generatePayroll("p1");
       // 120 min: 1/173 × 10,000,000 × (1.5 + 2) = 202,312.14
       expect(row()).toMatchObject({ menit_lembur: 120, upah_lembur: 202_312.14, penghasilan_bruto: 10_202_312.14, kategori_ter: "A", tarif_pph21: 2.25 });
+    });
+
+    it("pays no overtime without an approved lembur request", async () => {
+      mockBranch({ hitungLembur: true, statusPtkp: "TK/0" });
+      const base = from.getMockImplementation()!;
+      from.mockImplementation((t: string) => (t === "work_requests" ? q({ data: [], error: null }) : base(t)));
+      await generatePayroll("p1");
+      expect(row()).toMatchObject({ menit_lembur: 0, upah_lembur: 0 });
     });
 
     it("pays no overtime when the schedule does not", async () => {

@@ -1,5 +1,6 @@
 import { pickSchedule, type ScheduleScope } from "@/lib/schedule/resolve";
 import { scheduleMinutes } from "@/lib/payroll/minutes";
+import { dayPlan, type Roster } from "@/lib/schedule/roster";
 
 /**
  * "Lupa absen" reminder: an employee is due once their own schedule's clock-in
@@ -43,8 +44,9 @@ export function dueReminders(input: {
   attended: ReadonlySet<string>;
   /** Employees already reminded for `tanggal`. */
   reminded: ReadonlySet<string>;
+  /** Shift roster per employee (0059): today's shift times, or libur. */
+  rosters?: Map<string, Roster>;
 }): DueReminder[] {
-  const dow = new Date(`${input.tanggal}T00:00:00Z`).getUTCDay();
   const orgHoliday = input.holidays.some((h) => h.branch_id === null);
   const branchHoliday = new Set(input.holidays.map((h) => h.branch_id).filter((b): b is string => b !== null));
 
@@ -53,14 +55,24 @@ export function dueReminders(input: {
     if (e.role === "super_admin") continue;
     if (input.attended.has(e.id) || input.reminded.has(e.id) || input.onLeave.has(e.id)) continue;
     if (e.tanggal_mulai_kerja && e.tanggal_mulai_kerja > input.tanggal) continue;
-    if (orgHoliday || branchHoliday.has(e.branch_id)) continue;
-
     const s = pickSchedule(input.schedules, e.branch_id, e.department_id);
-    if (!s || !s.hari_kerja.includes(dow)) continue;
-    const lateFrom = scheduleMinutes(s.jam_masuk) + Number(s.toleransi_terlambat_menit || 0);
-    if (input.nowMinutes < lateFrom || input.nowMinutes >= scheduleMinutes(s.jam_pulang)) continue;
+    if (!s) continue;
+    const plan = dayPlan(
+      {
+        jamMasuk: s.jam_masuk.slice(0, 5),
+        jamPulang: s.jam_pulang.slice(0, 5),
+        toleransiMenit: Number(s.toleransi_terlambat_menit || 0),
+        hariKerja: s.hari_kerja,
+      },
+      input.tanggal,
+      orgHoliday || branchHoliday.has(e.branch_id),
+      input.rosters?.get(e.id),
+    );
+    if (!plan.working) continue;
+    const lateFrom = scheduleMinutes(plan.jamMasuk) + plan.toleransiMenit;
+    if (input.nowMinutes < lateFrom || input.nowMinutes >= scheduleMinutes(plan.jamPulang)) continue;
 
-    due.push({ employee: e, jamMasuk: s.jam_masuk.slice(0, 5) });
+    due.push({ employee: e, jamMasuk: plan.jamMasuk });
   }
   return due;
 }

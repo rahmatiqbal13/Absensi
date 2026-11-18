@@ -1,5 +1,6 @@
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
-import { overtimeMinutes } from "@/lib/payroll/overtime";
+import { approvedOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
+import type { Roster } from "@/lib/schedule/roster";
 import { leaveJenisLabel } from "@/lib/leave/labels";
 import { LOCATION_FLAG_LABELS, isLocationFlag, type LocationFlag } from "@/lib/attendance/location-flags";
 
@@ -29,6 +30,8 @@ export type DailyRow = {
   catatan: string | null;
   /** GPS warnings on the clock-in or clock-out of this day (0046), deduplicated. */
   flagLokasi: LocationFlag[];
+  /** Rostered shift name for this day (0059), when on a roster. */
+  shift?: string | null;
 };
 
 export type DailySchedule = {
@@ -73,17 +76,26 @@ export function buildEmployeeDaily(input: {
   attendance: Map<string, DailyAttendance>;
   leaves: { tanggalMulai: string; tanggalSelesai: string; jenis: string }[];
   joinDate: string | null;
+  /** Approved lembur windows by date (0058); overtime counts only inside them. */
+  approvedOvertime?: Map<string, ApprovedOvertime[]>;
+  /** Shift roster (0059): that day's shift times / working day, or libur. */
+  roster?: Roster;
 }): DailyRow[] {
-  const { from, to, schedule, holidays, attendance, leaves, joinDate } = input;
+  const { from, to, schedule, holidays, attendance, leaves, joinDate, roster } = input;
   const workingDow = new Set(schedule?.hariKerja ?? []);
-  const lateThreshold = schedule ? scheduleMinutes(schedule.jamMasuk) + schedule.toleransiMenit : null;
-  const endMin = schedule ? scheduleMinutes(schedule.jamPulang) : null;
   const rows: DailyRow[] = [];
 
   for (const tanggal of eachDate(from, to)) {
     const dow = new Date(`${tanggal}T00:00:00Z`).getUTCDay();
-    const isWorkday = workingDow.has(dow);
-    const holiday = holidays.get(tanggal) ?? null;
+    const rostered = roster?.get(tanggal);
+    const onRoster = roster?.has(tanggal) ?? false;
+    // A rostered shift makes the day a working day with its own times (even on
+    // a weekend or holiday); a rostered libur makes it a day off.
+    const isWorkday = onRoster ? rostered != null : workingDow.has(dow);
+    const holiday = onRoster && rostered ? null : holidays.get(tanggal) ?? null;
+    const day = rostered ?? schedule;
+    const lateThreshold = day ? scheduleMinutes(day.jamMasuk) + day.toleransiMenit : null;
+    const endMin = day ? scheduleMinutes(day.jamPulang) : null;
     const leave = leaves.find((l) => tanggal >= l.tanggalMulai && tanggal <= l.tanggalSelesai) ?? null;
     const att = attendance.get(tanggal) ?? null;
 
@@ -118,15 +130,18 @@ export function buildEmployeeDaily(input: {
         menitTerlambat: scheduled && masuk != null && lateThreshold != null ? Math.max(0, masuk - lateThreshold) : 0,
         menitPulangCepat: scheduled && pulang != null && endMin != null ? Math.max(0, endMin - pulang) : 0,
         menitLembur:
-          scheduled && schedule?.hitungLembur ? overtimeMinutes(att.jam_pulang, schedule.jamPulang) : 0,
-        keterangan: holiday ? `Libur: ${holiday}` : !isWorkday ? "Di luar hari kerja" : null,
+          scheduled && schedule?.hitungLembur
+            ? approvedOvertimeMinutes(att.jam_pulang, (rostered ?? schedule).jamPulang, input.approvedOvertime?.get(tanggal))
+            : 0,
+        keterangan: holiday ? `Libur: ${holiday}` : !isWorkday ? (onRoster ? "Libur (roster)" : "Di luar hari kerja") : null,
+        shift: isWorkday && rostered?.nama ? rostered.nama : null,
         catatan: att.catatan,
         flagLokasi: mergeFlags(att),
       });
       continue;
     }
 
-    if (!isWorkday) rows.push({ ...base, kind: "bukan_hari_kerja" });
+    if (!isWorkday) rows.push({ ...base, kind: "bukan_hari_kerja", keterangan: onRoster ? "Libur (roster)" : null });
     else if (holiday) rows.push({ ...base, kind: "libur", keterangan: holiday });
     else if (joinDate && tanggal < joinDate) rows.push({ ...base, kind: "belum_bekerja" });
     else if (leave) rows.push({ ...base, kind: "cuti", keterangan: leaveJenisLabel(leave.jenis) });

@@ -58,7 +58,7 @@ describe("AdminShell", () => {
       const { unmount } = renderShell(role);
       for (const [name, href] of [
         ["Absen", "/absen"],
-        ["Cuti saya", "/cuti"],
+        ["Pengajuan saya", "/cuti"],
         ["Riwayat absen", "/riwayat"],
         ["Slip gaji saya", "/slip-gaji"],
       ]) {

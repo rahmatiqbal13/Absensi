@@ -1,9 +1,13 @@
+import type { Roster } from "@/lib/schedule/roster";
+
 export type EffectiveWorkDaysInput = {
   year: number;
   month: number; // 1-12
   hariKerja: number[]; // work_schedules.hari_kerja, 0=Sun..6=Sat (getUTCDay convention)
   holidayDates: string[]; // "YYYY-MM-DD", already filtered to those that apply to the branch
   joinDate?: string | null; // employees.tanggal_mulai_kerja, "YYYY-MM-DD"
+  /** Shift roster (0059): a rostered date is working (shift) or not (libur), overriding the above. */
+  roster?: Roster;
 };
 
 export type EffectiveWorkDays = {
@@ -21,6 +25,10 @@ export function effectiveWorkDays(input: EffectiveWorkDaysInput): EffectiveWorkD
   const fullMonthDays: string[] = [];
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    if (input.roster?.has(dateStr)) {
+      if (input.roster.get(dateStr) !== null) fullMonthDays.push(dateStr);
+      continue;
+    }
     const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
     if (!workingDow.has(dow)) continue;
     if (holidays.has(dateStr)) continue;

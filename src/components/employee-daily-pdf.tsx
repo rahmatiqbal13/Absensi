@@ -124,7 +124,9 @@ export function EmployeeDailyPage({
       </View>
       {data.rows.map((r) => {
         const off = r.kind === "bukan_hari_kerja" || r.kind === "libur" || r.kind === "belum_bekerja";
-        const ket = [r.keterangan, r.catatan ? `"${r.catatan}"` : null].filter(Boolean).join(" · ");
+        const ket = [r.shift ? `Shift ${r.shift}` : null, r.keterangan, r.catatan ? `"${r.catatan}"` : null]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <View key={r.tanggal} style={[s.row, off ? s.muted : {}]} wrap={false}>
             <Text style={s.cTgl}>{tanggalLabel(r.tanggal)}</Text>

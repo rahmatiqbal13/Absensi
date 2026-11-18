@@ -20,6 +20,7 @@ const clockOut = vi.fn();
 vi.mock("@/lib/attendance/clock-in", () => ({ clockIn: (...a: unknown[]) => clockIn(...a) }));
 vi.mock("@/lib/attendance/clock-out", () => ({ clockOut: (...a: unknown[]) => clockOut(...a) }));
 
+vi.mock("@/lib/requests/service", () => ({ activeDinasLuar: async () => null }));
 const withinRateLimit = vi.fn();
 vi.mock("@/lib/security/rate-limit", () => ({
   withinRateLimit: (...a: unknown[]) => withinRateLimit(...a),

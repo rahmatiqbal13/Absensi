@@ -9,6 +9,8 @@ import {
   type RecapLeave,
 } from "./attendance-recap";
 import { buildEmployeeDaily, jadwalLabel, type DailyAttendance, type DailyRow } from "./employee-daily";
+import { loadApprovedOvertime } from "@/lib/requests/approved-overtime";
+import { loadRoster } from "@/lib/schedule/roster";
 
 export type RecapFilters = {
   branchId: string;
@@ -108,7 +110,7 @@ export async function loadRecap(
   }
   const employeeIds = employees.map((e) => e.id);
 
-  const [attendanceRes, leaveRes] = await Promise.all([
+  const [attendanceRes, leaveRes, approvedOvertime, rosters] = await Promise.all([
     employeeIds.length
       ? db.from("attendances")
           .select("employee_id, tanggal, status, jam_masuk, jam_pulang, catatan")
@@ -120,6 +122,8 @@ export async function loadRecap(
           .eq("status", "approved").in("employee_id", employeeIds)
           .lte("tanggal_mulai", to).gte("tanggal_selesai", from)
       : Promise.resolve({ data: [], error: null }),
+    loadApprovedOvertime(db, employeeIds, from, to),
+    loadRoster(db, employeeIds, from, to),
   ]);
 
   if (attendanceRes.error || leaveRes.error) {
@@ -161,6 +165,8 @@ export async function loadRecap(
           holidayDates,
           attendancesByEmployee,
           approvedLeavesByEmployee,
+          approvedOvertime,
+          rosters,
         }),
       )
       .map((r) => [r.employeeId, r]),
@@ -193,6 +199,10 @@ export async function loadRecap(
         .filter((l) => l.employee_id === e.id)
         .map((l) => ({ tanggalMulai: l.tanggal_mulai, tanggalSelesai: l.tanggal_selesai, jenis: l.jenis ?? "" })),
       joinDate: e.tanggal_mulai_kerja,
+      approvedOvertime: new Map(
+        [...approvedOvertime].filter(([k]) => k.startsWith(`${e.id}|`)).map(([k, v]) => [k.slice(e.id.length + 1), v]),
+      ),
+      roster: rosters.get(e.id),
     });
   }
 
