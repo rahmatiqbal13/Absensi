@@ -17,7 +17,7 @@ cp .env.local.example .env.local   # isi nilainya, lihat tabel di bawah
 
 ```bash
 npx supabase link --project-ref <project-ref>
-PURGE_SHARED_SECRET=<secret> npx supabase db push        # jalankan semua migrasi di supabase/migrations
+PURGE_SHARED_SECRET=<secret> CRON_SECRET=<secret> NEXT_PUBLIC_APP_URL=<url> npx supabase db push   # jalankan semua migrasi; ketiga nilai disimpan ke Vault untuk pg_cron
 npm run seed                                             # cabang "Kantor Pusat" + 2 super admin
 npx tsx scripts/seed-holidays-2026.ts                    # libur nasional 2026 (verifikasi ke SKB 3 Menteri)
 ```
@@ -46,7 +46,7 @@ Clock-in sengaja dikunci hanya dari perangkat mobile (anti-pemalsuan GPS); fitur
 | `NEXT_PUBLIC_APP_URL` | disarankan | Origin publik untuk link undangan & email. Kosong → domain produksi Vercel, lalu `http://localhost:3000` |
 | `SEED_SUPERADMIN_PASSWORD` | untuk seed | Password awal super admin |
 | `RESEND_API_KEY`, `EMAIL_FROM` | tidak | Notifikasi email; tanpa ini email dilewati |
-| `CRON_SECRET` | produksi | Melindungi `/api/cron/holidays` (sinkron libur nasional mingguan, lihat `vercel.json`) |
+| `CRON_SECRET` | produksi | Melindungi `/api/cron/*`: sinkron libur nasional mingguan (Vercel Cron, `vercel.json`) dan pengingat lupa absen tiap 15 menit (pg_cron, migrasi 0047). Juga dibaca saat `supabase db push` |
 | `PURGE_SHARED_SECRET` | produksi | Dibaca saat `supabase db push` dan oleh Edge Function purge |
 | `NEXT_PUBLIC_SENTRY_DSN` | disarankan | Error monitoring (Sentry) di server dan HP karyawan. Kosong → monitoring mati |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | tidak | Upload source map saat build agar stack trace di Sentry terbaca |

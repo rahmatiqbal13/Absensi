@@ -4,8 +4,15 @@ const rpc = vi.fn();
 const from = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({ rpc, from })),
+  createServiceRoleSupabaseClient: vi.fn(() => ({ service: true })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const after = vi.fn();
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => after(cb) }));
+const notifyPayslipsPublished = vi.fn();
+vi.mock("@/lib/payroll/notify-payslips", () => ({
+  notifyPayslipsPublished: (...a: unknown[]) => notifyPayslipsPublished(...a),
+}));
 
 import { createPayrollPeriod, generatePayroll, finalizePayroll, setPayrollPaid } from "./actions";
 
@@ -384,10 +391,23 @@ describe("finalizePayroll", () => {
     expect(result).toEqual({ ok: false, error: "Tidak dapat memfinalisasi periode tanpa slip gaji." });
   });
 
-  it("succeeds", async () => {
+  it("succeeds and emails the payslip notice after the response", async () => {
     rpc.mockResolvedValue({ data: null, error: null });
+    after.mockReset();
+    notifyPayslipsPublished.mockReset();
     const result = await finalizePayroll("p1");
     expect(result).toEqual({ ok: true });
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(notifyPayslipsPublished).not.toHaveBeenCalled();
+    await after.mock.calls[0][0]();
+    expect(notifyPayslipsPublished).toHaveBeenCalledWith({ service: true }, "p1");
+  });
+
+  it("does not notify when finalize fails", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "payroll period is already finalized" } });
+    after.mockReset();
+    await finalizePayroll("p1");
+    expect(after).not.toHaveBeenCalled();
   });
 });
 

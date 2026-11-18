@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { sendEmail, escapeHtml } from "./send";
+import { sendEmail, sendEmailBatch, escapeHtml } from "./send";
 
 const MSG = { to: "a@b.id", subject: "S", html: "<p>x</p>", text: "x" };
 
@@ -39,5 +39,44 @@ describe("sendEmail", () => {
 describe("escapeHtml", () => {
   it("escapes markup", () => {
     expect(escapeHtml(`<b>"Tom" & 'Jerry'</b>`)).toBe("&lt;b&gt;&quot;Tom&quot; &amp; &#39;Jerry&#39;&lt;/b&gt;");
+  });
+});
+
+describe("sendEmailBatch", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends nothing for an empty list", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await sendEmailBatch([])).toEqual({ sent: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("splits into requests of at most 100 and counts a rejected chunk as failed", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("EMAIL_FROM", "tapabsen <no-reply@contoh.id>");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response("limit", { status: 429 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const msgs = Array.from({ length: 150 }, (_, i) => ({ ...MSG, to: `k${i}@b.id` }));
+    expect(await sendEmailBatch(msgs)).toEqual({ sent: 100, failed: 50 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    const body = JSON.parse(init.body);
+    expect(body).toHaveLength(100);
+    expect(body[0]).toMatchObject({ from: "tapabsen <no-reply@contoh.id>", to: ["k0@b.id"] });
+  });
+
+  it("skips when Resend is not configured", async () => {
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    expect(await sendEmailBatch([MSG])).toEqual({ sent: 0, failed: 1 });
   });
 });

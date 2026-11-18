@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { routePatterns } from "@/lib/routing/paths";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { notifyPayslipsPublished } from "@/lib/payroll/notify-payslips";
 import {
   computePayrollForBranch,
   type PayrollEmployee,
@@ -311,6 +313,9 @@ export async function finalizePayroll(periodId: string): Promise<ActionResult> {
   }
   revalidatePath(routePatterns.payrollPeriod, "page");
   revalidatePath("/payroll");
+  // The RPC refuses a second finalize, so this fires once per period. After
+  // the response, so HR isn't kept waiting on the mail provider.
+  after(() => notifyPayslipsPublished(createServiceRoleSupabaseClient(), periodId));
   return { ok: true };
 }
 

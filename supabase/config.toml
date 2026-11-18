@@ -60,6 +60,11 @@ max_client_conn = 100
 # push time — never written to git. The Edge Function reads the same value from
 # its own secret (`supabase secrets set PURGE_SHARED_SECRET=...`).
 purge_shared_secret = "env(PURGE_SHARED_SECRET)"
+# Migration 0047's pg_cron job calls <app_url>/api/cron/absen-reminder with
+# `Authorization: Bearer <cron_secret>`. Same values as NEXT_PUBLIC_APP_URL and
+# CRON_SECRET in Vercel.
+app_url = "env(NEXT_PUBLIC_APP_URL)"
+cron_secret = "env(CRON_SECRET)"
 
 [db.migrations]
 # If disabled, migrations will be skipped during a db push or reset.
