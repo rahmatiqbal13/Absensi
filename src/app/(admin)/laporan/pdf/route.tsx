@@ -7,6 +7,7 @@ import { getAppSettings } from "@/lib/branding/get-app-settings";
 import { productLogoDataUrl } from "@/lib/branding/product-logo-data-url";
 import { fetchLogoDataUrl } from "@/lib/branding/fetch-logo";
 import { RecapDocument } from "@/components/recap-document";
+import { printedAt } from "@/components/employee-daily-pdf";
 
 // @react-pdf/renderer needs Node APIs (fontkit, zlib) — pin the runtime to
 // Node explicitly so this can never be moved onto the Edge runtime.
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     return new Response(recap.error, { status: 400 });
   }
 
-  const { namaInstansi, logoUrl } = await getAppSettings();
+  const { namaInstansi, logoUrl, alamat } = await getAppSettings();
   // Instansi logo when uploaded, otherwise the product mark.
   const orgLogoUrl = (await fetchLogoDataUrl(logoUrl)) ?? (await productLogoDataUrl());
 
@@ -60,8 +61,10 @@ export async function GET(request: Request) {
           from: range.from,
           to: range.to,
           rows: recap.rows,
-          orgNama: namaInstansi,
-          orgLogoUrl,
+          daily: recap.daily,
+          jadwal: recap.jadwal,
+          org: { nama: namaInstansi, alamat, logoUrl: orgLogoUrl },
+          dicetak: printedAt(),
         }}
       />,
     );

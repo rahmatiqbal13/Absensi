@@ -1,40 +1,42 @@
-import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { RecapRow } from "@/lib/laporan/attendance-recap";
+import { formatDurasiSingkat, summarizeDaily, type DailyRow } from "@/lib/laporan/employee-daily";
+import { EmployeeDailyPage, PdfFooter, PdfLetterhead, pdfStyles, rangeLabel, type PdfOrg } from "./employee-daily-pdf";
 
 export type RecapDocData = {
   branchNama: string;
   from: string;
   to: string;
   rows: RecapRow[];
-  orgNama: string;
-  orgLogoUrl: string | null;
+  /** Day-by-day rows per employee id; each gets an appendix page. */
+  daily: Record<string, DailyRow[]>;
+  jadwal: Record<string, string>;
+  org: PdfOrg;
+  dicetak: string;
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 32, fontSize: 9, fontFamily: "Helvetica" },
-  header: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  headerLogo: { width: 24, height: 24, objectFit: "contain" },
-  headerName: { fontSize: 12, fontFamily: "Helvetica-Bold" },
-  title: { fontSize: 14, marginBottom: 2 },
-  sub: { color: "#555", marginBottom: 12 },
   headRow: { flexDirection: "row", borderBottom: "1px solid #333", paddingBottom: 3, fontFamily: "Helvetica-Bold" },
   row: { flexDirection: "row", paddingVertical: 3, borderBottom: "1px solid #eee" },
   cNama: { width: "28%" },
-  cNum: { width: "12%", textAlign: "right" },
+  cNum: { width: "9%", textAlign: "right" },
+  cJam: { width: "18%", textAlign: "right" },
+  note: { marginTop: 10, fontSize: 8, color: "#6B6B76" },
 });
 
+/**
+ * Laporan kehadiran PDF: a summary page for every employee in the filter,
+ * then one day-by-day page per employee (jam masuk, jam pulang, total jam).
+ */
 export function RecapDocument({ data }: { data: RecapDocData }) {
+  const range = rangeLabel(data.from, data.to);
   return (
-    <Document>
-      <Page size="A4" style={styles.page} orientation="landscape">
-        <View style={styles.header}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop */}
-          {data.orgLogoUrl ? <Image src={data.orgLogoUrl} style={styles.headerLogo} /> : null}
-          <Text style={styles.headerName}>{data.orgNama}</Text>
-        </View>
-        <Text style={styles.title}>Laporan Kehadiran — {data.branchNama}</Text>
-        <Text style={styles.sub}>{data.from} s/d {data.to}</Text>
-        <View style={styles.headRow}>
+    <Document title={`Laporan Kehadiran ${data.branchNama} ${data.from} s/d ${data.to}`} author={data.org.nama}>
+      <Page size="A4" style={pdfStyles.page} orientation="landscape">
+        <PdfLetterhead org={data.org} />
+        <Text style={pdfStyles.title}>Laporan Kehadiran — {data.branchNama}</Text>
+        <Text style={pdfStyles.sub}>{range}</Text>
+        <View style={styles.headRow} fixed>
           <Text style={styles.cNama}>Nama</Text>
           <Text style={styles.cNum}>Hadir</Text>
           <Text style={styles.cNum}>Terlambat</Text>
@@ -42,9 +44,10 @@ export function RecapDocument({ data }: { data: RecapDocData }) {
           <Text style={styles.cNum}>Luar Lok.</Text>
           <Text style={styles.cNum}>Alpa</Text>
           <Text style={styles.cNum}>Cuti</Text>
+          <Text style={styles.cJam}>Total jam kerja</Text>
         </View>
         {data.rows.map((r) => (
-          <View key={r.employeeId} style={styles.row}>
+          <View key={r.employeeId} style={styles.row} wrap={false}>
             <Text style={styles.cNama}>{r.nama}</Text>
             <Text style={styles.cNum}>{r.hadir}</Text>
             <Text style={styles.cNum}>{r.terlambat}</Text>
@@ -52,9 +55,30 @@ export function RecapDocument({ data }: { data: RecapDocData }) {
             <Text style={styles.cNum}>{r.diLuarLokasi}</Text>
             <Text style={styles.cNum}>{r.alpa}</Text>
             <Text style={styles.cNum}>{r.cuti}</Text>
+            <Text style={styles.cJam}>{formatDurasiSingkat(summarizeDaily(data.daily[r.employeeId] ?? []).menitKerja)}</Text>
           </View>
         ))}
+        <Text style={styles.note}>
+          Rincian harian (jam masuk, jam pulang, total jam) setiap karyawan ada di halaman berikutnya.
+        </Text>
+        <PdfFooter dicetak={data.dicetak} />
       </Page>
+
+      {data.rows.map((r) => (
+        <EmployeeDailyPage
+          key={r.employeeId}
+          org={data.org}
+          from={data.from}
+          to={data.to}
+          dicetak={data.dicetak}
+          data={{
+            nama: r.nama,
+            keterangan: data.branchNama,
+            jadwal: data.jadwal[r.employeeId] ?? null,
+            rows: data.daily[r.employeeId] ?? [],
+          }}
+        />
+      ))}
     </Document>
   );
 }

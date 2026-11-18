@@ -142,8 +142,22 @@ export function InstansiForm({
                 <img src={defaults.logoUrl} alt="Logo saat ini" className="mb-2 h-16 w-16 rounded object-contain" />
               )}
               <form action={onLogo} className="space-y-2">
-                <Input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-                <p className="text-xs text-muted-foreground">PNG/JPG/WEBP/SVG, maks 512 KB.</p>
+                <Input
+                  name="logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  disabled={busy}
+                  // Upload as soon as a file is picked: the logo is a separate
+                  // form from "Simpan", and picking a file then pressing Simpan
+                  // used to leave the logo silently unsaved.
+                  onChange={(e) => {
+                    if (e.currentTarget.files?.length) e.currentTarget.form?.requestSubmit();
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  PNG/JPG/WEBP/SVG, maks 512 KB. Langsung terunggah setelah dipilih. Dipakai di header aplikasi,
+                  ikon tab browser, dan kop PDF laporan &amp; slip gaji.
+                </p>
                 <div className="flex gap-2">
                   <Button type="submit" variant="secondary" size="sm" disabled={busy}>
                     Unggah Logo

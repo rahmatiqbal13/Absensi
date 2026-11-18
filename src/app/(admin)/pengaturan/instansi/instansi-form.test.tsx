@@ -40,4 +40,19 @@ describe("InstansiForm", () => {
     const submitted = saveAppSettings.mock.calls[0][0] as FormData;
     expect(submitted.get("nama_instansi")).toBe("PT Contoh");
   });
+
+  it("submits the logo form as soon as a file is picked, without pressing a button", async () => {
+    // jsdom's FormData can't see files set by user-event, so assert the
+    // submission itself rather than the uploaded payload.
+    const user = userEvent.setup();
+    const requestSubmit = vi.spyOn(HTMLFormElement.prototype, "requestSubmit").mockImplementation(() => {});
+    const { container } = render(
+      <InstansiForm defaults={DEFAULTS} saveAppSettings={vi.fn()} uploadLogo={vi.fn()} removeLogo={vi.fn()} />,
+    );
+    const input = container.querySelector('input[name="logo"]') as HTMLInputElement;
+    await user.upload(input, new File(["png"], "logo.png", { type: "image/png" }));
+    expect(requestSubmit).toHaveBeenCalledTimes(1);
+    expect(requestSubmit.mock.contexts[0]).toBe(input.form);
+    requestSubmit.mockRestore();
+  });
 });

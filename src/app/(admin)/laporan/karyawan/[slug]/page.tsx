@@ -153,6 +153,11 @@ export default async function LaporanKaryawanPage({
                 />
               )}
               <Button asChild variant="outline" size="sm">
+                <a href={`${paths.laporanKaryawan(slug)}/pdf?${qs}`}>
+                  <Download className="size-4" /> Unduh PDF
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
                 <a href={`${paths.laporanKaryawan(slug)}/csv?${qs}`}>
                   <Download className="size-4" /> Unduh CSV
                 </a>

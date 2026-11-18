@@ -8,6 +8,7 @@ import {
   type RecapAttendanceRow,
   type RecapLeave,
 } from "./attendance-recap";
+import { buildEmployeeDaily, jadwalLabel, type DailyAttendance, type DailyRow } from "./employee-daily";
 
 export type RecapFilters = {
   branchId: string;
@@ -19,7 +20,19 @@ export type RecapFilters = {
 };
 
 export type LoadRecapResult =
-  | { ok: true; rows: RecapRow[]; branchNama: string }
+  | {
+      ok: true;
+      rows: RecapRow[];
+      branchNama: string;
+      /**
+       * Day-by-day rows per employee id (jam masuk/pulang, durasi, ...), built
+       * with the same rules as the per-employee report, for the PDF appendix
+       * and the "total jam" column.
+       */
+      daily: Record<string, DailyRow[]>;
+      /** Each employee's schedule as text, e.g. "08:00–16:00, Sen, Sel, ...". */
+      jadwal: Record<string, string>;
+    }
   | { ok: false; error: string };
 
 export async function loadRecap(
@@ -60,7 +73,7 @@ export async function loadRecap(
     // Overtime toggle (0039), tolerant: unreadable => no overtime column values.
     db.from("work_schedules").select("id, hitung_lembur").eq("branch_id", branchId),
     employeeQuery,
-    db.from("holidays").select("tanggal")
+    db.from("holidays").select("tanggal, nama")
       .or(`branch_id.is.null,branch_id.eq.${branchId}`)
       .gte("tanggal", from).lte("tanggal", to),
   ]);
@@ -98,12 +111,12 @@ export async function loadRecap(
   const [attendanceRes, leaveRes] = await Promise.all([
     employeeIds.length
       ? db.from("attendances")
-          .select("employee_id, tanggal, status, jam_masuk, jam_pulang")
+          .select("employee_id, tanggal, status, jam_masuk, jam_pulang, catatan")
           .in("employee_id", employeeIds).gte("tanggal", from).lte("tanggal", to)
       : Promise.resolve({ data: [], error: null }),
     employeeIds.length
       ? db.from("leave_requests")
-          .select("employee_id, tanggal_mulai, tanggal_selesai")
+          .select("employee_id, tanggal_mulai, tanggal_selesai, jenis")
           .eq("status", "approved").in("employee_id", employeeIds)
           .lte("tanggal_mulai", to).gte("tanggal_selesai", from)
       : Promise.resolve({ data: [], error: null }),
@@ -130,7 +143,8 @@ export async function loadRecap(
     approvedLeavesByEmployee.set(r.employee_id, list);
   }
 
-  const holidayDates = ((holidaysRes.data ?? []) as { tanggal: string }[]).map((h) => h.tanggal);
+  const holidayRows = (holidaysRes.data ?? []) as { tanggal: string; nama?: string }[];
+  const holidayDates = holidayRows.map((h) => h.tanggal);
   const byId = new Map(
     [...groups.values()]
       .flatMap(({ schedule, employees: members }) =>
@@ -154,5 +168,33 @@ export async function loadRecap(
   // Keep the employee query's name order across schedule groups.
   const rows = employees.map((e) => byId.get(e.id)).filter((r): r is RecapRow => !!r);
 
-  return { ok: true, rows, branchNama: (branch as { nama: string }).nama };
+  const holidayNames = new Map(holidayRows.map((h) => [h.tanggal, h.nama ?? "Libur"]));
+  const rawAttendance = (attendanceRes.data ?? []) as (DailyAttendance & { employee_id: string; tanggal: string })[];
+  const rawLeaves = (leaveRes.data ?? []) as { employee_id: string; tanggal_mulai: string; tanggal_selesai: string; jenis?: string }[];
+  const daily: Record<string, DailyRow[]> = {};
+  const jadwal: Record<string, string> = {};
+  for (const e of employees) {
+    const sch = pickSchedule(scheduleRes.data, branchId, e.department_id)!;
+    const schedule = {
+      jamMasuk: sch.jam_masuk.slice(0, 5),
+      jamPulang: sch.jam_pulang.slice(0, 5),
+      toleransiMenit: Number(sch.toleransi_terlambat_menit),
+      hariKerja: sch.hari_kerja,
+      hitungLembur: lemburById.get(sch.id) ?? false,
+    };
+    jadwal[e.id] = jadwalLabel(schedule);
+    daily[e.id] = buildEmployeeDaily({
+      from,
+      to,
+      schedule,
+      holidays: holidayNames,
+      attendance: new Map(rawAttendance.filter((a) => a.employee_id === e.id).map((a) => [a.tanggal, a])),
+      leaves: rawLeaves
+        .filter((l) => l.employee_id === e.id)
+        .map((l) => ({ tanggalMulai: l.tanggal_mulai, tanggalSelesai: l.tanggal_selesai, jenis: l.jenis ?? "" })),
+      joinDate: e.tanggal_mulai_kerja,
+    });
+  }
+
+  return { ok: true, rows, branchNama: (branch as { nama: string }).nama, daily, jadwal };
 }

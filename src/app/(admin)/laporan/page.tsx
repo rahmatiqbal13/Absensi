@@ -3,6 +3,7 @@ import { Download, FileSpreadsheet, FileBarChart } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { formatDurasiSingkat, summarizeDaily } from "@/lib/laporan/employee-daily";
 import { loadRecap } from "@/lib/laporan/load-recap";
 import type { RecapRow } from "@/lib/laporan/attendance-recap";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
@@ -200,6 +201,17 @@ export default async function LaporanPage({
             { key: "cuti", header: "Cuti", align: "right", cell: (r) => r.cuti, mobileLabel: "Cuti" },
             { key: "menit", header: "Menit Terlambat", align: "right", cell: (r) => r.totalMenitTerlambat, mobileLabel: "Menit Terlambat" },
             { key: "lembur", header: "Menit Lembur", align: "right", cell: (r) => r.menitLembur, mobileLabel: "Menit Lembur" },
+            {
+              key: "jam",
+              header: "Total Jam",
+              align: "right",
+              mobileLabel: "Total Jam",
+              cell: (r) => (
+                <span className="font-mono tabular-nums">
+                  {formatDurasiSingkat(summarizeDaily(recap.daily[r.employeeId] ?? []).menitKerja)}
+                </span>
+              ),
+            },
             {
               key: "rate",
               header: "Kehadiran",

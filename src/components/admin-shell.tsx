@@ -175,8 +175,8 @@ function UserMenu({ employee, avatarUrl }: { employee: CurrentEmployee; avatarUr
               {initialsOf(employee.nama)}
             </AvatarFallback>
           </Avatar>
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="truncate text-sm font-semibold">{employee.nama}</span>
+          <span className="flex min-w-0 flex-col items-start gap-1 overflow-hidden">
+            <span className="max-w-full truncate text-sm font-semibold">{employee.nama}</span>
             <RoleBadge role={employee.role} />
           </span>
         </button>
@@ -216,7 +216,10 @@ function SidebarBody({
 }) {
   return (
     <div className="flex h-full flex-col gap-6 px-3.5 py-5">
-      <div className="px-2">{brand}</div>
+      <div className="flex items-start justify-between gap-2 px-2">
+        <div className="min-w-0">{brand}</div>
+        {notifications && <div className="-mt-1 -mr-1 shrink-0 [&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
+      </div>
       <ClockCard />
       <AdminNav
         role={employee.role}
@@ -228,7 +231,6 @@ function SidebarBody({
         <div className="min-w-0 flex-1">
           <UserMenu employee={employee} avatarUrl={avatarUrl} />
         </div>
-        {notifications && <div className="[&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
         <ThemeToggle className="text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground" />
       </div>
     </div>

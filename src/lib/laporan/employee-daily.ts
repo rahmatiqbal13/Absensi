@@ -236,3 +236,11 @@ export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
   }
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
+
+const HARI_SINGKAT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+/** "08:00–16:00, Sen, Sel, Rab, Kam, Jum" — working days listed Monday first. */
+export function jadwalLabel(sched: Pick<DailySchedule, "jamMasuk" | "jamPulang" | "hariKerja">): string {
+  const hari = [1, 2, 3, 4, 5, 6, 0].filter((d) => sched.hariKerja.includes(d)).map((d) => HARI_SINGKAT[d]).join(", ");
+  return `${sched.jamMasuk}–${sched.jamPulang}, ${hari}`;
+}
