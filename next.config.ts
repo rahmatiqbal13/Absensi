@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -58,4 +59,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Browser error reports go through our own /monitoring route (proxied to
+// Sentry), so the CSP needs no Sentry origin and ad blockers don't drop them.
+// Source maps upload only when SENTRY_AUTH_TOKEN/ORG/PROJECT are set (Vercel);
+// without them the build skips the upload and the app still works.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  telemetry: false,
+});

@@ -48,6 +48,8 @@ Clock-in sengaja dikunci hanya dari perangkat mobile (anti-pemalsuan GPS); fitur
 | `RESEND_API_KEY`, `EMAIL_FROM` | tidak | Notifikasi email; tanpa ini email dilewati |
 | `CRON_SECRET` | produksi | Melindungi `/api/cron/holidays` (sinkron libur nasional mingguan, lihat `vercel.json`) |
 | `PURGE_SHARED_SECRET` | produksi | Dibaca saat `supabase db push` dan oleh Edge Function purge |
+| `NEXT_PUBLIC_SENTRY_DSN` | disarankan | Error monitoring (Sentry) di server dan HP karyawan. Kosong → monitoring mati |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | tidak | Upload source map saat build agar stack trace di Sentry terbaca |
 
 ## Testing
 

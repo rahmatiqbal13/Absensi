@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { CheckCircle2, QrCode, MapPin } from "lucide-react";
 import { OPTS as GEO_OPTS } from "@/lib/geo/use-geolocation";
 import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
@@ -249,10 +250,13 @@ export function ClockPanel({
     } catch (e) {
       // Only a GPS failure is a location problem. Anything else thrown here is
       // the request itself failing (offline, upload too large, server error).
+      // Both are reported: they are the "absen gagal di HP" cases HR can't see.
       if (e instanceof LocationError) {
+        Sentry.captureMessage(`absen ${kind}: lokasi tidak didapat`, { level: "warning", tags: { area: "absen" } });
         setError(LOCATION_ERROR);
       } else {
         console.error("clock submit failed", e);
+        Sentry.captureException(e, { tags: { area: "absen", kind } });
         setError(SUBMIT_ERROR);
       }
     } finally {
