@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { accentWarning } from "@/lib/branding/accent";
 import type { AppSettings } from "@/lib/branding/get-app-settings";
 import { BrandPreview } from "./brand-preview";
+import { prepareLogo } from "@/lib/branding/prepare-logo";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -54,8 +55,20 @@ export function InstansiForm({
     }
     setBusy(true);
     try {
+      // Fit the 512 KB limit and convert WEBP/SVG to PNG (the PDFs can't read those).
+      const prepared = await prepareLogo(file);
+      if (!prepared.ok) {
+        toast.error(prepared.error);
+        return;
+      }
+      formData.set("logo", prepared.file);
       const r = await uploadLogo(formData);
-      if (r.ok) toast.success("Logo diperbarui.");
+      if (r.ok)
+        toast.success(
+          prepared.compressed
+            ? `Logo diperbarui (dikompres dari ${Math.round(file.size / 1024)} KB ke ${Math.round(prepared.file.size / 1024)} KB).`
+            : "Logo diperbarui.",
+        );
       else toast.error(r.error);
     } catch (e) {
       // A request rejected before the action runs (e.g. an oversized file)
@@ -155,8 +168,9 @@ export function InstansiForm({
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  PNG/JPG/WEBP/SVG, maks 512 KB. Langsung terunggah setelah dipilih. Dipakai di header aplikasi,
-                  ikon tab browser, dan kop PDF laporan &amp; slip gaji.
+                  PNG/JPG/WEBP/SVG. Langsung terunggah setelah dipilih; logo besar otomatis dikompres ke maks
+                  512 KB dan WEBP/SVG diubah ke PNG. Dipakai di header aplikasi, ikon tab browser, dan kop PDF
+                  laporan &amp; slip gaji.
                 </p>
                 <div className="flex gap-2">
                   <Button type="submit" variant="secondary" size="sm" disabled={busy}>
