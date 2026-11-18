@@ -31,7 +31,7 @@ export default async function PayrollPeriodPage({
 
   const { data: period, error: periodErr } = await db
     .from("payroll_periods")
-    .select("id, bulan, tahun, status, dibayar_pada, branches(nama, slug)")
+    .select("id, branch_id, bulan, tahun, status, dibayar_pada, branches(nama, slug)")
     .eq("id", periodId)
     .maybeSingle();
   if (periodErr) {
@@ -46,7 +46,7 @@ export default async function PayrollPeriodPage({
   const { data: slips, error: slipErr } = await db
     .from("payslips")
     .select(
-      "id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, upah_lembur, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama, slug)",
+      "id, employee_id, gaji_pokok, hari_kerja_efektif, total_potongan_absensi, upah_lembur, tarif_pph21, potongan_pph21, gaji_akhir, rincian_harian, employees(nama, slug)",
     )
     .eq("payroll_period_id", periodId)
     .order("created_at", { ascending: true });
@@ -67,9 +67,9 @@ export default async function PayrollPeriodPage({
         rincian: (s.rincian_harian ?? []) as RincianHarianEntry[],
       }));
 
-  async function onGenerate() {
+  async function onGenerate(employeeIds: string[]) {
     "use server";
-    return generatePayroll(periodId);
+    return generatePayroll(periodId, employeeIds);
   }
   async function onFinalize() {
     "use server";
@@ -79,6 +79,16 @@ export default async function PayrollPeriodPage({
     "use server";
     return setPayrollPaid(periodId, tanggal);
   }
+
+  // Who can be picked in the Generate dialog: active staff of this branch.
+  const { data: activeStaff } = await db
+    .from("employees")
+    .select("id, nama, jabatan, gaji_pokok")
+    .eq("branch_id", period.branch_id)
+    .eq("status", "aktif")
+    .order("nama");
+  const candidates = (activeStaff ?? []).map((e) => ({ id: e.id, nama: e.nama, jabatan: e.jabatan, gajiPokok: Number(e.gaji_pokok ?? 0) }));
+  const currentIds = (slipErr ? [] : (slips ?? [])).map((s) => s.employee_id as string);
 
   const periodPath = paths.payrollPeriod({ branchSlug: cabang, bulan: period.bulan, tahun: period.tahun });
   const displayStatus = payrollDisplayStatus(period.status, period.dibayar_pada);
@@ -121,6 +131,8 @@ export default async function PayrollPeriodPage({
 
       <PayslipTable
         periodPath={periodPath}
+        candidates={candidates}
+        currentIds={currentIds}
         rows={rows}
         status={period.status as "draft" | "final"}
         onGenerate={onGenerate}

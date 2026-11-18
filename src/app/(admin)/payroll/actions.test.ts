@@ -350,6 +350,13 @@ describe("generatePayroll", () => {
   });
 });
 
+describe("generatePayroll selection", () => {
+  it("refuses an empty selection before touching the database", async () => {
+    expect(await generatePayroll("p1", [])).toEqual({ ok: false, error: "Pilih minimal satu karyawan." });
+    expect(from).not.toHaveBeenCalled();
+  });
+});
+
 describe("createPayrollPeriod", () => {
   it("inserts the period and returns ok", async () => {
     from.mockImplementation(() => q({ data: null, error: null }));

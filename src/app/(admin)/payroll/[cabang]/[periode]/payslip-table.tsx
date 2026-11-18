@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import type { ActionResult } from "../../actions";
+import { GenerateDialog, type GenerateCandidate } from "./generate-dialog";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { formatPersen } from "@/lib/payroll/pph21";
@@ -35,13 +36,17 @@ export type PayslipView = {
 };
 
 export function PayslipTable({
-  periodPath, rows, status, onGenerate, onFinalize,
+  periodPath, rows, status, onGenerate, onFinalize, candidates = [], currentIds = [],
 }: {
   /** e.g. /payroll/kantor-pusat/2026-11 — each slip lives at <periodPath>/<employee slug>. */
   periodPath: string;
   rows: PayslipView[];
   status: "draft" | "final";
-  onGenerate: () => Promise<ActionResult>;
+  onGenerate: (employeeIds: string[]) => Promise<ActionResult>;
+  /** Active employees of the branch, offered in the Generate dialog. */
+  candidates?: GenerateCandidate[];
+  /** Employees that already have a slip in this period. */
+  currentIds?: string[];
   onFinalize: () => Promise<ActionResult>;
 }) {
   const [message, setMessage] = useState<string | null>(null);
@@ -86,9 +91,13 @@ export function PayslipTable({
     <div className="space-y-4">
       {status === "draft" && (
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" disabled={busy} onClick={() => run(onGenerate)}>
-            {rows.length ? "Regenerate" : "Generate"}
-          </Button>
+          <GenerateDialog
+            candidates={candidates}
+            currentIds={currentIds}
+            regenerate={rows.length > 0}
+            disabled={busy}
+            onGenerate={(ids) => void run(() => onGenerate(ids))}
+          />
           {rows.length > 0 && (
             <AlertDialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
               <AlertDialogTrigger asChild>

@@ -30,12 +30,32 @@ describe("PayslipTable", () => {
     expect(within(row).getByText("1%")).toBeInTheDocument();
   });
 
-  it("calls onGenerate when Generate is clicked", async () => {
+  const CANDIDATES = [
+    { id: "e1", nama: "Budi", jabatan: "Staff", gajiPokok: 10_000_000 },
+    { id: "e2", nama: "Citra", jabatan: null, gajiPokok: 5_000_000 },
+    { id: "e3", nama: "Super Admin", jabatan: null, gajiPokok: 0 },
+  ];
+
+  it("generates only for the employees picked in the dialog", async () => {
     const onGenerate = vi.fn().mockResolvedValue({ ok: true, message: "1 slip gaji dibuat." });
-    render(<PayslipTable periodPath="/payroll/kantor-pusat/2026-11" rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /generate/i }));
-    await waitFor(() => expect(onGenerate).toHaveBeenCalled());
+    render(<PayslipTable periodPath="/payroll/kantor-pusat/2026-11" rows={[]} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} candidates={CANDIDATES} currentIds={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: /^generate$/i }));
+    const dialog = await screen.findByRole("dialog");
+    // First run: everyone with a salary is pre-selected; the 0-salary admin is not.
+    expect(within(dialog).getByRole("checkbox", { name: /budi/i })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /super admin/i })).not.toBeChecked();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /citra/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /generate 1 slip/i }));
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledWith(["e1"]));
     expect(await screen.findByText(/1 slip gaji dibuat/i)).toBeInTheDocument();
+  });
+
+  it("pre-selects the current slips on regenerate", async () => {
+    render(<PayslipTable periodPath="/payroll/kantor-pusat/2026-11" rows={ROWS} status="draft" onGenerate={vi.fn()} onFinalize={vi.fn()} candidates={CANDIDATES} currentIds={["e3"]} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("checkbox", { name: /super admin/i })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /budi/i })).not.toBeChecked();
   });
 
   it("hides Generate and Finalize when the period is final", () => {
@@ -56,9 +76,10 @@ describe("PayslipTable", () => {
 
   it("recovers when an action rejects (unbusies and shows a generic error)", async () => {
     const onGenerate = vi.fn().mockRejectedValue(new Error("boom"));
-    render(<PayslipTable periodPath="/payroll/kantor-pusat/2026-11" rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} />);
-    const generate = screen.getByRole("button", { name: /generate/i });
+    render(<PayslipTable periodPath="/payroll/kantor-pusat/2026-11" rows={ROWS} status="draft" onGenerate={onGenerate} onFinalize={vi.fn()} candidates={[{ id: "e1", nama: "Budi", jabatan: null, gajiPokok: 1 }]} currentIds={["e1"]} />);
+    const generate = screen.getByRole("button", { name: /regenerate/i });
     fireEvent.click(generate);
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /generate 1 slip/i }));
     expect(await screen.findByText(/terjadi kesalahan\. coba lagi\./i)).toBeInTheDocument();
     await waitFor(() => expect(generate).not.toBeDisabled());
   });
