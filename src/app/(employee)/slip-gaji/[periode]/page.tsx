@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { isMagang } from "@/lib/employees/contracts";
 import { loadPayslipDetail } from "@/lib/payroll/payslip-detail";
 import { isUuid, ownPayslipId, slipGajiPathById } from "@/lib/routing/paths";
 import { PayslipSheet } from "@/components/payslip-sheet";
@@ -13,6 +14,8 @@ export default async function SlipGajiDetailPage({ params }: { params: Promise<{
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
   if (!employee) redirect("/login");
+  // Interns have no payroll (status magang).
+  if (isMagang(employee.statusKontrak)) redirect("/absen");
 
   // Legacy link: /slip-gaji/<payslip uuid>.
   if (isUuid(periode)) {

@@ -95,7 +95,9 @@ export async function generatePayroll(periodId: string, employeeIds?: string[]):
         .from("employees")
         .select("id, gaji_pokok, tanggal_mulai_kerja, department_id")
         .eq("branch_id", period.branch_id)
-        .eq("status", "aktif");
+        .eq("status", "aktif")
+        // Interns (status magang) never get a payslip, whatever ids are sent.
+        .not("status_kontrak", "ilike", "%magang%");
       return employeeIds ? q.in("id", employeeIds) : q;
     })(),
     // Branch default + any department schedules; each employee picks theirs.

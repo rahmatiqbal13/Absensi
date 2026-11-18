@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type NotificationJenis = "lupa_absen" | "slip_gaji";
+export type NotificationJenis = "lupa_absen" | "slip_gaji" | "kontrak";
 
 export type NewNotification = {
   employee_id: string;

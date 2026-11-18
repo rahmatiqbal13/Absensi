@@ -14,6 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { signProfilePhotoUrls } from "@/lib/profile/photo";
+import { ContractStateBadge } from "./[slug]/contract-panel";
+import { formatTanggal, summarizeContracts, type Contract } from "@/lib/employees/contracts";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 
 function initials(nama: string): string {
   return (
@@ -62,6 +65,20 @@ export default async function KaryawanPage({
   const photoByRow = new Map<string, string | null>(
     (rows ?? []).map((r, i) => [r.id, photoUrls[i] ?? null]),
   );
+
+  // Contract status per employee (0049); missing table = no column data.
+  const { data: contractRows, error: contractErr } = rows?.length
+    ? await db
+        .from("employee_contracts")
+        .select("id, employee_id, jenis, tanggal_mulai, tanggal_selesai, catatan")
+        .in("employee_id", rows.map((r) => r.id))
+    : { data: [], error: null };
+  if (contractErr) console.error("Gagal memuat kontrak karyawan:", contractErr);
+  const today = toJakartaDateOnly(new Date());
+  const contractsByEmployee = new Map<string, Contract[]>();
+  for (const c of (contractErr ? [] : (contractRows ?? [])) as (Contract & { employee_id: string })[]) {
+    contractsByEmployee.set(c.employee_id, [...(contractsByEmployee.get(c.employee_id) ?? []), c]);
+  }
 
   return (
     <div className="space-y-6">
@@ -120,6 +137,22 @@ export default async function KaryawanPage({
               header: "Peran",
               cell: (r) => <RoleBadge role={r.role as Role} />,
               mobileLabel: "Peran",
+            },
+            {
+              key: "kontrak",
+              header: "Kontrak",
+              mobileLabel: "Kontrak",
+              cell: (r) => {
+                const sum = summarizeContracts(contractsByEmployee.get(r.id) ?? [], today);
+                return (
+                  <span className="flex flex-col items-start gap-0.5">
+                    <ContractStateBadge summary={sum} />
+                    {sum.current?.tanggal_selesai && (
+                      <span className="text-xs text-muted-foreground">s/d {formatTanggal(sum.current.tanggal_selesai)}</span>
+                    )}
+                  </span>
+                );
+              },
             },
             {
               key: "status",

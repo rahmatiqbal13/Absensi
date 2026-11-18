@@ -80,12 +80,14 @@ export default async function PayrollPeriodPage({
     return setPayrollPaid(periodId, tanggal);
   }
 
-  // Who can be picked in the Generate dialog: active staff of this branch.
+  // Who can be picked in the Generate dialog: active staff of this branch,
+  // minus interns (status magang have no payroll).
   const { data: activeStaff } = await db
     .from("employees")
     .select("id, nama, jabatan, gaji_pokok")
     .eq("branch_id", period.branch_id)
     .eq("status", "aktif")
+    .not("status_kontrak", "ilike", "%magang%")
     .order("nama");
   const candidates = (activeStaff ?? []).map((e) => ({ id: e.id, nama: e.nama, jabatan: e.jabatan, gajiPokok: Number(e.gaji_pokok ?? 0) }));
   const currentIds = (slipErr ? [] : (slips ?? [])).map((s) => s.employee_id as string);

@@ -3,6 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { EmployeeShell } from "@/components/employee-shell";
 import { AppFooter } from "@/components/app-footer";
 import { BrandMark } from "@/components/brand-mark";
+import { isMagang } from "@/lib/employees/contracts";
 import { NotificationBell } from "@/components/notification-bell";
 import { getMyNotifications, markMyNotificationsRead } from "@/lib/notifications/actions";
 import { resolveRouteAccess } from "@/lib/auth/route-access";
@@ -37,7 +38,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
   }
 
   return (
-    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />} notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />}>
+    <EmployeeShell brand={<BrandMark size="sm" />} footer={<AppFooter />} notifications={<NotificationBell load={getMyNotifications} markRead={markMyNotificationsRead} />} hideSlipGaji={isMagang(employee.statusKontrak)}>
       {children}
     </EmployeeShell>
   );

@@ -44,4 +44,16 @@ describe("EmployeeShell", () => {
     renderShell();
     expect(screen.getByRole("button", { name: /ubah tema/i })).toBeInTheDocument();
   });
+
+  it("hides Slip Gaji for interns and keeps the other four", () => {
+    render(
+      <EmployeeShell brand={<div>Brand</div>} footer={<footer>footer</footer>} hideSlipGaji>
+        <div>content</div>
+      </EmployeeShell>,
+    );
+    expect(screen.queryByRole("link", { name: "Slip Gaji" })).not.toBeInTheDocument();
+    for (const name of ["Absen", "Cuti", "Riwayat", "Profil"]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
+  });
 });

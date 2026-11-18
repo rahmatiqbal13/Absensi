@@ -23,7 +23,7 @@ function periodRow() {
 // A thenable query builder whose terminal awaits resolve to `result`.
 function q(result: unknown) {
   const builder: Record<string, unknown> = {};
-  for (const m of ["select", "insert", "eq", "gte", "lte", "in", "is", "or", "order", "limit"]) {
+  for (const m of ["select", "insert", "eq", "gte", "lte", "in", "is", "or", "not", "order", "limit"]) {
     builder[m] = vi.fn(() => builder);
   }
   builder.maybeSingle = () => Promise.resolve(result);
@@ -381,6 +381,26 @@ describe("createPayrollPeriod", () => {
     from.mockImplementation(() => q({ data: null, error: { code: "42501", message: "permission denied" } }));
     const result = await createPayrollPeriod("b1", 8, 2026);
     expect(result).toEqual({ ok: false, error: "Gagal membuat periode payroll." });
+  });
+});
+
+describe("generatePayroll excludes interns", () => {
+  it("filters status magang out of the employee query", async () => {
+    const calls: unknown[][] = [];
+    from.mockImplementation((table: string) => {
+      const b = q(table === "payroll_periods" ? { data: periodRow(), error: null } : { data: [], error: null });
+      if (table === "employees") {
+        const orig = b.not as (...a: unknown[]) => unknown;
+        b.not = vi.fn((...a: unknown[]) => {
+          calls.push(a);
+          return orig(...a);
+        });
+      }
+      return b;
+    });
+    rpc.mockResolvedValue({ data: 0, error: null });
+    await generatePayroll("p1");
+    expect(calls).toContainEqual(["status_kontrak", "ilike", "%magang%"]);
   });
 });
 

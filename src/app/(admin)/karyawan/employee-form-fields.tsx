@@ -10,6 +10,13 @@ export type EmployeeFieldValues = {
   branchId: string; departmentId: string; atasanId: string; designatedApproverId: string;
 };
 
+// Values match STATUS_KONTRAK_FOR in lib/employees/contracts.ts (synced from the latest contract).
+const STATUS_KONTRAK_OPTIONS = [
+  { value: "tetap", label: "Tetap (PKWTT)" },
+  { value: "PKWT", label: "Kontrak (PKWT)" },
+  { value: "Magang", label: "Magang" },
+];
+
 // TK = tidak kawin, K = kawin; the digit is dependants (max 3).
 const PTKP_OPTIONS = [
   { value: "TK/0", label: "TK/0 — tidak kawin, tanpa tanggungan" },
@@ -74,8 +81,19 @@ export function EmployeeFormFields({
       </Section>
 
       <Section title="Kepegawaian">
-        <Field id="statusKontrak" label="Status Kontrak">
-          <Input name="statusKontrak" defaultValue={defaults.statusKontrak ?? "tetap"} />
+        <Field
+          id="statusKontrak"
+          label="Status Kontrak"
+          hint="Tanggal kontrak & perpanjangan diatur di tab Kontrak. Magang tidak ikut payroll."
+        >
+          <NativeSelect name="statusKontrak" defaultValue={defaults.statusKontrak ?? "tetap"}>
+            {STATUS_KONTRAK_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+            {defaults.statusKontrak && !STATUS_KONTRAK_OPTIONS.some((o) => o.value === defaults.statusKontrak) && (
+              <option value={defaults.statusKontrak}>{defaults.statusKontrak} (lama)</option>
+            )}
+          </NativeSelect>
         </Field>
         <Field id="statusPtkp" label="Status PTKP (PPh 21)">
           <NativeSelect name="statusPtkp" defaultValue={defaults.statusPtkp ?? "TK/0"}>

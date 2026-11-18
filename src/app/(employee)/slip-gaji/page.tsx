@@ -3,6 +3,7 @@ import { paths } from "@/lib/routing/paths";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { isMagang } from "@/lib/employees/contracts";
 import { formatRupiah } from "@/lib/format/rupiah";
 import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,6 +15,8 @@ export default async function SlipGajiPage() {
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
   if (!employee) redirect("/login");
+  // Interns have no payroll (status magang).
+  if (isMagang(employee.statusKontrak)) redirect("/absen");
 
   // Only finalized periods are visible to the employee. The !inner join turns
   // the embed into a real join so the status filter excludes non-final rows,

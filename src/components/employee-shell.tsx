@@ -18,15 +18,19 @@ export function EmployeeShell({
   brand,
   footer,
   notifications,
+  hideSlipGaji = false,
   children,
 }: {
   brand: React.ReactNode;
   footer: React.ReactNode;
+  /** Interns (status magang) have no payroll, so no Slip Gaji tab. */
+  hideSlipGaji?: boolean;
   /** The notification bell, rendered by the server layout. */
   notifications?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const nav = hideSlipGaji ? NAV.filter((n) => n.href !== "/slip-gaji") : NAV;
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex h-14 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
@@ -44,9 +48,12 @@ export function EmployeeShell({
 
       <nav
         aria-label="Navigasi bawah"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-background/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-background/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md",
+          nav.length === 4 ? "grid-cols-4" : "grid-cols-5",
+        )}
       >
-        {NAV.map(({ href, label, Icon }) => {
+        {nav.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
           return (
             <Link

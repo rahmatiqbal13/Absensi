@@ -17,6 +17,10 @@ import { EditEmployeeForm } from "./edit-employee-form";
 import { KaryawanTabs } from "./karyawan-tabs";
 import { updateEmployee, setEmployeeStatus, createPasswordResetLink } from "../actions";
 import { ResetPasswordLinkButton } from "./reset-password-link-button";
+import { ContractPanel } from "./contract-panel";
+import { addContract, deleteContract } from "./contract-actions";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import type { Contract } from "@/lib/employees/contracts";
 
 export default async function KaryawanDetailPage({
   params,
@@ -57,6 +61,7 @@ export default async function KaryawanDetailPage({
     { data: departments, error: departmentsError },
     { data: approvers, error: approversError },
     { data: audit, error: auditError },
+    { data: contracts, error: contractsError },
   ] = await Promise.all([
     db.from("branches").select("id, nama").order("nama"),
     db.from("departments").select("id, nama").order("nama"),
@@ -67,7 +72,13 @@ export default async function KaryawanDetailPage({
       .eq("target_employee_id", id)
       .order("waktu", { ascending: false })
       .limit(50),
+    db
+      .from("employee_contracts")
+      .select("id, jenis, tanggal_mulai, tanggal_selesai, catatan")
+      .eq("employee_id", id),
   ]);
+  // Pre-0049 the table doesn't exist: show an empty contract history.
+  if (contractsError) console.error("KaryawanDetailPage: contracts lookup failed", contractsError);
   if (branchesError) console.error("KaryawanDetailPage: branches lookup failed", branchesError);
   if (departmentsError) console.error("KaryawanDetailPage: departments lookup failed", departmentsError);
   if (approversError) console.error("KaryawanDetailPage: approvers lookup failed", approversError);
@@ -129,6 +140,15 @@ export default async function KaryawanDetailPage({
             setStatus={setEmployeeStatus}
             currentStatus={emp.status as "aktif" | "nonaktif"}
             isSelf={me.id === emp.id}
+          />
+        }
+        kontrakSlot={
+          <ContractPanel
+            contracts={(contractsError ? [] : (contracts ?? [])) as Contract[]}
+            today={toJakartaDateOnly(new Date())}
+            tanggalMulaiKerja={emp.tanggal_mulai_kerja}
+            addContract={addContract.bind(null, emp.id)}
+            deleteContract={deleteContract.bind(null, emp.id)}
           />
         }
         riwayatSlot={
