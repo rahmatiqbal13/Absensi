@@ -249,7 +249,7 @@ function SidebarBody({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col gap-6 px-3.5 py-5">
+    <div className="flex min-h-full flex-col gap-6 px-3.5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <div className="flex items-start justify-between gap-2 px-2">
         <div className="min-w-0">{brand}</div>
         {notifications && <div className="-mt-1 -mr-1 shrink-0 [&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
@@ -328,7 +328,7 @@ export function AdminShell({
               </SheetTrigger>
               <SheetContent
                 side="left"
-                className="w-[280px] border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:w-[280px]"
+                className="block w-[280px] overflow-y-auto overscroll-contain border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:h-dvh data-[side=left]:w-[280px]"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Menu navigasi</SheetTitle>
