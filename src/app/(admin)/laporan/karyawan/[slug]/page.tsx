@@ -27,6 +27,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AttendanceCorrectionDialog } from "@/components/attendance-correction-dialog";
 import { toJakartaHHMM } from "@/lib/attendance/correction";
 import { hrCorrectAttendanceAction } from "../../../persetujuan-koreksi/actions";
+import { AttendanceEvidenceDialog } from "@/components/attendance-evidence-dialog";
+import { getAttendanceEvidence } from "./actions";
 
 const HR_CORRECTION_COPY = {
   title: "Koreksi absensi",
@@ -102,7 +104,10 @@ export default async function LaporanKaryawanPage({
 
   const report = res?.ok ? res.report : null;
   // HR only, and never on one's own record (that goes through the approval flow).
-  const canCorrect = (viewer.role === "hr_admin" || viewer.role === "super_admin") && viewer.id !== id;
+  const isHr = viewer.role === "hr_admin" || viewer.role === "super_admin";
+  const canCorrect = isHr && viewer.id !== id;
+  // Selfies + positions: HR only (biometric data, UU PDP), not atasan.
+  const canViewEvidence = isHr;
   const correct = hrCorrectAttendanceAction.bind(null, id);
   const summary = report ? summarizeDaily(report.rows) : null;
   const qs = new URLSearchParams({ dari, sampai }).toString();
@@ -232,26 +237,35 @@ export default async function LaporanKaryawanPage({
                     <span className="text-muted-foreground">—</span>
                   ),
               },
-              ...(canCorrect
+              ...(canCorrect || canViewEvidence
                 ? [
                     {
                       key: "aksi",
                       header: "",
-                      cell: (r: DailyRow) =>
-                        r.tanggal <= today && r.kind !== "cuti" ? (
-                          <AttendanceCorrectionDialog
-                            action={correct}
-                            defaults={{
-                              tanggal: r.tanggal,
-                              jamMasuk: toJakartaHHMM(r.jamMasuk),
-                              jamPulang: toJakartaHHMM(r.jamPulang),
-                            }}
-                            maxDate={today}
-                            trigger="link"
-                            triggerLabel="Koreksi"
-                            {...HR_CORRECTION_COPY}
-                          />
-                        ) : null,
+                      cell: (r: DailyRow) => (
+                        <span className="flex flex-wrap items-center justify-end gap-1">
+                          {canViewEvidence && r.kind === "hadir" && r.jamMasuk && (
+                            <AttendanceEvidenceDialog
+                              tanggalLabel={tanggalLabel(r.tanggal)}
+                              load={getAttendanceEvidence.bind(null, id, r.tanggal)}
+                            />
+                          )}
+                          {canCorrect && r.tanggal <= today && r.kind !== "cuti" && (
+                            <AttendanceCorrectionDialog
+                              action={correct}
+                              defaults={{
+                                tanggal: r.tanggal,
+                                jamMasuk: toJakartaHHMM(r.jamMasuk),
+                                jamPulang: toJakartaHHMM(r.jamPulang),
+                              }}
+                              maxDate={today}
+                              trigger="link"
+                              triggerLabel="Koreksi"
+                              {...HR_CORRECTION_COPY}
+                            />
+                          )}
+                        </span>
+                      ),
                     },
                   ]
                 : []),

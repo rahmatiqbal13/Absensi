@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 
 export type LatLng = { lat: number; lng: number };
 
+/** An extra labelled dot (view mode), e.g. where an employee clocked in. */
+export type MapPoint = LatLng & { label: string; color: string };
+
 // Leaflet's default marker icons resolve to broken relative URLs under a
 // bundler. The PNGs that ship with the pinned `leaflet` package are copied to
 // `public/leaflet/` (see that folder) and referenced by absolute path so the
@@ -30,6 +33,8 @@ export function LocationMap({
   userPosition,
   onMarkerChange,
   recenterKey,
+  points,
+  failedMessage = "Peta tidak dapat dimuat. Masukkan koordinat secara manual di bawah.",
   className,
 }: {
   mode: "edit" | "view";
@@ -41,6 +46,9 @@ export function LocationMap({
   /** Bump to re-center the map on the current marker (e.g. "pakai lokasi saya").
    * A dedicated key avoids fighting the user during drag/click. */
   recenterKey?: number | string;
+  /** Labelled dots drawn once at init; the view zooms to fit them with the marker. */
+  points?: MapPoint[];
+  failedMessage?: string;
   className?: string;
 }) {
   const elRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +105,16 @@ export function LocationMap({
           c.setLatLng(e.latlng);
           onMarkerChangeRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng });
         });
+      }
+
+      if (points && points.length > 0) {
+        for (const p of points) {
+          L.circleMarker([p.lat, p.lng], { radius: 7, color: "#fff", weight: 2, fillColor: p.color, fillOpacity: 1 })
+            .bindTooltip(p.label, { permanent: true, direction: "top", offset: [0, -8] })
+            .addTo(map);
+        }
+        const bounds = L.latLngBounds([[marker.lat, marker.lng], ...points.map((p) => [p.lat, p.lng] as [number, number])]);
+        map.fitBounds(bounds.pad(0.3), { maxZoom: 17 });
       }
 
       mapRef.current = map;
@@ -176,7 +194,7 @@ export function LocationMap({
       />
       {failed && (
         <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-muted px-4 text-center text-sm text-muted-foreground">
-          Peta tidak dapat dimuat. Masukkan koordinat secara manual di bawah.
+          {failedMessage}
         </div>
       )}
     </div>
