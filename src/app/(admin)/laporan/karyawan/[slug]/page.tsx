@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Download, FileBarChart } from "lucide-react";
+import { ChevronLeft, Download, FileBarChart, TriangleAlert } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { employeeIdBySlug, paths } from "@/lib/routing/paths";
@@ -12,6 +12,7 @@ import {
   formatJamWib,
   formatDurasiSingkat,
   dailyStatusLabel,
+  locationFlagsLabel,
   type DailyRow,
 } from "@/lib/laporan/employee-daily";
 import type { AttendanceStatus } from "@/lib/attendance/status";
@@ -44,11 +45,27 @@ function tanggalLabel(d: string): string {
   return `${HARI[dt.getUTCDay()]}, ${tgl}`;
 }
 
-function StatusCell({ r }: { r: DailyRow }) {
+function StatusBadge({ r }: { r: DailyRow }) {
   if ((r.kind === "hadir" || r.kind === "alpa") && r.status && ATT_STATUSES.has(r.status)) {
     return <AttendanceStatusBadge status={r.status as AttendanceStatus} />;
   }
   return <Badge variant={r.kind === "cuti" ? "leave" : "neutral"}>{dailyStatusLabel(r)}</Badge>;
+}
+
+function StatusCell({ r }: { r: DailyRow }) {
+  if (r.flagLokasi.length === 0) return <StatusBadge r={r} />;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <StatusBadge r={r} />
+      <span className="flex max-w-[24ch] items-start gap-1 text-xs text-warning-foreground">
+        <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          <span className="sr-only">Peringatan lokasi: </span>
+          {locationFlagsLabel(r.flagLokasi)}
+        </span>
+      </span>
+    </span>
+  );
 }
 
 const mins = (n: number) => (n > 0 ? `${n} mnt` : "—");

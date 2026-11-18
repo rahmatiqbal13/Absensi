@@ -149,7 +149,7 @@ describe("clockOut", () => {
     expect(result).toEqual({ ok: true, status: "tepat_waktu" });
 
     // The today lookup must be scoped to this employee and the Jakarta date.
-    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang, catatan");
+    expect(db.__attendancesSelectMock).toHaveBeenCalledWith("id, status, jam_pulang, catatan, jam_masuk, lokasi_masuk");
     expect(db.__todayEmployeeEqMock).toHaveBeenCalledWith("employee_id", "employee-1");
     expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-01");
 
@@ -519,5 +519,56 @@ describe("clockOut", () => {
 
     expect(result).toEqual({ ok: false, error: "Gagal menyimpan absen pulang." });
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  describe("GPS quality flags (0046)", () => {
+    const NOW = new Date("2026-09-01T17:05:00+07:00");
+
+    it("flags a clock-out far from a clock-in made minutes earlier", async () => {
+      const db = makeMockDb({
+        todaysAttendance: {
+          id: "attendance-1",
+          status: "tepat_waktu",
+          jam_pulang: null,
+          // ~111 km away, 10 minutes ago.
+          jam_masuk: new Date(NOW.getTime() - 10 * 60_000).toISOString(),
+          lokasi_masuk: "(-7.2,106.8)",
+        },
+      });
+      const result = await clockOut(db as any, { ...BASE_INPUT, accuracyMeters: 8, fixAgeSeconds: 2, now: NOW });
+      expect(result.ok).toBe(true);
+      expect(db.__updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ akurasi_pulang_meter: 8, flag_lokasi_pulang: ["lompatan_lokasi"] }),
+      );
+    });
+
+    it("does not flag a normal day at the office", async () => {
+      const db = makeMockDb({
+        todaysAttendance: {
+          id: "attendance-1",
+          status: "tepat_waktu",
+          jam_pulang: null,
+          jam_masuk: "2026-09-01T01:55:00.000Z",
+          lokasi_masuk: "(-6.2001,106.8001)",
+        },
+      });
+      await clockOut(db as any, { ...BASE_INPUT, accuracyMeters: 8, fixAgeSeconds: 2, now: NOW });
+      expect((db.__updateMock.mock.calls[0] as any[])[0]).not.toHaveProperty("flag_lokasi_pulang");
+    });
+
+    it("retries without the audit columns before migration 0046 is applied", async () => {
+      const db = makeMockDb({
+        updateResults: [
+          { data: null, error: { code: "PGRST204", message: "Could not find the 'akurasi_pulang_meter' column" } },
+          { data: { id: "attendance-1", status: "tepat_waktu" }, error: null },
+        ],
+      });
+      const result = await clockOut(db as any, { ...BASE_INPUT, accuracyMeters: 300, now: NOW });
+      expect(result.ok).toBe(true);
+      expect(db.__updateMock).toHaveBeenCalledTimes(2);
+      const retry = (db.__updateMock.mock.calls[1] as any[])[0];
+      expect(retry).not.toHaveProperty("akurasi_pulang_meter");
+      expect(retry).not.toHaveProperty("flag_lokasi_pulang");
+    });
   });
 });

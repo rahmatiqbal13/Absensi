@@ -57,7 +57,7 @@ export async function loadEmployeeDailyReport(
     sched = await loadEmployeeSchedule(db, cols, branchId, emp.department_id as string | null);
   }
 
-  const [attRes, holRes, leaveRes] = await Promise.all([
+  const [attRes, holRes, leaveRes, flagRes] = await Promise.all([
     db
       .from("attendances")
       .select("tanggal, status, jam_masuk, jam_pulang, catatan")
@@ -77,7 +77,22 @@ export async function loadEmployeeDailyReport(
       .eq("status", "approved")
       .lte("tanggal_mulai", to)
       .gte("tanggal_selesai", from),
+    // GPS warnings (0046) in their own query so a not-yet-migrated database
+    // degrades to "no warnings" instead of failing the whole report.
+    db
+      .from("attendances")
+      .select("tanggal, flag_lokasi_masuk, flag_lokasi_pulang")
+      .eq("employee_id", employeeId)
+      .gte("tanggal", from)
+      .lte("tanggal", to),
   ]);
+  if (flagRes.error) logOptionalLookup("loadEmployeeDailyReport: flag_lokasi", flagRes.error, "0046");
+  const flagsByDate = new Map(
+    ((flagRes.error ? [] : flagRes.data ?? []) as {
+      tanggal: string; flag_lokasi_masuk: string[] | null; flag_lokasi_pulang: string[] | null;
+    }[]).map((f) => [f.tanggal, f]),
+  );
+
   const err = sched.error ?? attRes.error ?? holRes.error ?? leaveRes.error;
   if (err) {
     console.error("loadEmployeeDailyReport: query failed", err);
@@ -101,7 +116,10 @@ export async function loadEmployeeDailyReport(
     schedule,
     holidays: new Map(((holRes.data ?? []) as { tanggal: string; nama: string }[]).map((h) => [h.tanggal, h.nama])),
     attendance: new Map(
-      ((attRes.data ?? []) as (DailyAttendance & { tanggal: string })[]).map((a) => [a.tanggal, a]),
+      ((attRes.data ?? []) as (DailyAttendance & { tanggal: string })[]).map((a) => [
+        a.tanggal,
+        { ...a, ...flagsByDate.get(a.tanggal) },
+      ]),
     ),
     leaves: ((leaveRes.data ?? []) as { tanggal_mulai: string; tanggal_selesai: string; jenis: string }[]).map((l) => ({
       tanggalMulai: l.tanggal_mulai,

@@ -83,16 +83,25 @@ function getPosition(): Promise<GeolocationPosition> {
  * high-accuracy request while the watch runs often times out on a moving
  * phone); falls back to a fresh request, then to a slightly older watched fix.
  */
-async function resolvePosition(last: GeoFix | null | undefined): Promise<{ lat: number; lng: number }> {
+async function resolvePosition(last: GeoFix | null | undefined): Promise<GeoFix> {
   const now = Date.now();
-  if (last && now - last.at <= FRESH_FIX_MS) return { lat: last.lat, lng: last.lng };
+  if (last && now - last.at <= FRESH_FIX_MS) return last;
   try {
     const p = await getPosition();
-    return { lat: p.coords.latitude, lng: p.coords.longitude };
+    // `timestamp` is when the fix was taken — older than now for a cached fix.
+    return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, at: p.timestamp || Date.now() };
   } catch {
-    if (last && Date.now() - last.at <= STALE_FIX_MS) return { lat: last.lat, lng: last.lng };
+    if (last && Date.now() - last.at <= STALE_FIX_MS) return last;
     throw new LocationError("no fix");
   }
+}
+
+/** Coordinates plus the GPS quality the server records for HR review. */
+function setPosition(formData: FormData, fix: GeoFix) {
+  formData.set("lat", String(fix.lat));
+  formData.set("long", String(fix.lng));
+  if (fix.accuracy != null && Number.isFinite(fix.accuracy)) formData.set("akurasi", String(Math.round(fix.accuracy)));
+  formData.set("usiaFix", String(Math.max(0, Math.round((Date.now() - fix.at) / 1000))));
 }
 
 export function ClockPanel({
@@ -209,16 +218,12 @@ export function ClockPanel({
         // Best effort — a coarse fix is still worth recording, but never block
         // the QR path on it.
         try {
-          const position = await resolvePosition(lastFix.current);
-          formData.set("lat", String(position.lat));
-          formData.set("long", String(position.lng));
+          setPosition(formData, await resolvePosition(lastFix.current));
         } catch {
           /* GPS is optional on the QR path */
         }
       } else {
-        const position = await resolvePosition(lastFix.current);
-        formData.set("lat", String(position.lat));
-        formData.set("long", String(position.lng));
+        setPosition(formData, await resolvePosition(lastFix.current));
       }
       if (photo) formData.set("photo", photo);
       const catatan = reason.trim();

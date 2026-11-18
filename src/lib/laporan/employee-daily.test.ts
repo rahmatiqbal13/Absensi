@@ -74,7 +74,21 @@ describe("employeeDailyToCsv", () => {
   it("writes an Excel-friendly CSV with times in WIB", () => {
     const csv = employeeDailyToCsv(rows.slice(0, 2));
     const lines = csv.replace(/^﻿/, "").split("\r\n");
-    expect(lines[0]).toBe("Tanggal,Status,Jam Masuk,Jam Pulang,Durasi (menit),Terlambat (menit),Pulang Cepat (menit),Lembur (menit),Keterangan,Catatan");
-    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40,18:30,530,25,0,90,,");
+    expect(lines[0]).toBe("Tanggal,Status,Jam Masuk,Jam Pulang,Durasi (menit),Terlambat (menit),Pulang Cepat (menit),Lembur (menit),Keterangan,Catatan,Peringatan Lokasi");
+    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40,18:30,530,25,0,90,,,");
+  });
+
+  it("lists the day's GPS warnings, merged from clock-in and clock-out", () => {
+    const [r] = buildEmployeeDaily({
+      from: "2026-08-03", to: "2026-08-03", schedule: SCHEDULE, holidays: new Map(), leaves: [], joinDate: null,
+      attendance: new Map([
+        ["2026-08-03", {
+          status: "tepat_waktu", jam_masuk: "2026-08-03T09:00:00+07:00", jam_pulang: null, catatan: null,
+          flag_lokasi_masuk: ["akurasi_rendah"], flag_lokasi_pulang: ["akurasi_rendah", "lokasi_basi", "bogus"],
+        }],
+      ]),
+    });
+    expect(r.flagLokasi).toEqual(["akurasi_rendah", "lokasi_basi"]);
+    expect(employeeDailyToCsv([r]).split("\r\n")[1]).toMatch(/,Akurasi GPS rendah; Lokasi GPS lama$/);
   });
 });

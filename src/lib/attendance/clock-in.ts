@@ -6,6 +6,8 @@ import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { loadOfficeLocation } from "./office-location";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
+import { isMissingColumn } from "@/lib/supabase/missing-column";
+import { locationFlags } from "./location-flags";
 
 // Postgres SQLSTATE for unique_violation, surfaced by PostgREST as
 // PostgrestError.code — the `unique (employee_id, tanggal)` constraint on
@@ -26,6 +28,9 @@ export type ClockInInput = {
   photoExpiresAt: string;
   catatan?: string;
   qrToken?: string;
+  /** GPS quality reported by the phone; see location-flags.ts. */
+  accuracyMeters?: number;
+  fixAgeSeconds?: number;
   now?: Date;
 };
 
@@ -166,11 +171,29 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
   // metode_masuk only exists post-0031.
   if (qrColumnsExist) insertPayload.metode_masuk = metode;
 
-  const { data: inserted, error: insertErr } = await db
-    .from("attendances")
-    .insert(insertPayload)
-    .select()
-    .single();
+  // GPS quality for HR review (0046). Only on the GPS path: a verified QR
+  // already proves presence. Added only when there is something to record.
+  const gpsAudit: Record<string, unknown> = {};
+  if (hasCoords && !qrVerified) {
+    if (input.accuracyMeters !== undefined) gpsAudit.akurasi_masuk_meter = input.accuracyMeters;
+    const flags = locationFlags({
+      lat: input.lat as number,
+      long: input.long as number,
+      accuracyMeters: input.accuracyMeters,
+      fixAgeSeconds: input.fixAgeSeconds,
+      now,
+    });
+    if (flags.length > 0) gpsAudit.flag_lokasi_masuk = flags;
+  }
+
+  const insert = (payload: Record<string, unknown>) =>
+    db.from("attendances").insert(payload).select().single();
+  let { data: inserted, error: insertErr } = await insert({ ...insertPayload, ...gpsAudit });
+  // Pre-0046 the audit columns don't exist; never lose a clock-in over them.
+  if (isMissingColumn(insertErr) && Object.keys(gpsAudit).length > 0) {
+    console.warn("clockIn: kolom akurasi/flag lokasi belum ada — jalankan migrasi 0046.");
+    ({ data: inserted, error: insertErr } = await insert(insertPayload));
+  }
 
   if (insertErr || !inserted) {
     // Never surface raw Postgres/PostgREST text to the user: it is English,

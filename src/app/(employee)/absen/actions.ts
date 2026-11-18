@@ -9,6 +9,7 @@ import { clockIn, type ClockInResult } from "@/lib/attendance/clock-in";
 import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
 import { hasActiveConsent } from "@/lib/consent/consent";
+import { readGpsQuality } from "@/lib/attendance/location-flags";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
@@ -98,6 +99,7 @@ export async function submitClockIn(formData: FormData): Promise<ClockInResult> 
     photoExpiresAt: uploadResult.expiresAt,
     catatan,
     qrToken,
+    ...readGpsQuality(formData),
   });
   // The redesigned Absen page is a state machine driven by `todaysAttendance`;
   // clear its cache so the next render advances past the clock-in CTA.
@@ -142,6 +144,7 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
     photoExpiresAt: uploadResult.expiresAt,
     catatan,
     qrToken,
+    ...readGpsQuality(formData),
   });
   if (result.ok) revalidatePath("/absen");
   return result;

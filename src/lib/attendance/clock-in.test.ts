@@ -34,6 +34,8 @@ function makeMockDb(
     existingAttendanceError?: { message: string; code?: string } | null;
     consentRows?: any[];
     insertError?: { message: string; code?: string } | null;
+    /** Errors for successive insert() calls (null = success); overrides insertError. */
+    insertErrors?: ({ message: string; code?: string } | null)[];
     branch?: any;
     /** Error from the separate qr_enabled/qr_secret lookup — pre-migration. */
     qrColumnsError?: { message: string; code?: string } | null;
@@ -44,6 +46,7 @@ function makeMockDb(
     existingAttendanceError = null,
     consentRows = [{ id: "consent-1" }],
     insertError = null,
+    insertErrors = [insertError],
     branch = BASE_BRANCH,
     qrColumnsError = null,
     employee = BASE_EMPLOYEE,
@@ -59,14 +62,16 @@ function makeMockDb(
   const dupEmployeeEqMock = vi.fn().mockReturnValue({ eq: dupTanggalEqMock });
   const attendancesSelectMock = vi.fn().mockReturnValue({ eq: dupEmployeeEqMock });
 
-  const insertMock = vi.fn().mockReturnValue({
-    select: vi.fn().mockReturnValue({
-      single: vi.fn().mockResolvedValue(
-        insertError
-          ? { data: null, error: insertError }
-          : { data: { id: "attendance-1" }, error: null },
-      ),
-    }),
+  let insertCall = 0;
+  const insertMock = vi.fn((_payload: Record<string, unknown>) => {
+    const err = insertErrors[Math.min(insertCall++, insertErrors.length - 1)];
+    return {
+      select: vi.fn().mockReturnValue({
+        single: vi
+          .fn()
+          .mockResolvedValue(err ? { data: null, error: err } : { data: { id: "attendance-1" }, error: null }),
+      }),
+    };
   });
 
   // loadSchedules: .select(...).in("branch_id", [...]) -> every schedule row of the branch.
@@ -448,6 +453,8 @@ describe("clockIn", () => {
         photoPath: "employee-1/masuk-1.jpg",
         photoExpiresAt: "2026-12-01T00:00:00.000Z",
         qrToken: `${QR_BRANCH_ID}|${token}`,
+        accuracyMeters: 900,
+        fixAgeSeconds: 900,
         now: QR_NOW,
       });
 
@@ -455,6 +462,8 @@ describe("clockIn", () => {
       expect(db.__insertMock).toHaveBeenCalledWith(
         expect.objectContaining({ metode_masuk: "qr", status: "tepat_waktu" }),
       );
+      // A verified QR proves presence: GPS quality is not flagged.
+      expect((db.__insertMock.mock.calls[0] as any[])[0]).not.toHaveProperty("flag_lokasi_masuk");
     });
 
     it("accepts a valid scanned QR with absent coords and stores lokasi_masuk null", async () => {
@@ -615,5 +624,48 @@ describe("clockIn", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "Anda sudah absen masuk hari ini." });
+  });
+
+  describe("GPS quality flags (0046)", () => {
+    const INPUT = {
+      employeeId: "employee-1",
+      lat: -6.2,
+      long: 106.8,
+      photoPath: "employee-1/masuk-1.jpg",
+      photoExpiresAt: "2026-12-01T00:00:00.000Z",
+      now: new Date("2026-09-01T08:58:00+07:00"),
+    };
+
+    it("records accuracy and flags a poor, stale fix without changing the status", async () => {
+      const db = makeMockDb();
+      const result = await clockIn(db as any, { ...INPUT, accuracyMeters: 250, fixAgeSeconds: 400 });
+      expect(result).toEqual({ ok: true, attendanceId: "attendance-1", status: "tepat_waktu" });
+      expect(db.__insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          akurasi_masuk_meter: 250,
+          flag_lokasi_masuk: ["akurasi_rendah", "lokasi_basi"],
+        }),
+      );
+    });
+
+    it("stores accuracy but no flag column for a good fix", async () => {
+      const db = makeMockDb();
+      await clockIn(db as any, { ...INPUT, accuracyMeters: 12, fixAgeSeconds: 3 });
+      const payload = (db.__insertMock.mock.calls[0] as any[])[0];
+      expect(payload.akurasi_masuk_meter).toBe(12);
+      expect(payload).not.toHaveProperty("flag_lokasi_masuk");
+    });
+
+    it("retries without the audit columns before migration 0046 is applied", async () => {
+      const db = makeMockDb({
+        insertErrors: [{ code: "PGRST204", message: "Could not find the 'akurasi_masuk_meter' column" }, null],
+      });
+      const result = await clockIn(db as any, { ...INPUT, accuracyMeters: 250 });
+      expect(result).toEqual({ ok: true, attendanceId: "attendance-1", status: "tepat_waktu" });
+      expect(db.__insertMock).toHaveBeenCalledTimes(2);
+      const retry = (db.__insertMock.mock.calls[1] as any[])[0];
+      expect(retry).not.toHaveProperty("akurasi_masuk_meter");
+      expect(retry).not.toHaveProperty("flag_lokasi_masuk");
+    });
   });
 });

@@ -5,6 +5,8 @@ import { toJakartaDateOnly } from "./jakarta-date";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { loadOfficeLocation } from "./office-location";
 import { resolveClockOutStatus, mergeAttendanceStatus, type AttendanceStatus } from "./status";
+import { isMissingColumn } from "@/lib/supabase/missing-column";
+import { locationFlags, parsePoint } from "./location-flags";
 
 // PostgREST's "no rows returned" code, surfaced as PostgrestError.code when a
 // `.single()` matches zero rows. On the update below that means the atomic
@@ -25,6 +27,9 @@ export type ClockOutInput = {
   photoExpiresAt: string;
   catatan?: string;
   qrToken?: string;
+  /** GPS quality reported by the phone; see location-flags.ts. */
+  accuracyMeters?: number;
+  fixAgeSeconds?: number;
   now?: Date;
 };
 
@@ -37,7 +42,7 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
 
   const { data: today, error: todayErr } = await db
     .from("attendances")
-    .select("id, status, jam_pulang, catatan")
+    .select("id, status, jam_pulang, catatan, jam_masuk, lokasi_masuk")
     .eq("employee_id", input.employeeId)
     .eq("tanggal", tanggal)
     .single();
@@ -173,23 +178,48 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     updatePayload.catatan = existing ? `${existing} | ${catatan}` : catatan;
   }
 
-  const { data: updated, error: updateErr } = await db
-    .from("attendances")
-    .update(updatePayload)
-    .eq("id", today.id)
-    // Atomic backstop for the `today.jam_pulang` pre-check above, which is a
-    // read-then-write race: two concurrent clock-outs can both pass it, and the
-    // later write would overwrite jam_pulang/photos/status — letting an employee
-    // launder their final status by firing two requests. The DB anti-tampering
-    // trigger (prevent_attendance_status_backdating, migration 0010) does NOT
-    // cover this path: it is gated on `auth.uid() = old.employee_id`, and
-    // clockOut always runs with a service-role client where auth.uid() is NULL,
-    // so its guard body never executes. Restricting the UPDATE to rows whose
-    // jam_pulang is still NULL makes "close the record" a single atomic
-    // compare-and-set — the loser matches zero rows instead of overwriting.
-    .is("jam_pulang", null)
-    .select()
-    .single();
+  // GPS quality for HR review (0046). Only on the GPS path: a verified QR
+  // already proves presence. Added only when there is something to record.
+  const gpsAudit: Record<string, unknown> = {};
+  if (hasCoords && !qrVerified) {
+    if (input.accuracyMeters !== undefined) gpsAudit.akurasi_pulang_meter = input.accuracyMeters;
+    const masukAt = today.jam_masuk ? new Date(today.jam_masuk as string) : null;
+    const masukPoint = parsePoint(today.lokasi_masuk);
+    const flags = locationFlags({
+      lat: input.lat as number,
+      long: input.long as number,
+      accuracyMeters: input.accuracyMeters,
+      fixAgeSeconds: input.fixAgeSeconds,
+      previous: masukPoint && masukAt && !Number.isNaN(masukAt.getTime()) ? { ...masukPoint, at: masukAt } : null,
+      now,
+    });
+    if (flags.length > 0) gpsAudit.flag_lokasi_pulang = flags;
+  }
+
+  const update = (payload: Record<string, unknown>) =>
+    db
+      .from("attendances")
+      .update(payload)
+      .eq("id", today.id)
+      // Atomic backstop for the `today.jam_pulang` pre-check above, which is a
+      // read-then-write race: two concurrent clock-outs can both pass it, and the
+      // later write would overwrite jam_pulang/photos/status — letting an employee
+      // launder their final status by firing two requests. The DB anti-tampering
+      // trigger (prevent_attendance_status_backdating, migration 0010) does NOT
+      // cover this path: it is gated on `auth.uid() = old.employee_id`, and
+      // clockOut always runs with a service-role client where auth.uid() is NULL,
+      // so its guard body never executes. Restricting the UPDATE to rows whose
+      // jam_pulang is still NULL makes "close the record" a single atomic
+      // compare-and-set — the loser matches zero rows instead of overwriting.
+      .is("jam_pulang", null)
+      .select()
+      .single();
+  let { data: updated, error: updateErr } = await update({ ...updatePayload, ...gpsAudit });
+  // Pre-0046 the audit columns don't exist; never lose a clock-out over them.
+  if (isMissingColumn(updateErr) && Object.keys(gpsAudit).length > 0) {
+    console.warn("clockOut: kolom akurasi/flag lokasi belum ada — jalankan migrasi 0046.");
+    ({ data: updated, error: updateErr } = await update(updatePayload));
+  }
 
   if (updateErr || !updated) {
     // Zero rows matched: another request closed the record between the

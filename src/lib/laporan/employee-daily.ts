@@ -1,6 +1,7 @@
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
 import { overtimeMinutes } from "@/lib/payroll/overtime";
 import { leaveJenisLabel } from "@/lib/leave/labels";
+import { LOCATION_FLAG_LABELS, isLocationFlag, type LocationFlag } from "@/lib/attendance/location-flags";
 
 /**
  * One row per calendar day for a single employee's attendance report: the
@@ -26,6 +27,8 @@ export type DailyRow = {
   keterangan: string | null;
   /** The employee's own note (e.g. reason for being out of radius). */
   catatan: string | null;
+  /** GPS warnings on the clock-in or clock-out of this day (0046), deduplicated. */
+  flagLokasi: LocationFlag[];
 };
 
 export type DailySchedule = {
@@ -41,7 +44,17 @@ export type DailyAttendance = {
   jam_masuk: string | null;
   jam_pulang: string | null;
   catatan: string | null;
+  flag_lokasi_masuk?: string[] | null;
+  flag_lokasi_pulang?: string[] | null;
 };
+
+function mergeFlags(att: DailyAttendance): LocationFlag[] {
+  return [...new Set([...(att.flag_lokasi_masuk ?? []), ...(att.flag_lokasi_pulang ?? [])])].filter(isLocationFlag);
+}
+
+export function locationFlagsLabel(flags: readonly LocationFlag[]): string {
+  return flags.map((f) => LOCATION_FLAG_LABELS[f]).join("; ");
+}
 
 function* eachDate(from: string, to: string): Generator<string> {
   const d = new Date(`${from}T00:00:00Z`);
@@ -86,6 +99,7 @@ export function buildEmployeeDaily(input: {
       menitLembur: 0,
       keterangan: null,
       catatan: null,
+      flagLokasi: [],
     };
 
     if (att && att.status !== "alpa") {
@@ -107,6 +121,7 @@ export function buildEmployeeDaily(input: {
           scheduled && schedule?.hitungLembur ? overtimeMinutes(att.jam_pulang, schedule.jamPulang) : 0,
         keterangan: holiday ? `Libur: ${holiday}` : !isWorkday ? "Di luar hari kerja" : null,
         catatan: att.catatan,
+        flagLokasi: mergeFlags(att),
       });
       continue;
     }
@@ -206,7 +221,7 @@ function csvField(v: string | number): string {
 export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
   const header = [
     "Tanggal", "Status", "Jam Masuk", "Jam Pulang", "Durasi (menit)",
-    "Terlambat (menit)", "Pulang Cepat (menit)", "Lembur (menit)", "Keterangan", "Catatan",
+    "Terlambat (menit)", "Pulang Cepat (menit)", "Lembur (menit)", "Keterangan", "Catatan", "Peringatan Lokasi",
   ];
   const lines = [header.map(csvField).join(",")];
   for (const r of rows) {
@@ -215,7 +230,7 @@ export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
         r.tanggal, dailyStatusLabel(r),
         r.jamMasuk ? formatJamWib(r.jamMasuk) : "", r.jamPulang ? formatJamWib(r.jamPulang) : "",
         r.durasiMenit ?? "", r.menitTerlambat, r.menitPulangCepat, r.menitLembur,
-        r.keterangan ?? "", r.catatan ?? "",
+        r.keterangan ?? "", r.catatan ?? "", locationFlagsLabel(r.flagLokasi),
       ].map(csvField).join(","),
     );
   }

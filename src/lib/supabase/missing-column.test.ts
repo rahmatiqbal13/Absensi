@@ -5,6 +5,8 @@ describe("isMissingColumn", () => {
   it("recognises Postgres 42703 and its message", () => {
     expect(isMissingColumn({ code: "42703" })).toBe(true);
     expect(isMissingColumn({ message: "column work_schedules.hitung_lembur does not exist" })).toBe(true);
+    // An insert/update naming an unknown column.
+    expect(isMissingColumn({ code: "PGRST204" })).toBe(true);
     expect(isMissingColumn({ code: "PGRST116" })).toBe(false);
     expect(isMissingColumn(null)).toBe(false);
   });

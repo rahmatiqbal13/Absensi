@@ -259,6 +259,8 @@ describe("ClockPanel", () => {
       await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
       const fd = mockSubmitClockIn.mock.calls[0][0] as FormData;
       expect([fd.get("lat"), fd.get("long")]).toEqual(["-6.2001", "106.8002"]);
+      expect(fd.get("akurasi")).toBe("10");
+      expect(Number(fd.get("usiaFix"))).toBeLessThan(60);
     });
 
     it("falls back to a recent-enough fix when a fresh request fails", async () => {
@@ -268,6 +270,9 @@ describe("ClockPanel", () => {
       attachPhoto();
       fireEvent.click(screen.getByRole("button", { name: /absen masuk/i }));
       await waitFor(() => expect(mockSubmitClockIn).toHaveBeenCalled());
+      // The fix's real age goes to the server, which flags it for HR review.
+      const fd = mockSubmitClockIn.mock.calls[0][0] as FormData;
+      expect(Number(fd.get("usiaFix"))).toBeGreaterThanOrEqual(180);
     });
 
     it("reports a location problem only when there is no usable fix at all", async () => {
