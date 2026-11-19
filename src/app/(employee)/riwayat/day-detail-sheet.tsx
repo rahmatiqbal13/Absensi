@@ -19,6 +19,7 @@ export function DayDetailSheet({
   jamPulang,
   badge,
   catatan,
+  info,
   tag,
   correction,
 }: {
@@ -28,6 +29,8 @@ export function DayDetailSheet({
   jamPulang: string;
   badge: React.ReactNode;
   catatan: string | null;
+  /** Extra line, e.g. recorded lembur. */
+  info?: string;
   tag?: "pending" | "approved";
   /** Present when the day is still inside the correction window. */
   correction?: { action: (fd: FormData) => Promise<Result>; defaults: CorrectionDefaults; minDate: string; maxDate: string };
@@ -65,6 +68,7 @@ export function DayDetailSheet({
             <span className="text-sm text-muted-foreground">Status</span>
             {badge}
           </div>
+          {info && <p className="text-sm text-foreground">{info}</p>}
           {catatan && <p className="rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">{catatan}</p>}
 
           {tag === "pending" ? (

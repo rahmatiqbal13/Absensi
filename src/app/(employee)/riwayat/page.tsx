@@ -13,6 +13,7 @@ import type { AttendanceStatus } from "@/lib/attendance/status";
 import { toRiwayatRecords } from "./records";
 import {
   DayBadge,
+  formatLembur,
   HistoryList,
   formatDate,
   formatTime,
@@ -136,7 +137,7 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
             records={records}
             tags={tags}
             wrapRow={(r, row) =>
-              r.kind !== "hadir" && r.kind !== "alpa" ? (
+              r.kind !== "hadir" && r.kind !== "alpa" && !r.lemburTanpaAbsen ? (
                 row
               ) : (
                 <DayDetailSheet
@@ -145,6 +146,13 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
                   jamPulang={formatTime(r.jamPulang)}
                   badge={<DayBadge record={r} />}
                   catatan={r.catatan}
+                  info={
+                    r.lemburTanpaAbsen
+                      ? "Lembur hari ini sudah disetujui, tetapi tidak ada catatan absen. Ajukan koreksi jika Anda bekerja."
+                      : (r.menitLembur ?? 0) > 0
+                        ? `Lembur tercatat ${formatLembur(r.menitLembur!)}.`
+                        : undefined
+                  }
                   tag={tags[r.tanggal]}
                   correction={
                     r.tanggal >= minDate

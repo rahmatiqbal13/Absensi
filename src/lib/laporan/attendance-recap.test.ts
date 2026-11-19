@@ -108,4 +108,20 @@ describe("computeAttendanceRecap", () => {
     });
     expect(recap).toMatchObject({ hariKerjaEfektif: 0, hadir: 0, alpa: 0, cuti: 0, totalMenitTerlambat: 0 });
   });
+
+  it("records approved lembur on a weekend without counting it as a working day", () => {
+    // 2026-08-08 = Saturday.
+    const [recap] = computeAttendanceRecap({
+      from: "2026-08-08", to: "2026-08-08",
+      employees: [{ id: "e1", nama: "Budi", tanggalMulaiKerja: "2026-01-01" }],
+      schedule: SCHEDULE, // hitungLembur off: rest-day lembur is still recorded
+      holidayDates: [],
+      attendancesByEmployee: attMap([
+        { employee_id: "e1", tanggal: "2026-08-08", status: "tepat_waktu", jam_masuk: "2026-08-08T00:23:00Z", jam_pulang: "2026-08-08T10:09:00Z" },
+      ]),
+      approvedLeavesByEmployee: new Map(),
+      approvedOvertime: new Map([["e1|2026-08-08", [{ jamMulai: "08:00", jamSelesai: "16:00" }]]]),
+    });
+    expect(recap).toMatchObject({ menitLembur: 8 * 60, hariKerjaEfektif: 0, hadir: 0, alpa: 0 });
+  });
 });

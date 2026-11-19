@@ -34,4 +34,19 @@ describe("toRiwayatRecords", () => {
     expect(toRiwayatRecords([row("2026-11-19", "alpa")], "2026-11-19")).toEqual([]);
     expect(toRiwayatRecords([row("2026-11-19", "hadir")], "2026-11-19")).toHaveLength(1);
   });
+
+  it("shows a day off with approved lembur but no clock-in, and carries lembur minutes", () => {
+    const out = toRiwayatRecords(
+      [
+        row("2026-11-01", "hadir", { menitLembur: 480 }),
+        row("2026-11-08", "bukan_hari_kerja", { lemburDisetujui: true, keterangan: "Lembur disetujui, tidak ada absen" }),
+      ],
+      "2026-11-19",
+    );
+    expect(out.map((r) => [r.tanggal, r.kind, r.lemburTanpaAbsen])).toEqual([
+      ["2026-11-08", "libur", true],
+      ["2026-11-01", "hadir", false],
+    ]);
+    expect(out[1].menitLembur).toBe(480);
+  });
 });

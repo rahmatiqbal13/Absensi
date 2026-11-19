@@ -72,6 +72,34 @@ describe("buildEmployeeDaily", () => {
   });
 });
 
+describe("buildEmployeeDaily lembur on a day off", () => {
+  const build = (attendance: Map<string, never> | Map<string, unknown>) =>
+    buildEmployeeDaily({
+      from: "2026-08-08",
+      to: "2026-08-09",
+      schedule: { ...SCHEDULE, hitungLembur: false },
+      holidays: new Map(),
+      attendance: attendance as never,
+      leaves: [],
+      joinDate: null,
+      approvedOvertime: new Map([
+        ["2026-08-08", [{ jamMulai: "08:00", jamSelesai: "16:00" }]],
+        ["2026-08-09", [{ jamMulai: "08:00", jamSelesai: "12:00" }]],
+      ]),
+    });
+
+  it("records the approved minutes actually worked, from the window's start, even when overtime pay is off", () => {
+    const [sat] = build(new Map([at("08", "07:23", "17:09")]));
+    expect(sat).toMatchObject({ kind: "hadir", menitLembur: 8 * 60, lemburDisetujui: true });
+    expect(sat.keterangan).toContain("Lembur hari libur");
+  });
+
+  it("flags approved lembur without a clock-in", () => {
+    const [, sun] = build(new Map());
+    expect(sun).toMatchObject({ kind: "bukan_hari_kerja", menitLembur: 0, keterangan: "Lembur disetujui, tidak ada absen" });
+  });
+});
+
 describe("employeeDailyToCsv", () => {
   it("writes an Excel-friendly CSV with times in WIB", () => {
     const csv = employeeDailyToCsv(rows.slice(0, 2));

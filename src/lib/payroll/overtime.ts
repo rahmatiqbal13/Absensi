@@ -51,3 +51,27 @@ export function approvedOvertimeMinutes(
   if (total < OVERTIME_MIN_MINUTES) return 0;
   return Math.min(total, OVERTIME_MAX_MINUTES);
 }
+
+/**
+ * Lembur on a rest day or holiday (approved beforehand, 0058). For now this is
+ * only RECORDED in reports — management sets the rest-day rate later, so
+ * payroll does not pay it. Counts the time inside an approved window that the
+ * employee was actually clocked in, from the window's start (there is no
+ * scheduled end of day to count from).
+ */
+export function restDayOvertimeMinutes(
+  jamMasukIso: string | null,
+  jamPulangIso: string | null,
+  approvals: readonly ApprovedOvertime[] | undefined,
+): number {
+  if (!jamMasukIso || !jamPulangIso || !approvals?.length) return 0;
+  const inAt = jakartaMinutesOfDay(jamMasukIso);
+  const outAt = jakartaMinutesOfDay(jamPulangIso);
+  let total = 0;
+  for (const a of approvals) {
+    const start = Math.max(inAt, scheduleMinutes(a.jamMulai));
+    const end = Math.min(outAt, scheduleMinutes(a.jamSelesai));
+    if (end > start) total += end - start;
+  }
+  return total;
+}

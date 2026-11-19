@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { approvedOvertimeMinutes, overtimeMinutes, overtimePay } from "./overtime";
+import { approvedOvertimeMinutes, overtimeMinutes, overtimePay, restDayOvertimeMinutes } from "./overtime";
 
 describe("overtimeMinutes", () => {
   // 17:00 schedule end; times are Jakarta (UTC+7).
@@ -45,5 +45,20 @@ describe("approvedOvertimeMinutes", () => {
   it("keeps the 30-minute floor and 4-hour cap", () => {
     expect(approvedOvertimeMinutes("2026-11-18T10:20:00Z", "17:00", [{ jamMulai: "17:00", jamSelesai: "20:00" }])).toBe(0);
     expect(approvedOvertimeMinutes("2026-11-18T16:00:00Z", "17:00", [{ jamMulai: "17:00", jamSelesai: "23:30" }])).toBe(240);
+  });
+});
+
+describe("restDayOvertimeMinutes", () => {
+  const iso = (hhmm: string) => `2026-11-01T${hhmm}:00+07:00`;
+  const win = [{ jamMulai: "08:00", jamSelesai: "16:00" }];
+
+  it("counts the approved window the employee was clocked in, from the window's start", () => {
+    expect(restDayOvertimeMinutes(iso("07:23"), iso("17:09"), win)).toBe(480);
+    expect(restDayOvertimeMinutes(iso("09:30"), iso("12:00"), win)).toBe(150);
+  });
+
+  it("is zero without an approval or without both clock times", () => {
+    expect(restDayOvertimeMinutes(iso("07:00"), iso("17:00"), undefined)).toBe(0);
+    expect(restDayOvertimeMinutes(iso("07:00"), null, win)).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 // src/lib/laporan/attendance-recap.ts
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
-import { approvedOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
+import { approvedOvertimeMinutes, restDayOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
 import type { Roster } from "@/lib/schedule/roster";
 
 export type RecapEmployee = { id: string; nama: string; slug?: string; tanggalMulaiKerja: string | null };
@@ -21,7 +21,10 @@ export type RecapRow = {
   cuti: number;
   lain: number;
   totalMenitTerlambat: number;
-  /** Workday overtime minutes (only when the schedule pays overtime). */
+  /**
+   * Approved lembur minutes: on workdays only when the schedule pays overtime;
+   * on days off always (recorded, not paid yet).
+   */
   menitLembur: number;
   hariKerjaEfektif: number;
 };
@@ -73,12 +76,20 @@ export function computeAttendanceRecap(input: {
     const roster = input.rosters?.get(emp.id);
     for (const tanggal of allDates) {
       const rostered = roster?.get(tanggal);
-      if (roster?.has(tanggal)) {
-        if (rostered === null) continue; // rostered libur
-      } else {
-        const dow = new Date(`${tanggal}T00:00:00Z`).getUTCDay();
-        if (!workingDow.has(dow)) continue;
-        if (holidays.has(tanggal)) continue;
+      const dayOff = roster?.has(tanggal)
+        ? rostered === null // rostered libur
+        : !workingDow.has(new Date(`${tanggal}T00:00:00Z`).getUTCDay()) || holidays.has(tanggal);
+      if (dayOff) {
+        // Approved lembur on a day off is recorded (not paid yet).
+        const att = attendance.get(tanggal);
+        if (att && att.status !== "alpa") {
+          row.menitLembur += restDayOvertimeMinutes(
+            att.jam_masuk ?? null,
+            att.jam_pulang ?? null,
+            input.approvedOvertime?.get(`${emp.id}|${tanggal}`),
+          );
+        }
+        continue;
       }
       if (emp.tanggalMulaiKerja && tanggal < emp.tanggalMulaiKerja) continue;
       const dayLateThreshold = rostered ? scheduleMinutes(rostered.jamMasuk) + rostered.toleransiMenit : lateThreshold;

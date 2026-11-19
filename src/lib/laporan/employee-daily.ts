@@ -1,5 +1,5 @@
 import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
-import { approvedOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
+import { approvedOvertimeMinutes, restDayOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
 import type { Roster } from "@/lib/schedule/roster";
 import { leaveJenisLabel } from "@/lib/leave/labels";
 import { LOCATION_FLAG_LABELS, isLocationFlag, type LocationFlag } from "@/lib/attendance/location-flags";
@@ -32,7 +32,12 @@ export type DailyRow = {
   flagLokasi: LocationFlag[];
   /** Rostered shift name for this day (0059), when on a roster. */
   shift?: string | null;
+  /** An approved lembur request covers this day (0058). */
+  lemburDisetujui?: boolean;
 };
+
+export const LEMBUR_LIBUR_NOTE = "Lembur hari libur (dicatat, belum dihitung ke gaji)";
+export const LEMBUR_TANPA_ABSEN_NOTE = "Lembur disetujui, tidak ada absen";
 
 export type DailySchedule = {
   jamMasuk: string;
@@ -98,6 +103,8 @@ export function buildEmployeeDaily(input: {
     const endMin = day ? scheduleMinutes(day.jamPulang) : null;
     const leave = leaves.find((l) => tanggal >= l.tanggalMulai && tanggal <= l.tanggalSelesai) ?? null;
     const att = attendance.get(tanggal) ?? null;
+    const approvals = input.approvedOvertime?.get(tanggal);
+    const lemburDisetujui = (approvals?.length ?? 0) > 0;
 
     const base: DailyRow = {
       tanggal,
@@ -112,12 +119,14 @@ export function buildEmployeeDaily(input: {
       keterangan: null,
       catatan: null,
       flagLokasi: [],
+      ...(lemburDisetujui ? { lemburDisetujui } : {}),
     };
 
     if (att && att.status !== "alpa") {
       const masuk = att.jam_masuk ? jakartaMinutesOfDay(att.jam_masuk) : null;
       const pulang = att.jam_pulang ? jakartaMinutesOfDay(att.jam_pulang) : null;
       const scheduled = isWorkday && !holiday;
+      const dayOff = holiday ? `Libur: ${holiday}` : !isWorkday ? (onRoster ? "Libur (roster)" : "Di luar hari kerja") : null;
       rows.push({
         ...base,
         status: att.status,
@@ -129,11 +138,12 @@ export function buildEmployeeDaily(input: {
             : null,
         menitTerlambat: scheduled && masuk != null && lateThreshold != null ? Math.max(0, masuk - lateThreshold) : 0,
         menitPulangCepat: scheduled && pulang != null && endMin != null ? Math.max(0, endMin - pulang) : 0,
-        menitLembur:
-          scheduled && schedule?.hitungLembur
-            ? approvedOvertimeMinutes(att.jam_pulang, (rostered ?? schedule).jamPulang, input.approvedOvertime?.get(tanggal))
-            : 0,
-        keterangan: holiday ? `Libur: ${holiday}` : !isWorkday ? (onRoster ? "Libur (roster)" : "Di luar hari kerja") : null,
+        menitLembur: scheduled
+          ? schedule?.hitungLembur
+            ? approvedOvertimeMinutes(att.jam_pulang, (rostered ?? schedule).jamPulang, approvals)
+            : 0
+          : restDayOvertimeMinutes(att.jam_masuk, att.jam_pulang, approvals),
+        keterangan: dayOff && lemburDisetujui ? `${dayOff} · ${LEMBUR_LIBUR_NOTE}` : dayOff,
         shift: isWorkday && rostered?.nama ? rostered.nama : null,
         catatan: att.catatan,
         flagLokasi: mergeFlags(att),
@@ -141,8 +151,11 @@ export function buildEmployeeDaily(input: {
       continue;
     }
 
-    if (!isWorkday) rows.push({ ...base, kind: "bukan_hari_kerja", keterangan: onRoster ? "Libur (roster)" : null });
-    else if (holiday) rows.push({ ...base, kind: "libur", keterangan: holiday });
+    // Approved lembur on a day off, but no clock-in: flag it so HR notices.
+    const withNoShow = (k: string | null) =>
+      lemburDisetujui ? [k, LEMBUR_TANPA_ABSEN_NOTE].filter(Boolean).join(" · ") : k;
+    if (!isWorkday) rows.push({ ...base, kind: "bukan_hari_kerja", keterangan: withNoShow(onRoster ? "Libur (roster)" : null) });
+    else if (holiday) rows.push({ ...base, kind: "libur", keterangan: withNoShow(holiday) });
     else if (joinDate && tanggal < joinDate) rows.push({ ...base, kind: "belum_bekerja" });
     else if (leave) rows.push({ ...base, kind: "cuti", keterangan: leaveJenisLabel(leave.jenis) });
     else rows.push({ ...base, kind: "alpa", status: "alpa", catatan: att?.catatan ?? null });

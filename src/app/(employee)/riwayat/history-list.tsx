@@ -18,7 +18,16 @@ export type AttendanceRecord = {
   catatan: string | null;
   /** Leave type or holiday name for cuti / libur days. */
   keterangan?: string | null;
+  /** Approved lembur minutes recorded for the day. */
+  menitLembur?: number;
+  /** A day off with approved lembur but no clock-in. */
+  lemburTanpaAbsen?: boolean;
 };
+
+/** "2j 05m" */
+export function formatLembur(menit: number): string {
+  return `${Math.floor(menit / 60)}j ${String(menit % 60).padStart(2, "0")}m`;
+}
 
 /** The status pill for a day, by kind. */
 export function DayBadge({ record }: { record: AttendanceRecord }) {
@@ -129,6 +138,9 @@ export function HistoryList({
               >
                 {secondLine(record)}
               </span>
+              {(record.menitLembur ?? 0) > 0 && (
+                <span className="text-xs font-medium text-foreground">Lembur {formatLembur(record.menitLembur!)}</span>
+              )}
               {record.catatan && <span className="truncate text-xs text-muted-foreground">{record.catatan}</span>}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
