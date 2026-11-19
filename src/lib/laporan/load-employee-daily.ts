@@ -23,7 +23,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
  * Daily attendance (clock-in / clock-out) for one employee. HR / super admin
- * may open anyone; an atasan only their direct reports (PRD §6).
+ * may open anyone; an atasan only their direct reports (PRD §6); every
+ * employee their own (Riwayat).
  */
 export async function loadEmployeeDailyReport(
   db: SupabaseClient,
@@ -47,7 +48,8 @@ export async function loadEmployeeDailyReport(
 
   const isHr = viewer.role === "hr_admin" || viewer.role === "super_admin";
   const isOwnTeam = viewer.role === "atasan" && emp.atasan_id === viewer.id;
-  if (!isHr && !isOwnTeam) return { ok: false, status: 404, error: "Karyawan tidak ditemukan." };
+  const isSelf = emp.id === viewer.id;
+  if (!isHr && !isOwnTeam && !isSelf) return { ok: false, status: 404, error: "Karyawan tidak ditemukan." };
 
   const branchId = emp.branch_id as string;
   const cols = "jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja";

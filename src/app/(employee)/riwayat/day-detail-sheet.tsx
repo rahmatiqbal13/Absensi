@@ -3,10 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { AttendanceStatusBadge } from "@/components/attendance-status-badge";
 import { AttendanceCorrectionDialog, type CorrectionDefaults } from "@/components/attendance-correction-dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import type { AttendanceStatus } from "@/lib/attendance/status";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -19,7 +17,7 @@ export function DayDetailSheet({
   title,
   jamMasuk,
   jamPulang,
-  status,
+  badge,
   catatan,
   tag,
   correction,
@@ -28,7 +26,7 @@ export function DayDetailSheet({
   title: string;
   jamMasuk: string;
   jamPulang: string;
-  status: AttendanceStatus;
+  badge: React.ReactNode;
   catatan: string | null;
   tag?: "pending" | "approved";
   /** Present when the day is still inside the correction window. */
@@ -65,7 +63,7 @@ export function DayDetailSheet({
           </dl>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-muted-foreground">Status</span>
-            <AttendanceStatusBadge status={status} />
+            {badge}
           </div>
           {catatan && <p className="rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">{catatan}</p>}
 

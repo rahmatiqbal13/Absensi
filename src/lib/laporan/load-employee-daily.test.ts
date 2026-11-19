@@ -41,6 +41,11 @@ describe("loadEmployeeDailyReport access", () => {
     expect(await loadEmployeeDailyReport(db(EMP), viewer("atasan", "atasan-2"), EMP_ID, "2026-08-03", "2026-08-03")).toMatchObject({ ok: false, status: 404 });
   });
 
+  it("lets any employee open their own report, but not a colleague's", async () => {
+    expect(await loadEmployeeDailyReport(db(EMP), viewer("karyawan", EMP_ID), EMP_ID, "2026-08-03", "2026-08-03")).toMatchObject({ ok: true });
+    expect(await loadEmployeeDailyReport(db(EMP), viewer("karyawan", "someone-else"), EMP_ID, "2026-08-03", "2026-08-03")).toMatchObject({ ok: false, status: 404 });
+  });
+
   it("rejects a malformed id without querying", async () => {
     const d = db(EMP);
     expect(await loadEmployeeDailyReport(d, viewer("hr_admin"), "nope", "2026-08-03", "2026-08-03")).toMatchObject({ ok: false, status: 404 });

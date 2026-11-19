@@ -89,3 +89,22 @@ describe("HistoryList", () => {
     expect(screen.getAllByText("Dikoreksi")).toHaveLength(1);
   });
 });
+
+describe("HistoryList non-attendance days", () => {
+  it("labels a working day without a clock-in as Tidak absen, and shows leave / holidays", () => {
+    const base = { jamMasuk: null, jamPulang: null, status: "alpa" as const, catatan: null };
+    render(
+      <HistoryList
+        records={[
+          { ...base, tanggal: "2026-11-03", kind: "alpa" },
+          { ...base, tanggal: "2026-11-04", kind: "cuti", keterangan: "Cuti tahunan" },
+          { ...base, tanggal: "2026-11-05", kind: "libur", keterangan: "Libur: Hari Guru" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Tidak absen")).toBeInTheDocument();
+    expect(screen.getByText("Tidak ada catatan absen")).toBeInTheDocument();
+    expect(screen.getByText("Cuti tahunan")).toBeInTheDocument();
+    expect(screen.getByText("Libur: Hari Guru")).toBeInTheDocument();
+  });
+});

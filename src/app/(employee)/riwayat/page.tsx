@@ -8,7 +8,17 @@ import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { correctionMinDate, toJakartaHHMM } from "@/lib/attendance/correction";
 import { submitAttendanceCorrection } from "../pengajuan/koreksi/actions";
-import { HistoryList, formatDate, formatTime, type AttendanceRecord, type CorrectionTag } from "./history-list";
+import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
+import type { AttendanceStatus } from "@/lib/attendance/status";
+import { toRiwayatRecords } from "./records";
+import {
+  DayBadge,
+  HistoryList,
+  formatDate,
+  formatTime,
+  type AttendanceRecord,
+  type CorrectionTag,
+} from "./history-list";
 import { DayDetailSheet } from "./day-detail-sheet";
 
 const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
@@ -52,23 +62,17 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
     if (c.status === "pending" || !tags[c.tanggal]) tags[c.tanggal] = c.status as CorrectionTag;
   }
 
-  const { data, error } = await db
-    .from("attendances")
-    .select("tanggal, jam_masuk, jam_pulang, status, catatan")
-    .eq("employee_id", employee.id)
-    .gte("tanggal", monthStart)
-    .lte("tanggal", monthEnd)
-    .order("tanggal", { ascending: false });
-  if (error) console.error("RiwayatPage: attendances query failed", error);
+  // Every day of the month up to today, with working days that have no
+  // clock-in as "Tidak absen" — same rules as HR's per-employee report
+  // (schedule / roster, holidays, approved leave, join date).
+  const rangeEnd = monthEnd < today ? monthEnd : today;
+  const report = await loadEmployeeDailyReport(db, employee, employee.id, monthStart, rangeEnd);
+  const error = !report.ok;
+  if (!report.ok) console.error("RiwayatPage: daily report failed", report.error);
 
-  const records: AttendanceRecord[] = (data ?? []).map((row) => ({
-    tanggal: row.tanggal,
-    jamMasuk: row.jam_masuk,
-    jamPulang: row.jam_pulang,
-    status: row.status,
-    catatan: row.catatan,
-  }));
-  const count = (s: string) => records.filter((r) => r.status === s).length;
+  const records = report.ok ? toRiwayatRecords(report.report.rows, today) : [];
+  const count = (pred: (r: AttendanceRecord) => boolean) => records.filter(pred).length;
+  const hadir = (s: AttendanceStatus) => (r: AttendanceRecord) => r.kind === "hadir" && r.status === s;
   const prev = shiftMonth(ym, -1);
   const next = shiftMonth(ym, 1);
   const navClass =
@@ -82,14 +86,22 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
       </div>
 
       <nav aria-label="Pilih bulan" className="flex items-center justify-between gap-3">
-        <Link href={`/riwayat?bulan=${prev}`} aria-label={`Bulan sebelumnya, ${monthLabel(Number(prev.slice(5)))}`} className={navClass}>
+        <Link
+          href={`/riwayat?bulan=${prev}`}
+          aria-label={`Bulan sebelumnya, ${monthLabel(Number(prev.slice(5)))}`}
+          className={navClass}
+        >
           <ChevronLeft className="size-5" aria-hidden="true" />
         </Link>
         <span className="text-base font-semibold" aria-live="polite">
           {monthLabel(m)} {y}
         </span>
         {next <= thisMonth ? (
-          <Link href={`/riwayat?bulan=${next}`} aria-label={`Bulan berikutnya, ${monthLabel(Number(next.slice(5)))}`} className={navClass}>
+          <Link
+            href={`/riwayat?bulan=${next}`}
+            aria-label={`Bulan berikutnya, ${monthLabel(Number(next.slice(5)))}`}
+            className={navClass}
+          >
             <ChevronRight className="size-5" aria-hidden="true" />
           </Link>
         ) : (
@@ -104,12 +116,14 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
       ) : (
         <>
           {records.length > 0 && (
-            <dl className="grid grid-cols-4 gap-2 text-center">
+            <dl className="grid grid-cols-3 gap-2 text-center">
               {[
-                ["Tepat", count("tepat_waktu")],
-                ["Terlambat", count("terlambat")],
-                ["Pulang cepat", count("pulang_cepat")],
-                ["Luar lokasi", count("di_luar_lokasi")],
+                ["Tepat waktu", count(hadir("tepat_waktu"))],
+                ["Terlambat", count(hadir("terlambat"))],
+                ["Pulang cepat", count(hadir("pulang_cepat"))],
+                ["Luar lokasi", count(hadir("di_luar_lokasi"))],
+                ["Tidak absen", count((r) => r.kind === "alpa")],
+                ["Cuti", count((r) => r.kind === "cuti")],
               ].map(([label, n]) => (
                 <div key={label} className="flex flex-col-reverse rounded-xl bg-card p-2 ring-1 ring-border">
                   <dt className="text-[0.7rem] text-muted-foreground">{label}</dt>
@@ -121,28 +135,36 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
           <HistoryList
             records={records}
             tags={tags}
-            wrapRow={(r, row) => (
-              <DayDetailSheet
-                title={formatDate(r.tanggal)}
-                jamMasuk={formatTime(r.jamMasuk)}
-                jamPulang={formatTime(r.jamPulang)}
-                status={r.status}
-                catatan={r.catatan}
-                tag={tags[r.tanggal]}
-                correction={
-                  r.tanggal >= minDate
-                    ? {
-                        action: submitAttendanceCorrection,
-                        defaults: { tanggal: r.tanggal, jamMasuk: toJakartaHHMM(r.jamMasuk), jamPulang: toJakartaHHMM(r.jamPulang) },
-                        minDate,
-                        maxDate: today,
-                      }
-                    : undefined
-                }
-              >
-                {row}
-              </DayDetailSheet>
-            )}
+            wrapRow={(r, row) =>
+              r.kind !== "hadir" && r.kind !== "alpa" ? (
+                row
+              ) : (
+                <DayDetailSheet
+                  title={formatDate(r.tanggal)}
+                  jamMasuk={formatTime(r.jamMasuk)}
+                  jamPulang={formatTime(r.jamPulang)}
+                  badge={<DayBadge record={r} />}
+                  catatan={r.catatan}
+                  tag={tags[r.tanggal]}
+                  correction={
+                    r.tanggal >= minDate
+                      ? {
+                          action: submitAttendanceCorrection,
+                          defaults: {
+                            tanggal: r.tanggal,
+                            jamMasuk: toJakartaHHMM(r.jamMasuk),
+                            jamPulang: toJakartaHHMM(r.jamPulang),
+                          },
+                          minDate,
+                          maxDate: today,
+                        }
+                      : undefined
+                  }
+                >
+                  {row}
+                </DayDetailSheet>
+              )
+            }
           />
         </>
       )}
