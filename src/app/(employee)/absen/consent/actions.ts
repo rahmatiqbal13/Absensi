@@ -5,7 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { recordConsent } from "@/lib/consent/consent";
 
-export async function acceptConsent() {
+export async function acceptConsent(formData: FormData) {
+  // The checkbox is the consent itself; never record it without the tick.
+  if (formData.get("setuju") !== "on") redirect("/absen/consent?error=setuju");
   const db = await createServerSupabaseClient();
   const employee = await getCurrentEmployee(db);
   if (!employee) {

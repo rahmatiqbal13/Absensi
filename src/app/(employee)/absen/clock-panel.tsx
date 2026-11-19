@@ -313,8 +313,8 @@ export function ClockPanel({
         {liveRegion}
         <BigClock />
         {shiftLine}
-        <section className="flex flex-col gap-3.5 rounded-[20px] bg-primary p-5.5 text-primary-foreground">
-          <span className="font-mono text-xs tracking-[0.08em] text-success-solid uppercase">
+        <section className="motif-batik-full flex flex-col gap-3.5 rounded-[20px] bg-sidebar p-5.5 text-sidebar-foreground">
+          <span className="font-mono text-xs tracking-[0.08em] text-[#2dd4a8] uppercase">
             Absensi hari ini selesai.
           </span>
           <p className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em]">
@@ -367,10 +367,10 @@ export function ClockPanel({
       )}
 
       {scanning ? (
-        <div className="flex flex-col items-center gap-3 rounded-[20px] bg-primary p-5 text-primary-foreground">
+        <div className="motif-batik-full flex flex-col items-center gap-3 rounded-[20px] bg-sidebar p-5 text-sidebar-foreground">
           <QrScanner onDecode={setQrPayload} onReset={() => setQrPayload(null)} />
           {qrPayload && (
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-success-solid">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-[#2dd4a8]">
               <CheckCircle2 className="size-4" aria-hidden="true" /> Lokasi terverifikasi via QR
             </p>
           )}

@@ -7,6 +7,11 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { submitLeaveRequest, type SubmitLeaveResult } from "@/lib/leave/submit";
 import { notifyApproverOfLeave } from "@/lib/leave/notify";
 import { LEAVE_ATTACHMENT_BUCKET } from "@/lib/leave/attachments";
+import { calculateLeaveDays, requiresBalanceCheck } from "@/lib/leave/balance";
+import { countWorkingDays } from "@/lib/leave/review-context";
+import { getLeaveBalance } from "@/lib/leave/balance-lookup";
+import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
+import { isMagang } from "@/lib/employees/contracts";
 
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 const ATTACHMENT_EXT: Record<string, string> = {
@@ -108,4 +113,59 @@ export async function cancelLeave(requestId: string): Promise<{ ok: true } | { o
   }
   revalidatePath("/cuti");
   return { ok: true };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export type LeaveDaysPreview =
+  | {
+      ok: true;
+      /** Scheduled working days in the range (holidays excluded) — the days actually off. */
+      workingDays: number;
+      /** What approval deducts from the annual balance (calendar days); null for types without a balance. */
+      chargedDays: number | null;
+      /** Annual balance left before this request; null for types without a balance. */
+      sisa: number | null;
+    }
+  | { ok: false };
+
+/**
+ * Live count under the leave form's dates. Same rules as the approver's
+ * review panel (review-context.ts): working days from the employee's schedule
+ * minus holidays, and the calendar-day charge approve_leave_request applies.
+ */
+export async function previewLeaveDays(jenis: string, from: string, to: string): Promise<LeaveDaysPreview> {
+  if (!DATE_RE.test(from) || !DATE_RE.test(to) || to < from) return { ok: false };
+  if (calculateLeaveDays(from, to) > 366) return { ok: false };
+  const db = await createServerSupabaseClient();
+  const employee = await getCurrentEmployee(db);
+  if (!employee) return { ok: false };
+
+  const [sched, hol] = await Promise.all([
+    loadEmployeeSchedule<{ hari_kerja: number[] | null }>(db, "hari_kerja", employee.branchId, employee.departmentId),
+    db
+      .from("holidays")
+      .select("tanggal, branch_id")
+      .gte("tanggal", from)
+      .lte("tanggal", to),
+  ]);
+  if (sched.error || hol.error) {
+    console.error("previewLeaveDays: lookup failed", sched.error ?? hol.error);
+    return { ok: false };
+  }
+  const holidays = (hol.data ?? [])
+    .filter((h) => h.branch_id === null || h.branch_id === employee.branchId)
+    .map((h) => h.tanggal as string);
+  const workingDays = countWorkingDays(from, to, sched.data?.hari_kerja ?? [1, 2, 3, 4, 5], holidays);
+
+  if (!requiresBalanceCheck(jenis)) return { ok: true, workingDays, chargedDays: null, sisa: null };
+  const bal = await getLeaveBalance(db, employee.id, Number(from.slice(0, 4)), {
+    magang: isMagang(employee.statusKontrak),
+  });
+  return {
+    ok: true,
+    workingDays,
+    chargedDays: calculateLeaveDays(from, to),
+    sisa: bal.ok ? bal.balance.sisa : null,
+  };
 }

@@ -36,7 +36,7 @@ export function EmployeeShell({
   const pathname = usePathname();
   const nav = hideSlipGaji ? NAV.filter((n) => n.href !== "/slip-gaji") : NAV;
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className={cn("flex min-h-screen flex-col bg-background text-foreground", pathname === "/absen" && "motif-batik-page")}>
       <header className="flex h-14 items-center justify-between px-5 pt-[env(safe-area-inset-top)]">
         {brand}
         <div className="flex items-center gap-1">

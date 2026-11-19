@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { Megaphone } from "lucide-react";
 import { activeDinasLuar } from "@/lib/requests/service";
 import { redirect } from "next/navigation";
@@ -11,6 +12,7 @@ import { withRosterShift } from "@/lib/schedule/roster";
 import { loadOfficeLocation } from "@/lib/attendance/office-location";
 import { ClockPanel, type TodaysAttendance } from "./clock-panel";
 import { submitClockIn, submitClockOut } from "./actions";
+import { MonthSummary, MonthSummarySkeleton } from "./month-summary";
 
 export default async function AbsenPage() {
   const db = await createServerSupabaseClient();
@@ -140,6 +142,9 @@ export default async function AbsenPage() {
         submitClockIn={submitClockIn}
         submitClockOut={submitClockOut}
       />
+      <Suspense fallback={<MonthSummarySkeleton />}>
+        <MonthSummary db={db} employee={employee} today={today} />
+      </Suspense>
     </main>
   );
 }

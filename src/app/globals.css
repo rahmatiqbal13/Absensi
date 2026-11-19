@@ -245,13 +245,35 @@ body {
 }
 
 /* Batik (kawung) motif on the navy surfaces — sidebar, login panel, kiosk.
-   Opt-in per viewer via <MotifToggle />, stored as html[data-motif]. The
-   motif sits on navy in both light and dark themes, so one variant suffices. */
-html[data-motif="batik"] .motif-batik {
+   Always on (the product look); it sits on navy in both light and dark
+   themes, so one variant suffices. */
+.motif-batik {
   background-image: linear-gradient(180deg, rgb(23 21 74 / 0) 0, rgb(23 21 74 / 0.9) 78%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none'%3E%3Cg stroke='%238B80FF' stroke-opacity='.14' stroke-width='1.2'%3E%3Cellipse cx='28' cy='14' rx='8' ry='14'/%3E%3Cellipse cx='28' cy='42' rx='8' ry='14'/%3E%3Cellipse cx='14' cy='28' rx='14' ry='8'/%3E%3Cellipse cx='42' cy='28' rx='14' ry='8'/%3E%3C/g%3E%3Cg fill='%23FFC53D' fill-opacity='.30'%3E%3Ccircle cx='28' cy='28' r='2.4'/%3E%3Ccircle cx='28' cy='14' r='1.2'/%3E%3Ccircle cx='28' cy='42' r='1.2'/%3E%3Ccircle cx='14' cy='28' r='1.2'/%3E%3Ccircle cx='42' cy='28' r='1.2'/%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='56' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='56' r='1.2'/%3E%3Ccircle cx='56' cy='56' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
   background-size: 100% 100%, 56px 56px;
 }
-html[data-motif="batik"] .motif-batik-full {
+.motif-batik-full {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none'%3E%3Cg stroke='%238B80FF' stroke-opacity='.14' stroke-width='1.2'%3E%3Cellipse cx='28' cy='14' rx='8' ry='14'/%3E%3Cellipse cx='28' cy='42' rx='8' ry='14'/%3E%3Cellipse cx='14' cy='28' rx='14' ry='8'/%3E%3Cellipse cx='42' cy='28' rx='14' ry='8'/%3E%3C/g%3E%3Cg fill='%23FFC53D' fill-opacity='.30'%3E%3Ccircle cx='28' cy='28' r='2.4'/%3E%3Ccircle cx='28' cy='14' r='1.2'/%3E%3Ccircle cx='28' cy='42' r='1.2'/%3E%3Ccircle cx='14' cy='28' r='1.2'/%3E%3Ccircle cx='42' cy='28' r='1.2'/%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='56' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='56' r='1.2'/%3E%3Ccircle cx='56' cy='56' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
   background-size: 56px 56px;
+}
+
+/* Batik on the light page surfaces (employee Absen page, mobile login):
+   indigo kawung + amber dots at low opacity, fading into --background so the
+   content below stays clean. Dark theme swaps in the brighter strokes the navy
+   surfaces use. */
+:root {
+  --batik-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none'%3E%3Cg stroke='%234A3FDB' stroke-opacity='.10' stroke-width='1.2'%3E%3Cellipse cx='28' cy='14' rx='8' ry='14'/%3E%3Cellipse cx='28' cy='42' rx='8' ry='14'/%3E%3Cellipse cx='14' cy='28' rx='14' ry='8'/%3E%3Cellipse cx='42' cy='28' rx='14' ry='8'/%3E%3C/g%3E%3Cg fill='%23CC7A00' fill-opacity='.20'%3E%3Ccircle cx='28' cy='28' r='2.4'/%3E%3Ccircle cx='28' cy='14' r='1.2'/%3E%3Ccircle cx='28' cy='42' r='1.2'/%3E%3Ccircle cx='14' cy='28' r='1.2'/%3E%3Ccircle cx='42' cy='28' r='1.2'/%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='56' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='56' r='1.2'/%3E%3Ccircle cx='56' cy='56' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+}
+.dark {
+  --batik-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none'%3E%3Cg stroke='%238B80FF' stroke-opacity='.14' stroke-width='1.2'%3E%3Cellipse cx='28' cy='14' rx='8' ry='14'/%3E%3Cellipse cx='28' cy='42' rx='8' ry='14'/%3E%3Cellipse cx='14' cy='28' rx='14' ry='8'/%3E%3Cellipse cx='42' cy='28' rx='14' ry='8'/%3E%3C/g%3E%3Cg fill='%23FFC53D' fill-opacity='.22'%3E%3Ccircle cx='28' cy='28' r='2.4'/%3E%3Ccircle cx='28' cy='14' r='1.2'/%3E%3Ccircle cx='28' cy='42' r='1.2'/%3E%3Ccircle cx='14' cy='28' r='1.2'/%3E%3Ccircle cx='42' cy='28' r='1.2'/%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='56' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='56' r='1.2'/%3E%3Ccircle cx='56' cy='56' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+}
+.motif-batik-page {
+  background-image: linear-gradient(180deg, transparent 0, var(--background) 180px), var(--batik-tile);
+  background-size: 100% 100%, 56px 56px;
+  background-repeat: no-repeat, repeat;
+}
+/* Taller fade for a page with little content up top (mobile login). */
+.motif-batik-page-tall {
+  background-image: linear-gradient(180deg, transparent 0, var(--background) 340px), var(--batik-tile);
+  background-size: 100% 100%, 56px 56px;
+  background-repeat: no-repeat, repeat;
 }

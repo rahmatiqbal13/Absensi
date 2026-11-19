@@ -5,7 +5,6 @@ import { BrandStyle } from "@/components/brand-style";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getAppSettings } from "@/lib/branding/get-app-settings";
-import { MOTIF_INIT_SCRIPT } from "@/lib/motif";
 
 const schibsted = Schibsted_Grotesk({
   variable: "--font-schibsted",
@@ -53,10 +52,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${schibsted.variable} ${jetbrains.variable} h-full antialiased`}
     >
-      <head>
-        {/* Sets html[data-motif] (Polos / Batik) before paint; see lib/motif.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: MOTIF_INIT_SCRIPT }} />
-      </head>
       <body className="min-h-full flex flex-col">
         {/* Server-rendered accent override — no flash, applies globally regardless
             of DOM position via the :root / .dark selectors. */}

@@ -13,7 +13,7 @@ import { annualLeaveEligibleFrom } from "@/lib/leave/eligibility";
 import { leaveJenisLabel } from "@/lib/leave/labels";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { LeaveForm } from "./leave-form";
-import { cancelLeave, submitLeave } from "./actions";
+import { cancelLeave, previewLeaveDays, submitLeave } from "./actions";
 import { CancelLeaveButton } from "./cancel-leave-button";
 
 function formatDate(dateOnly: string): string {
@@ -60,26 +60,36 @@ export default async function CutiPage() {
   return (
     <main className="mx-auto max-w-md space-y-6 p-4 pt-8">
       <RequestTabs active="cuti" />
-      <section aria-labelledby="saldo-heading" className="rounded-2xl bg-primary p-5 text-primary-foreground">
-        <h2 id="saldo-heading" className="text-sm font-medium opacity-85">Sisa cuti tahunan {tahun}</h2>
+      <section aria-labelledby="saldo-heading" className="rounded-2xl border border-border bg-accent p-5 text-foreground">
+        <h2 id="saldo-heading" className="text-sm font-medium text-muted-foreground">Sisa cuti tahunan {tahun}</h2>
         {balanceRes.ok ? (
           <>
             <p className="mt-1 flex items-baseline gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.03em] tabular-nums">
                 {Number.isInteger(balanceRes.balance.sisa) ? balanceRes.balance.sisa : balanceRes.balance.sisa.toFixed(1)}
               </span>
-              <span className="text-sm opacity-85">dari {balanceRes.balance.awal} hari</span>
+              <span className="text-sm text-muted-foreground">dari {balanceRes.balance.awal} hari</span>
             </p>
-            <p className="mt-1 text-sm opacity-85">
+            {balanceRes.balance.awal > 0 && balanceRes.balance.awal <= 30 && (
+              <div aria-hidden="true" className="mt-3 flex gap-1">
+                {Array.from({ length: balanceRes.balance.awal }, (_, i) => (
+                  <span
+                    key={i}
+                    className={i < Math.floor(balanceRes.balance.sisa) ? "h-2 flex-1 rounded-[3px] bg-primary" : "h-2 flex-1 rounded-[3px] bg-foreground/15"}
+                  />
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-sm text-muted-foreground">
               Terpakai {balanceRes.balance.terpakai} hari. Sisa cuti hangus pada 31 Desember {tahun}.
             </p>
             {magang && (
-              <p className="mt-3 rounded-lg bg-primary-foreground/15 px-3 py-2 text-sm">
+              <p className="mt-3 rounded-lg bg-card ring-1 ring-border px-3 py-2 text-sm">
                 Anak magang tidak mendapat jatah cuti tahunan. Cuti sakit dan izin khusus tetap bisa diajukan.
               </p>
             )}
             {!magang && notYetEligible && (
-              <p className="mt-3 rounded-lg bg-primary-foreground/15 px-3 py-2 text-sm">
+              <p className="mt-3 rounded-lg bg-card ring-1 ring-border px-3 py-2 text-sm">
                 Cuti tahunan bisa diajukan mulai{" "}
                 <b>{formatDate(eligibleFrom!)}</b> (setelah 12 bulan bekerja). Cuti sakit dan izin khusus tetap bisa
                 diajukan.
@@ -87,12 +97,12 @@ export default async function CutiPage() {
             )}
           </>
         ) : (
-          <p className="mt-1 text-sm opacity-85">Saldo belum bisa dimuat. Muat ulang halaman.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Saldo belum bisa dimuat. Muat ulang halaman.</p>
         )}
       </section>
       <div>
         <h1 className="mb-4 text-2xl font-semibold text-foreground">Ajukan Cuti</h1>
-        <LeaveForm submitLeave={submitLeave} />
+        <LeaveForm submitLeave={submitLeave} previewDays={previewLeaveDays} />
       </div>
       <div>
         <h2 className="mb-2 text-lg font-semibold text-foreground">Riwayat Pengajuan</h2>

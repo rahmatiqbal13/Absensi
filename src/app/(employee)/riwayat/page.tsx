@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { correctionMinDate, toJakartaHHMM } from "@/lib/attendance/correction";
 import { submitAttendanceCorrection } from "../pengajuan/koreksi/actions";
 import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
-import type { AttendanceStatus } from "@/lib/attendance/status";
 import { toRiwayatRecords } from "./records";
 import {
   DayBadge,
@@ -21,6 +20,7 @@ import {
   type CorrectionTag,
 } from "./history-list";
 import { DayDetailSheet } from "./day-detail-sheet";
+import { MonthCalendar } from "./month-calendar";
 
 const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -72,12 +72,54 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
   if (!report.ok) console.error("RiwayatPage: daily report failed", report.error);
 
   const records = report.ok ? toRiwayatRecords(report.report.rows, today) : [];
-  const count = (pred: (r: AttendanceRecord) => boolean) => records.filter(pred).length;
-  const hadir = (s: AttendanceStatus) => (r: AttendanceRecord) => r.kind === "hadir" && r.status === s;
   const prev = shiftMonth(ym, -1);
   const next = shiftMonth(ym, 1);
   const navClass =
     "grid size-11 place-items-center rounded-full ring-1 ring-border text-foreground hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+  // One detail sheet (with the correction form) per day, opened from either
+  // the calendar or the list. null = a day with nothing to show (cuti / libur).
+  const openDay = (
+    r: AttendanceRecord,
+    node: React.ReactNode,
+    trigger?: { className: string; label: string },
+  ): React.ReactNode | null =>
+        r.kind !== "hadir" && r.kind !== "alpa" && !r.lemburTanpaAbsen ? (
+          null
+        ) : (
+          <DayDetailSheet
+            trigger={trigger}
+            title={formatDate(r.tanggal)}
+            jamMasuk={formatTime(r.jamMasuk)}
+            jamPulang={formatTime(r.jamPulang)}
+            badge={<DayBadge record={r} />}
+            catatan={r.catatan}
+            info={
+              r.lemburTanpaAbsen
+                ? "Lembur hari ini sudah disetujui, tetapi tidak ada catatan absen. Ajukan koreksi jika Anda bekerja."
+                : (r.menitLembur ?? 0) > 0
+                  ? `Lembur tercatat ${formatLembur(r.menitLembur!)}.`
+                  : undefined
+            }
+            tag={tags[r.tanggal]}
+            correction={
+              r.tanggal >= minDate
+                ? {
+                    action: submitAttendanceCorrection,
+                    defaults: {
+                      tanggal: r.tanggal,
+                      jamMasuk: toJakartaHHMM(r.jamMasuk),
+                      jamPulang: toJakartaHHMM(r.jamPulang),
+                    },
+                    minDate,
+                    maxDate: today,
+                  }
+                : undefined
+            }
+          >
+            {node}
+          </DayDetailSheet>
+        );
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-4 pt-8">
@@ -116,63 +158,11 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
         </Alert>
       ) : (
         <>
-          {records.length > 0 && (
-            <dl className="grid grid-cols-3 gap-2 text-center">
-              {[
-                ["Tepat waktu", count(hadir("tepat_waktu"))],
-                ["Terlambat", count(hadir("terlambat"))],
-                ["Pulang cepat", count(hadir("pulang_cepat"))],
-                ["Luar lokasi", count(hadir("di_luar_lokasi"))],
-                ["Tidak absen", count((r) => r.kind === "alpa")],
-                ["Cuti", count((r) => r.kind === "cuti")],
-              ].map(([label, n]) => (
-                <div key={label} className="flex flex-col-reverse rounded-xl bg-card p-2 ring-1 ring-border">
-                  <dt className="text-[0.7rem] text-muted-foreground">{label}</dt>
-                  <dd className="font-mono text-lg font-semibold tabular-nums">{n}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          <MonthCalendar ym={ym} today={today} records={records} wrapDay={(r, cell, t) => openDay(r, cell, t)} />
           <HistoryList
             records={records}
             tags={tags}
-            wrapRow={(r, row) =>
-              r.kind !== "hadir" && r.kind !== "alpa" && !r.lemburTanpaAbsen ? (
-                row
-              ) : (
-                <DayDetailSheet
-                  title={formatDate(r.tanggal)}
-                  jamMasuk={formatTime(r.jamMasuk)}
-                  jamPulang={formatTime(r.jamPulang)}
-                  badge={<DayBadge record={r} />}
-                  catatan={r.catatan}
-                  info={
-                    r.lemburTanpaAbsen
-                      ? "Lembur hari ini sudah disetujui, tetapi tidak ada catatan absen. Ajukan koreksi jika Anda bekerja."
-                      : (r.menitLembur ?? 0) > 0
-                        ? `Lembur tercatat ${formatLembur(r.menitLembur!)}.`
-                        : undefined
-                  }
-                  tag={tags[r.tanggal]}
-                  correction={
-                    r.tanggal >= minDate
-                      ? {
-                          action: submitAttendanceCorrection,
-                          defaults: {
-                            tanggal: r.tanggal,
-                            jamMasuk: toJakartaHHMM(r.jamMasuk),
-                            jamPulang: toJakartaHHMM(r.jamPulang),
-                          },
-                          minDate,
-                          maxDate: today,
-                        }
-                      : undefined
-                  }
-                >
-                  {row}
-                </DayDetailSheet>
-              )
-            }
+            wrapRow={(r, row) => openDay(r, row) ?? row}
           />
         </>
       )}

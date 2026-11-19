@@ -39,7 +39,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           </span>
         </div>
       </aside>
-      <div className="flex min-h-screen flex-col">
+      <div className="motif-batik-page-tall flex min-h-screen flex-col lg:bg-none!">
         <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
           <div className="flex w-full max-w-[380px] flex-col gap-8">
             <div className="flex flex-col items-start gap-2 lg:hidden">

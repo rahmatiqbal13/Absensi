@@ -8,8 +8,7 @@ import { formatRupiah } from "@/lib/format/rupiah";
 import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
-import { Download, Eye, ReceiptText } from "lucide-react";
+import { ChevronRight, Download, ReceiptText } from "lucide-react";
 
 export default async function SlipGajiPage() {
   const db = await createServerSupabaseClient();
@@ -23,7 +22,7 @@ export default async function SlipGajiPage() {
   // matching the employees!inner pattern used in the dashboard summary.
   const { data, error } = await db
     .from("payslips")
-    .select("id, gaji_akhir, payroll_periods!inner(bulan, tahun, status)")
+    .select("id, gaji_akhir, total_potongan_absensi, payroll_periods!inner(bulan, tahun, status)")
     .eq("employee_id", employee.id)
     .eq("payroll_periods.status", "final");
 
@@ -55,31 +54,35 @@ export default async function SlipGajiPage() {
       )}
 
       {rows.length > 0 && (
-        <ul className="divide-y divide-border">
+        <ul className="flex flex-col">
           {rows.map((s) => {
             const p = s.payroll_periods as unknown as { bulan: number; tahun: number };
+            const potongan = Number(s.total_potongan_absensi ?? 0);
+            const periode = `${monthLabel(p.bulan)} ${p.tahun}`;
             return (
-              <li key={s.id} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {monthLabel(p.bulan)} {p.tahun}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
+              <li key={s.id} className="flex items-center gap-2 border-t border-border">
+                <Link
+                  href={paths.slipGaji(p.bulan, p.tahun)}
+                  className="flex min-h-19 min-w-0 flex-1 items-center justify-between gap-3 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-[1.05rem] font-semibold text-foreground">{periode}</span>
+                    <span className="text-sm text-muted-foreground">
+                      Final · {potongan > 0 ? `potongan ${formatRupiah(potongan)}` : "tanpa potongan"}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 font-mono text-[0.95rem] font-semibold tabular-nums">
                     {formatRupiah(Number(s.gaji_akhir))}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button asChild variant="outline" size="sm" className="min-h-11">
-                    <Link href={paths.slipGaji(p.bulan, p.tahun)}>
-                      <Eye className="size-4" /> Lihat
-                    </Link>
-                  </Button>
-                  <Button asChild variant="ghost" size="sm" className="min-h-11" aria-label={`Unduh PDF ${monthLabel(p.bulan)} ${p.tahun}`}>
-                    <a href={paths.slipGajiPdf(p.bulan, p.tahun)}>
-                      <Download className="size-4" /> PDF
-                    </a>
-                  </Button>
-                </div>
+                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                  </span>
+                </Link>
+                <a
+                  href={paths.slipGajiPdf(p.bulan, p.tahun)}
+                  aria-label={`Unduh PDF ${periode}`}
+                  className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Download className="size-5" aria-hidden="true" />
+                </a>
               </li>
             );
           })}

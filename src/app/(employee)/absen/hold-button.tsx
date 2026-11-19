@@ -65,15 +65,17 @@ export function HoldButton({
         if (e.detail === 0 && !disabled) onConfirm();
       }}
       className={cn(
-        "relative h-[68px] w-full touch-none overflow-hidden rounded-[18px] bg-primary text-[1.05rem] font-semibold text-primary-foreground select-none outline-none focus-visible:ring-3 focus-visible:ring-brand/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted-foreground/60",
-        "transition-transform duration-150",
+        // Warm highlight with a hard offset shadow: the one CTA on the screen.
+        "relative h-[72px] w-full touch-none overflow-hidden rounded-2xl border-2 border-primary bg-highlight text-[1.05rem] font-bold text-highlight-foreground shadow-[4px_4px_0_var(--primary)] select-none outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "transition-[transform,box-shadow] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none",
+        "disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:active:translate-x-0 disabled:active:translate-y-0",
       )}
     >
       <span className="relative z-10">{busy ? "Menyimpan…" : `Tahan untuk ${label}`}</span>
       <span
         ref={fill}
         aria-hidden="true"
-        className="absolute inset-0 bg-brand"
+        className="absolute inset-0 bg-success-solid"
         style={{ clipPath: "inset(0 100% 0 0)" }}
       />
     </button>

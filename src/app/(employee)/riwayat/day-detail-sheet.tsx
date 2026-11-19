@@ -22,8 +22,11 @@ export function DayDetailSheet({
   info,
   tag,
   correction,
+  trigger,
 }: {
   children: React.ReactNode;
+  /** Custom trigger (e.g. a calendar cell) instead of the full-width row with a chevron. */
+  trigger?: { className: string; label: string };
   title: string;
   jamMasuk: string;
   jamPulang: string;
@@ -40,13 +43,19 @@ export function DayDetailSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button
-          type="button"
-          className="flex w-full items-center text-left outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
-          <span className="min-w-0 flex-1">{children}</span>
-          <ChevronRight className="mr-3 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </button>
+        {trigger ? (
+          <button type="button" aria-label={trigger.label} className={trigger.className}>
+            {children}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="flex w-full items-center text-left outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
+            <span className="min-w-0 flex-1">{children}</span>
+            <ChevronRight className="mr-3 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        )}
       </SheetTrigger>
       <SheetContent side="bottom" className="rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <SheetHeader>

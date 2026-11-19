@@ -15,7 +15,7 @@ export function SubmitButton({
 }: React.ComponentProps<typeof Button> & { pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending || props.disabled} aria-busy={pending} {...props}>
+    <Button type="submit" {...props} disabled={pending || props.disabled} aria-busy={pending}>
       {pending ? (
         <>
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />

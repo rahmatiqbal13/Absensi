@@ -23,7 +23,6 @@ import { ProductLogo } from "@/components/product-logo";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { MotifToggle } from "@/components/motif-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -256,7 +255,6 @@ function SidebarBody({
         {notifications && <div className="-mt-1 -mr-1 shrink-0 [&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
       </div>
       <ClockCard />
-      <MotifToggle className="px-1" />
       <AdminNav
         role={employee.role}
         pendingLeave={pendingLeave}
