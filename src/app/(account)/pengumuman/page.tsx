@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AnnouncementComposer, DeleteAnnouncementButton } from "./announcement-composer";
 import { createAnnouncement, deleteAnnouncement } from "./actions";
+import { PengumumanTabs } from "./pengumuman-tabs";
 
 export const metadata = { title: "Pengumuman" };
 
@@ -44,6 +45,7 @@ export default async function PengumumanPage() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 p-4">
       <PageHeader eyebrow="Informasi" title="Pengumuman" description="Informasi resmi dari HR." />
+      {isHr && <PengumumanTabs active="pengumuman" />}
       {isHr && (
         <AnnouncementComposer
           branches={(branchRes.data ?? []) as { id: string; nama: string }[]}

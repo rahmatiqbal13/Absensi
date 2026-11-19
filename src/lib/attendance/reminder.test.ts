@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueReminders, type ReminderEmployee, type ReminderSchedule } from "./reminder";
+import { dueClockReminders, dueReminders, type ReminderEmployee, type ReminderSchedule } from "./reminder";
 
 // 2026-11-18 is a Wednesday (dow 3).
 const TANGGAL = "2026-11-18";
@@ -105,3 +105,53 @@ describe("dueReminders", () => {
     expect(run({ rosters: libur })).toEqual([]);
   });
 });
+
+describe("dueClockReminders", () => {
+  function clock(over: Partial<Parameters<typeof dueClockReminders>[0]> = {}) {
+    return dueClockReminders({
+      tanggal: TANGGAL,
+      nowMinutes: at("07:45"),
+      employees: [EMP],
+      schedules: [BRANCH_SCHEDULE],
+      holidays: [],
+      onLeave: new Set(),
+      attendance: new Map(),
+      remindedMasuk: new Set(),
+      remindedPulang: new Set(),
+      ...over,
+    }).map((d) => `${d.employee.id}:${d.kind}:${d.jam}`);
+  }
+
+  it("reminds in the 15 minutes before jam masuk, not earlier or at jam masuk", () => {
+    expect(clock()).toEqual(["e1:masuk:08:00"]);
+    expect(clock({ nowMinutes: at("07:59") })).toEqual(["e1:masuk:08:00"]);
+    expect(clock({ nowMinutes: at("07:44") })).toEqual([]);
+    expect(clock({ nowMinutes: at("08:00") })).toEqual([]);
+  });
+
+  it("skips the masuk reminder once clocked in or already sent", () => {
+    expect(clock({ attendance: new Map([["e1", { clockedOut: false }]]) })).toEqual([]);
+    expect(clock({ remindedMasuk: new Set(["e1"]) })).toEqual([]);
+  });
+
+  it("reminds to clock out from jam pulang for an hour, only if clocked in and not out", () => {
+    const inNotOut = new Map([["e1", { clockedOut: false }]]);
+    expect(clock({ nowMinutes: at("17:00"), attendance: inNotOut })).toEqual(["e1:pulang:17:00"]);
+    expect(clock({ nowMinutes: at("17:59"), attendance: inNotOut })).toEqual(["e1:pulang:17:00"]);
+    expect(clock({ nowMinutes: at("16:59"), attendance: inNotOut })).toEqual([]);
+    expect(clock({ nowMinutes: at("18:00"), attendance: inNotOut })).toEqual([]);
+    expect(clock({ nowMinutes: at("17:00"), attendance: new Map([["e1", { clockedOut: true }]]) })).toEqual([]);
+    expect(clock({ nowMinutes: at("17:00") })).toEqual([]);
+    expect(clock({ nowMinutes: at("17:00"), attendance: inNotOut, remindedPulang: new Set(["e1"]) })).toEqual([]);
+  });
+
+  it("follows the employee's own schedule and skips days off and leave", () => {
+    const dept: ReminderSchedule = { ...BRANCH_SCHEDULE, department_id: "d1", jam_masuk: "10:00:00", jam_pulang: "19:00:00" };
+    expect(clock({ nowMinutes: at("09:50"), employees: [{ ...EMP, department_id: "d1" }], schedules: [BRANCH_SCHEDULE, dept] })).toEqual(["e1:masuk:10:00"]);
+    expect(clock({ tanggal: "2026-11-22" })).toEqual([]); // Sunday
+    expect(clock({ holidays: [{ branch_id: null }] })).toEqual([]);
+    expect(clock({ onLeave: new Set(["e1"]) })).toEqual([]);
+    expect(clock({ employees: [{ ...EMP, role: "super_admin" }] })).toEqual([]);
+  });
+});
+
