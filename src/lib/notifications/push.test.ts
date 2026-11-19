@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const sendNotification = vi.fn();
-vi.mock("web-push", () => ({ default: { setVapidDetails: vi.fn(), sendNotification: (...a: unknown[]) => sendNotification(...a) } }));
+vi.mock("web-push", () => ({ setVapidDetails: vi.fn(), sendNotification: (...a: unknown[]) => sendNotification(...a) }));
 
 const SUBS = [
   { id: "s1", employee_id: "e1", endpoint: "https://push.example/1", p256dh: "k1", auth: "a1" },

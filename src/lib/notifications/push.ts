@@ -1,4 +1,4 @@
-import webpush from "web-push";
+import * as webpush from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PushMessage = { employeeId: string; title: string; body: string; link: string | null; tag: string };
