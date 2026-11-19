@@ -1,35 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardPen } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AttendanceCorrectionDialog } from "@/components/attendance-correction-dialog";
-import { LeaveStatusBadge, type LeaveStatus } from "@/components/leave-status-badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { correctionMinDate, toJakartaHHMM } from "@/lib/attendance/correction";
-import { HistoryList, type AttendanceRecord } from "./history-list";
-import { cancelAttendanceCorrection, submitAttendanceCorrection } from "./actions";
-import { CancelCorrectionButton } from "./cancel-correction-button";
-
-function formatTanggal(dateOnly: string): string {
-  return new Date(`${dateOnly}T00:00:00Z`).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-const CORRECTION_COPY = {
-  title: "Ajukan koreksi absensi",
-  description:
-    "Isi jam masuk dan pulang yang sebenarnya. Atasan Anda akan meninjau, dan absensi diperbarui setelah disetujui.",
-  submitLabel: "Kirim pengajuan",
-  successMessage: "Pengajuan koreksi terkirim.",
-};
+import { submitAttendanceCorrection } from "../pengajuan/koreksi/actions";
+import { HistoryList, formatDate, formatTime, type AttendanceRecord, type CorrectionTag } from "./history-list";
+import { DayDetailSheet } from "./day-detail-sheet";
 
 const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -55,20 +35,29 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
 
   const today = toJakartaDateOnly(new Date());
   const minDate = correctionMinDate(today);
+  const monthStart = `${ym}-01`;
+  const monthEnd = `${ym}-${String(lastDay).padStart(2, "0")}`;
+  // Only to flag days on the list; the requests themselves live under Pengajuan > Koreksi.
   const { data: corrections, error: corrErr } = await db
     .from("attendance_corrections")
-    .select("id, tanggal, jam_masuk, jam_pulang, alasan, status, catatan_approval")
+    .select("tanggal, status")
     .eq("employee_id", employee.id)
-    .order("created_at", { ascending: false })
-    .limit(10);
+    .in("status", ["pending", "approved"])
+    .gte("tanggal", monthStart)
+    .lte("tanggal", monthEnd);
   if (corrErr) console.error("RiwayatPage: corrections query failed", corrErr);
+  const tags: Partial<Record<string, CorrectionTag>> = {};
+  for (const c of corrections ?? []) {
+    // A pending request outranks an older approved one for the same day.
+    if (c.status === "pending" || !tags[c.tanggal]) tags[c.tanggal] = c.status as CorrectionTag;
+  }
 
   const { data, error } = await db
     .from("attendances")
     .select("tanggal, jam_masuk, jam_pulang, status, catatan")
     .eq("employee_id", employee.id)
-    .gte("tanggal", `${ym}-01`)
-    .lte("tanggal", `${ym}-${String(lastDay).padStart(2, "0")}`)
+    .gte("tanggal", monthStart)
+    .lte("tanggal", monthEnd)
     .order("tanggal", { ascending: false });
   if (error) console.error("RiwayatPage: attendances query failed", error);
 
@@ -87,15 +76,9 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-4 pt-8">
-      <div className="flex items-center justify-between gap-3">
+      <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">Riwayat Absensi</h1>
-        <AttendanceCorrectionDialog
-          action={submitAttendanceCorrection}
-          defaults={{ tanggal: today }}
-          minDate={minDate}
-          maxDate={today}
-          {...CORRECTION_COPY}
-        />
+        <p className="text-sm text-muted-foreground">Ketuk satu hari untuk melihat detail atau mengajukan koreksi.</p>
       </div>
 
       <nav aria-label="Pilih bulan" className="flex items-center justify-between gap-3">
@@ -137,57 +120,44 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
           )}
           <HistoryList
             records={records}
-            rowAction={(r) =>
-              r.tanggal >= minDate ? (
-                <AttendanceCorrectionDialog
-                  action={submitAttendanceCorrection}
-                  defaults={{ tanggal: r.tanggal, jamMasuk: toJakartaHHMM(r.jamMasuk), jamPulang: toJakartaHHMM(r.jamPulang) }}
-                  minDate={minDate}
-                  maxDate={today}
-                  trigger="link"
-                  {...CORRECTION_COPY}
-                />
-              ) : null
-            }
+            tags={tags}
+            wrapRow={(r, row) => (
+              <DayDetailSheet
+                title={formatDate(r.tanggal)}
+                jamMasuk={formatTime(r.jamMasuk)}
+                jamPulang={formatTime(r.jamPulang)}
+                status={r.status}
+                catatan={r.catatan}
+                tag={tags[r.tanggal]}
+                correction={
+                  r.tanggal >= minDate
+                    ? {
+                        action: submitAttendanceCorrection,
+                        defaults: { tanggal: r.tanggal, jamMasuk: toJakartaHHMM(r.jamMasuk), jamPulang: toJakartaHHMM(r.jamPulang) },
+                        minDate,
+                        maxDate: today,
+                      }
+                    : undefined
+                }
+              >
+                {row}
+              </DayDetailSheet>
+            )}
           />
         </>
       )}
 
-      {(corrections ?? []).length > 0 && (
-        <section aria-labelledby="koreksi-heading" className="space-y-2 pt-2">
-          <h2 id="koreksi-heading" className="text-lg font-semibold text-foreground">
-            Pengajuan koreksi
-          </h2>
-          <ul className="flex flex-col gap-2">
-            {(corrections ?? []).map((c) => (
-              <li key={c.id}>
-                <Card size="sm">
-                  <CardContent className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex flex-col">
-                        <span className="text-sm font-semibold text-foreground">{formatTanggal(c.tanggal)}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {toJakartaHHMM(c.jam_masuk)} – {toJakartaHHMM(c.jam_pulang) ?? "belum pulang"}
-                        </span>
-                      </span>
-                      <LeaveStatusBadge status={c.status as LeaveStatus} />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{c.alasan}</p>
-                    {c.catatan_approval && (
-                      <p className="rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">
-                        {c.catatan_approval}
-                      </p>
-                    )}
-                    {c.status === "pending" && (
-                      <CancelCorrectionButton action={cancelAttendanceCorrection.bind(null, c.id)} />
-                    )}
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <Link
+        href="/pengajuan/koreksi"
+        className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm ring-1 ring-border outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ClipboardPen className="size-4 shrink-0 text-brand-text" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-foreground">Ada hari yang tidak tercatat?</span>
+          <span className="block text-muted-foreground">Ajukan dan lacak koreksi di Pengajuan</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </Link>
     </main>
   );
 }

@@ -5,12 +5,13 @@ const TABS = [
   { key: "cuti", label: "Cuti", href: "/cuti" },
   { key: "lembur", label: "Lembur", href: "/pengajuan?jenis=lembur" },
   { key: "dinas_luar", label: "Dinas luar", href: "/pengajuan?jenis=dinas_luar" },
+  { key: "koreksi", label: "Koreksi", href: "/pengajuan/koreksi" },
 ] as const;
 
-/** Switches between the three kinds of request an employee can file. */
+/** Switches between the four kinds of request an employee can file. */
 export function RequestTabs({ active }: { active: (typeof TABS)[number]["key"] }) {
   return (
-    <nav aria-label="Jenis pengajuan" className="grid h-11 grid-cols-3 rounded-xl bg-secondary p-1">
+    <nav aria-label="Jenis pengajuan" className="grid h-11 grid-cols-4 rounded-xl bg-secondary p-1">
       {TABS.map((t) => (
         <Link
           key={t.key}

@@ -8,6 +8,12 @@ import { EMPLOYEE_CORRECTION_MAX_DAYS_BACK, validateCorrectionInput } from "@/li
 import { cancelCorrection, submitCorrection } from "@/lib/attendance/correction-service";
 import { notifyApproverOfCorrection } from "@/lib/attendance/correction-notify";
 
+/** Corrections are tracked under Pengajuan and flagged per day on Riwayat. */
+function revalidateCorrectionViews() {
+  revalidatePath("/pengajuan/koreksi");
+  revalidatePath("/riwayat");
+}
+
 type Result = { ok: true } | { ok: false; error: string };
 
 export async function submitAttendanceCorrection(formData: FormData): Promise<Result> {
@@ -35,7 +41,7 @@ export async function submitAttendanceCorrection(formData: FormData): Promise<Re
   await notifyApproverOfCorrection(service, result.correctionId).catch((e) =>
     console.error("submitAttendanceCorrection: approver notification failed", e),
   );
-  revalidatePath("/riwayat");
+  revalidateCorrectionViews();
   return { ok: true };
 }
 
@@ -44,6 +50,6 @@ export async function cancelAttendanceCorrection(correctionId: string): Promise<
   const me = await getCurrentEmployee(db);
   if (!me) return { ok: false, error: "Anda belum masuk. Silakan login ulang." };
   const result = await cancelCorrection(createServiceRoleSupabaseClient(), me.id, correctionId);
-  if (result.ok) revalidatePath("/riwayat");
+  if (result.ok) revalidateCorrectionViews();
   return result;
 }

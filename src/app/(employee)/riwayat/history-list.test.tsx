@@ -70,4 +70,22 @@ describe("HistoryList", () => {
     );
     expect(screen.getByText("Kunjungan klien di luar kota")).toBeInTheDocument();
   });
+
+  it("flags days with a pending or approved correction", () => {
+    const rec = (tanggal: string) => ({
+      tanggal,
+      jamMasuk: `${tanggal}T01:00:00Z`,
+      jamPulang: `${tanggal}T10:00:00Z`,
+      status: "tepat_waktu" as const,
+      catatan: null,
+    });
+    render(
+      <HistoryList
+        records={[rec("2026-09-01"), rec("2026-09-02"), rec("2026-09-03")]}
+        tags={{ "2026-09-01": "pending", "2026-09-02": "approved" }}
+      />,
+    );
+    expect(screen.getAllByText("Koreksi menunggu")).toHaveLength(1);
+    expect(screen.getAllByText("Dikoreksi")).toHaveLength(1);
+  });
 });
