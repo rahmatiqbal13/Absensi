@@ -19,7 +19,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const { tagline } = await getAppSettings();
   return (
     <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-2">
-      <aside className="hidden flex-col justify-between gap-12 bg-sidebar p-12 text-sidebar-foreground lg:flex">
+      <aside className="motif-batik-full hidden flex-col justify-between gap-12 bg-sidebar p-12 text-sidebar-foreground lg:flex">
         <div className="flex flex-col items-start gap-3.5">
           <ProductLogo size={44} />
           {/* The company (instansi) logo + name, uploaded in Pengaturan → Instansi. */}

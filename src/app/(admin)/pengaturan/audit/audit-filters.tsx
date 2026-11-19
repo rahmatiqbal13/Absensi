@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
+import { AUDIT_KATEGORI } from "@/lib/audit/kategori";
+import { cn } from "@/lib/utils";
 import { FilterBar } from "@/components/filter-bar";
 import { Field } from "@/components/field";
 import { Input } from "@/components/ui/input";
@@ -41,12 +45,14 @@ export function AuditFilters({
   defaults,
 }: {
   employees: { id: string; nama: string }[];
-  defaults: { dari?: string; sampai?: string; target?: string; aksi?: string };
+  defaults: { dari?: string; sampai?: string; target?: string; aksi?: string; q?: string; jenis?: string };
 }) {
   const router = useRouter();
 
-  function pushWith(overrides: Record<string, string>) {
+  function hrefWith(overrides: Record<string, string>) {
     const next = {
+      q: defaults.q ?? "",
+      jenis: defaults.jenis ?? "",
       dari: defaults.dari ?? "",
       sampai: defaults.sampai ?? "",
       target: defaults.target ?? "",
@@ -55,10 +61,53 @@ export function AuditFilters({
     };
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(next)) if (v) params.set(k, v);
-    router.push(`/pengaturan/audit?${params.toString()}`);
+    const qs = params.toString();
+    return qs ? `/pengaturan/audit?${qs}` : "/pengaturan/audit";
   }
 
+  function pushWith(overrides: Record<string, string>) {
+    router.push(hrefWith(overrides));
+  }
+
+  const tabs = [{ value: "", label: "Semua" }, ...AUDIT_KATEGORI];
+
   return (
+    <div className="flex flex-col gap-3">
+    <div className="flex flex-wrap items-end gap-3">
+      <form
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const v = new FormData(e.currentTarget).get("q");
+          pushWith({ q: typeof v === "string" ? v.trim() : "" });
+        }}
+        className="flex min-w-[240px] flex-1 flex-col gap-1.5"
+      >
+        <label htmlFor="audit-q" className="text-sm font-medium">Pelaku atau target</label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input id="audit-q" name="q" defaultValue={defaults.q} placeholder="Cari nama, lalu Enter" className="pl-9" />
+        </div>
+      </form>
+      <nav aria-label="Jenis aksi" className="flex flex-wrap gap-1 rounded-xl bg-muted p-1">
+        {tabs.map((t) => {
+          const on = (defaults.jenis ?? "") === t.value;
+          return (
+            <Link
+              key={t.value || "semua"}
+              href={hrefWith({ jenis: t.value, aksi: "" })}
+              aria-current={on ? "page" : undefined}
+              className={cn(
+                "inline-flex h-8.5 items-center rounded-[9px] px-3 text-[0.8rem] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-card",
+              )}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
     <FilterBar>
       <Field id="audit-dari" label="Dari">
         <Input
@@ -90,8 +139,9 @@ export function AuditFilters({
       </Field>
       <Field id="audit-aksi" label="Aksi">
         <NativeSelect
+          key={defaults.aksi ?? ""}
           defaultValue={defaults.aksi ?? ""}
-          onChange={(e) => pushWith({ aksi: e.target.value })}
+          onChange={(e) => pushWith({ aksi: e.target.value, jenis: "" })}
           className="w-48"
         >
           {AKSI_OPTIONS.map((o) => (
@@ -100,5 +150,6 @@ export function AuditFilters({
         </NativeSelect>
       </Field>
     </FilterBar>
+    </div>
   );
 }

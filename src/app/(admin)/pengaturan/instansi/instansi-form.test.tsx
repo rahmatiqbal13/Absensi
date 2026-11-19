@@ -21,6 +21,15 @@ describe("InstansiForm", () => {
     expect(await screen.findByText(/#RRGGBB/i)).toBeInTheDocument();
   });
 
+  it("fills the hex field from a preset swatch", async () => {
+    const user = userEvent.setup();
+    render(<InstansiForm defaults={DEFAULTS} saveAppSettings={vi.fn()} uploadLogo={vi.fn()} removeLogo={vi.fn()} />);
+    const swatch = screen.getByRole("button", { name: "Hijau daun" });
+    await user.click(swatch);
+    expect(screen.getByLabelText(/warna aksen \(hex\)/i)).toHaveValue("#0B7A5C");
+    expect(swatch).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("shows a contrast warning for a low-contrast accent", async () => {
     const user = userEvent.setup();
     render(<InstansiForm defaults={DEFAULTS} saveAppSettings={vi.fn()} uploadLogo={vi.fn()} removeLogo={vi.fn()} />);

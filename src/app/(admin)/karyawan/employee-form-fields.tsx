@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Field } from "@/components/field";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
@@ -30,17 +32,35 @@ const PTKP_OPTIONS = [
 ];
 
 const ROLE_OPTIONS = [
-  { value: "karyawan", label: "Karyawan" },
-  { value: "atasan", label: "Atasan" },
-  { value: "hr_admin", label: "HR Admin" },
-  { value: "super_admin", label: "Super Admin" },
+  { value: "karyawan", label: "Karyawan", desc: "Absen, ajukan cuti, lihat slip." },
+  { value: "atasan", label: "Atasan", desc: "Menyetujui cuti tim, melihat ringkasan." },
+  { value: "hr_admin", label: "HR Admin", desc: "Kelola karyawan, payroll, pengaturan." },
+  { value: "super_admin", label: "Super Admin", desc: "Akses penuh termasuk instansi." },
 ];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+const SECTIONS = [
+  { id: "identitas", title: "Identitas" },
+  { id: "kepegawaian", title: "Kepegawaian" },
+  { id: "struktur", title: "Struktur Organisasi" },
+  { id: "persetujuan", title: "Persetujuan" },
+];
+
+// Same divisor the payroll uses to illustrate a day's pay; the real figure per
+// period depends on that period's working days.
+const HARI_KERJA_ILUSTRASI = 22;
+const RP = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
+
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-medium text-foreground">{title}</h2>
-      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    <section
+      id={id}
+      aria-labelledby={`${id}-title`}
+      className="scroll-mt-6 rounded-2xl border border-border bg-card p-5 sm:p-6"
+    >
+      <h2 id={`${id}-title`} className="mb-4 text-[0.95rem] font-bold text-foreground">
+        {title}
+      </h2>
+      <div className="grid gap-4.5 sm:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -58,9 +78,27 @@ export function EmployeeFormFields({
   defaults?: Partial<EmployeeFieldValues>;
   emailReadOnly?: boolean;
 }) {
+  const [role, setRole] = useState(defaults.role ?? "karyawan");
+  const [gaji, setGaji] = useState(defaults.gajiPokok ?? "0");
+  const gajiNum = Number(gaji);
+  const isAdminRole = role === "hr_admin" || role === "super_admin";
+
   return (
-    <div className="space-y-6">
-      <Section title="Identitas">
+    <div className="grid gap-6 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start">
+      <nav aria-label="Bagian formulir" className="hidden flex-col lg:sticky lg:top-6 lg:flex">
+        {SECTIONS.map((sec, i) => (
+          <a
+            key={sec.id}
+            href={`#${sec.id}`}
+            className="flex items-baseline gap-3 border-t border-border py-2.5 text-sm outline-none hover:text-brand-text focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="font-mono text-xs text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+            {sec.title}
+          </a>
+        ))}
+      </nav>
+      <div className="flex min-w-0 flex-col gap-5">
+      <Section id="identitas" title="Identitas">
         <Field id="nama" label="Nama">
           <Input name="nama" defaultValue={defaults.nama} required />
         </Field>
@@ -80,7 +118,7 @@ export function EmployeeFormFields({
         </Field>
       </Section>
 
-      <Section title="Kepegawaian">
+      <Section id="kepegawaian" title="Kepegawaian">
         <Field
           id="statusKontrak"
           label="Status Kontrak"
@@ -105,19 +143,58 @@ export function EmployeeFormFields({
         <Field id="tanggalMulaiKerja" label="Tanggal Mulai Kerja">
           <Input name="tanggalMulaiKerja" type="date" defaultValue={defaults.tanggalMulaiKerja} required />
         </Field>
-        <Field id="gajiPokok" label="Gaji Pokok">
-          <Input name="gajiPokok" type="number" min="0" inputMode="numeric" defaultValue={defaults.gajiPokok ?? "0"} />
+        <Field
+          id="gajiPokok"
+          label="Gaji Pokok"
+          hint={
+            gajiNum > 0
+              ? `Per bulan · sekitar ${RP.format(Math.round(gajiNum / HARI_KERJA_ILUSTRASI))} per hari kerja`
+              : "Per bulan, sebelum potongan."
+          }
+        >
+          <Input
+            name="gajiPokok"
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={gaji}
+            onChange={(e) => setGaji(e.target.value)}
+            className="font-mono"
+          />
         </Field>
-        <Field id="role" label="Role">
-          <NativeSelect id="role" name="role" defaultValue={defaults.role ?? "karyawan"}>
-            {ROLE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </NativeSelect>
-        </Field>
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="mb-2 text-sm font-medium">Peran sistem</legend>
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            {ROLE_OPTIONS.map((o) => {
+              const on = role === o.value;
+              return (
+                <label
+                  key={o.value}
+                  className={cn(
+                    "flex cursor-pointer flex-col gap-1 rounded-xl border p-3.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                    on ? "border-primary bg-accent" : "border-input hover:bg-muted/60",
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <input
+                      type="radio"
+                      name="role"
+                      value={o.value}
+                      checked={on}
+                      onChange={() => setRole(o.value)}
+                      className="size-4 accent-primary"
+                    />
+                    {o.label}
+                  </span>
+                  <span className="text-[0.8rem] leading-snug text-muted-foreground">{o.desc}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
       </Section>
 
-      <Section title="Struktur Organisasi">
+      <Section id="struktur" title="Struktur Organisasi">
         <Field id="branchId" label="Cabang">
           <NativeSelect id="branchId" name="branchId" defaultValue={defaults.branchId ?? ""} required>
             <option value="">Pilih cabang</option>
@@ -144,8 +221,16 @@ export function EmployeeFormFields({
         </Field>
       </Section>
 
-      <Section title="Persetujuan">
-        <Field id="designatedApproverId" label="Approver Pengganti (wajib utk HR/Super Admin)">
+      <Section id="persetujuan" title="Persetujuan">
+        <Field
+          id="designatedApproverId"
+          label="Approver Pengganti"
+          hint={
+            isAdminRole
+              ? "Wajib untuk HR Admin dan Super Admin agar cuti mereka tidak menyetujui diri sendiri."
+              : "Opsional. Dipakai saat atasan langsung sedang cuti."
+          }
+        >
           <NativeSelect id="designatedApproverId" name="designatedApproverId" defaultValue={defaults.designatedApproverId ?? ""}>
             <option value="">—</option>
             {approverOptions.map((a) => (
@@ -154,6 +239,7 @@ export function EmployeeFormFields({
           </NativeSelect>
         </Field>
       </Section>
+      </div>
     </div>
   );
 }

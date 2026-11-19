@@ -223,7 +223,7 @@ export default async function LaporanPage({
                   <span className="flex min-w-[140px] items-center gap-2.5">
                     <span className="block h-1.5 flex-1 overflow-hidden rounded-[3px] bg-muted">
                       <span
-                        className={`block h-full ${pct < 90 ? "bg-warning-solid" : "bg-foreground"}`}
+                        className={`block h-full ${pct < 90 ? "bg-warning-solid" : "bg-primary"}`}
                         style={{ width: `${Math.min(100, pct)}%` }}
                       />
                     </span>

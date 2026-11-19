@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { EmployeeFormFields } from "./employee-form-fields";
 
 const props = {
@@ -11,9 +11,25 @@ const props = {
 describe("EmployeeFormFields", () => {
   it("renders every field validateEmployeeInput expects", () => {
     render(<EmployeeFormFields {...props} />);
-    for (const label of [/nama/i, /email/i, /jabatan/i, /status kontrak/i, /tanggal mulai kerja/i, /gaji pokok/i, /^role/i, /cabang/i]) {
+    for (const label of [/nama/i, /email/i, /jabatan/i, /status kontrak/i, /tanggal mulai kerja/i, /gaji pokok/i, /cabang/i]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
+  });
+
+  it("picks the role through radio cards and explains the approver rule", () => {
+    render(<EmployeeFormFields {...props} defaults={{ role: "karyawan" }} />);
+    const group = screen.getByRole("group", { name: /peran sistem/i });
+    expect(group).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^karyawan/i })).toBeChecked();
+    expect(screen.getByText(/opsional\. dipakai saat atasan/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /^hr admin/i }));
+    expect(screen.getByRole("radio", { name: /^hr admin/i })).toBeChecked();
+    expect(screen.getByText(/wajib untuk hr admin/i)).toBeInTheDocument();
+  });
+
+  it("shows the per-day pay estimate", () => {
+    render(<EmployeeFormFields {...props} defaults={{ gajiPokok: "6600000" }} />);
+    expect(screen.getByText(/per hari kerja/i).textContent).toMatch(/300\.000/);
   });
 
   it("renders the email input read-only when emailReadOnly is set, keeping its value", () => {

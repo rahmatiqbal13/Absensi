@@ -15,6 +15,18 @@ type Result = { ok: true } | { ok: false; error: string };
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
+
+// Quick picks; any #RRGGBB is still allowed below.
+const ACCENT_PRESETS = [
+  { nama: "Indigo (bawaan)", hex: "#4A3FDB" },
+  { nama: "Lemon", hex: "#FFC53D" },
+  { nama: "Hijau daun", hex: "#0B7A5C" },
+  { nama: "Biru laut", hex: "#1D63B8" },
+  { nama: "Magenta", hex: "#B0307A" },
+  { nama: "Kunyit", hex: "#7A4A00" },
+  { nama: "Arang", hex: "#3A4066" },
+];
+
 export function InstansiForm({
   defaults,
   saveAppSettings,
@@ -107,10 +119,33 @@ export function InstansiForm({
             <Field id="email" label="Email">
               <Input name="email" type="email" defaultValue={defaults.email ?? ""} />
             </Field>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-sm font-medium">Warna aksen siap pakai</legend>
+              <div className="flex flex-wrap gap-2.5">
+                {ACCENT_PRESETS.map((p) => {
+                  const on = hex.toUpperCase() === p.hex;
+                  return (
+                    <button
+                      key={p.hex}
+                      type="button"
+                      aria-label={p.nama}
+                      aria-pressed={on}
+                      title={p.nama}
+                      onClick={() => setHex(p.hex)}
+                      className="size-11 rounded-xl outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      style={{
+                        background: p.hex,
+                        boxShadow: on ? "0 0 0 3px var(--card), 0 0 0 5px var(--primary)" : "inset 0 0 0 1px rgb(0 0 0 / .08)",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </fieldset>
             <div className="flex items-end gap-2">
               <Field
                 id="warna_aksen"
-                label="Warna Aksen"
+                label="Warna Aksen (hex)"
                 error={hexInvalid ? "Format warna harus #RRGGBB." : undefined}
                 className="flex-1"
               >

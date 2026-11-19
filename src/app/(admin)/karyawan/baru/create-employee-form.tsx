@@ -145,9 +145,8 @@ export function CreateEmployeeForm({
     );
   }
 
+  // Each section of EmployeeFormFields is its own card; no outer card.
   return (
-    <Card>
-      <CardContent>
     <form action={action} className="space-y-6">
       <EmployeeFormFields
         branches={branches}
@@ -163,7 +162,5 @@ export function CreateEmployeeForm({
         Buat &amp; Ambil Link
       </Button>
     </form>
-      </CardContent>
-    </Card>
   );
 }

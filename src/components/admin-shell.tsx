@@ -23,6 +23,7 @@ import { ProductLogo } from "@/components/product-logo";
 import { RoleBadge } from "@/components/role-badge";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { MotifToggle } from "@/components/motif-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -255,6 +256,7 @@ function SidebarBody({
         {notifications && <div className="-mt-1 -mr-1 shrink-0 [&_button]:text-sidebar-muted [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground">{notifications}</div>}
       </div>
       <ClockCard />
+      <MotifToggle className="px-1" />
       <AdminNav
         role={employee.role}
         pendingLeave={pendingLeave}
@@ -298,7 +300,7 @@ export function AdminShell({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <aside className="hidden w-[248px] shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground lg:sticky lg:top-0 lg:block lg:h-screen">
+      <aside className="motif-batik hidden w-[248px] shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground lg:sticky lg:top-0 lg:block lg:h-screen">
         <SidebarBody
           employee={employee}
           avatarUrl={avatarUrl}
@@ -328,7 +330,7 @@ export function AdminShell({
               </SheetTrigger>
               <SheetContent
                 side="left"
-                className="block w-[280px] overflow-y-auto overscroll-contain border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:h-dvh data-[side=left]:w-[280px]"
+                className="motif-batik block w-[280px] overflow-y-auto overscroll-contain border-0 bg-sidebar p-0 text-sidebar-foreground data-[side=left]:h-dvh data-[side=left]:w-[280px]"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Menu navigasi</SheetTitle>
@@ -340,6 +342,7 @@ export function AdminShell({
                   brand={brand}
                   pendingLeave={pendingLeave}
                   pendingCorrection={pendingCorrection}
+                  pendingRequests={pendingRequests}
                   onNavigate={() => setOpen(false)}
                 />
               </SheetContent>

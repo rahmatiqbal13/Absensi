@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
+import { cn } from "@/lib/utils";
 
 const TIME_FMT = new Intl.DateTimeFormat("id-ID", { timeStyle: "medium", timeZone: "Asia/Jakarta" });
 
@@ -29,24 +29,33 @@ export function DashboardControls({
     return () => clearInterval(id);
   }, [router]);
 
+  const options = [{ id: "", nama: "Semua cabang" }, ...branches];
+
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="branch" className="text-xs text-muted-foreground">Cabang</Label>
-        <NativeSelect
-          id="branch"
-          defaultValue={selectedBranch}
-          onChange={(e) =>
-            router.push(e.target.value ? `/dashboard?branch=${e.target.value}` : "/dashboard")
-          }
-          className="h-9 w-48"
-        >
-          <option value="">Semua cabang</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.nama}</option>
-          ))}
-        </NativeSelect>
-      </div>
+    <div className="flex flex-wrap items-center gap-3">
+      <nav
+        aria-label="Cabang"
+        className="flex flex-wrap gap-0.5 rounded-[10px] bg-muted p-[3px]"
+      >
+        {options.map((b) => {
+          const active = b.id === selectedBranch;
+          return (
+            <Link
+              key={b.id || "semua"}
+              href={b.id ? `/dashboard?branch=${b.id}` : "/dashboard"}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex h-8 items-center rounded-[8px] px-3 text-[0.8rem] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:shadow-[inset_0_0_0_1px_var(--input)]",
+              )}
+            >
+              {b.nama}
+            </Link>
+          );
+        })}
+      </nav>
       <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
         <RefreshCw className="size-4" /> Muat ulang
       </Button>

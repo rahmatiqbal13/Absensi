@@ -82,7 +82,7 @@ export function KioskDisplay({
 
   // The kiosk is a fixed dark wall display regardless of the viewer's theme.
   return (
-    <main className="grid min-h-screen grid-cols-1 items-center gap-12 bg-[#17154A] p-8 text-[#EEF0FF] md:p-12 lg:grid-cols-2">
+    <main className="motif-batik-full grid min-h-screen grid-cols-1 items-center gap-12 bg-[#17154A] p-8 text-[#EEF0FF] md:p-12 lg:grid-cols-2">
       <div className="flex flex-col gap-4.5">
         <ProductLogo size={36} />
         <span className="font-mono text-[0.8rem] tracking-[0.12em] text-[#EEF0FF]/65 uppercase">

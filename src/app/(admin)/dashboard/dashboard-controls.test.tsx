@@ -1,24 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
-const push = vi.fn();
 const refresh = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import { DashboardControls } from "./dashboard-controls";
 
 const BRANCHES = [{ id: "b1", nama: "Kantor Pusat" }, { id: "b2", nama: "Cabang B" }];
 
-beforeEach(() => { vi.useFakeTimers(); push.mockClear(); refresh.mockClear(); });
+beforeEach(() => { vi.useFakeTimers(); refresh.mockClear(); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("DashboardControls", () => {
-  it("pushes ?branch= when a branch is chosen and clears it for 'Semua'", () => {
-    render(<DashboardControls branches={BRANCHES} selectedBranch="" />);
-    fireEvent.change(screen.getByLabelText(/cabang/i), { target: { value: "b2" } });
-    expect(push).toHaveBeenCalledWith("/dashboard?branch=b2");
-    fireEvent.change(screen.getByLabelText(/cabang/i), { target: { value: "" } });
-    expect(push).toHaveBeenCalledWith("/dashboard");
+  it("links each branch to ?branch= and marks the selected one", () => {
+    render(<DashboardControls branches={BRANCHES} selectedBranch="b2" />);
+    expect(screen.getByRole("link", { name: "Semua cabang" }).getAttribute("href")).toBe("/dashboard");
+    const b2 = screen.getByRole("link", { name: "Cabang B" });
+    expect(b2.getAttribute("href")).toBe("/dashboard?branch=b2");
+    expect(b2.getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Kantor Pusat" }).getAttribute("aria-current")).toBeNull();
   });
 
   it("calls router.refresh() on the Muat ulang button", () => {

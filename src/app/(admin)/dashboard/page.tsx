@@ -11,6 +11,7 @@ import { formatLeaveRange, leaveJenisLabel } from "@/lib/leave/labels";
 import { getBranchBreakdown } from "@/lib/dashboard/branch-breakdown";
 import { getTodayExceptions } from "@/lib/dashboard/today-exceptions";
 import { getRecentActivity } from "@/lib/dashboard/recent-activity";
+import { getTodayRoster } from "@/lib/dashboard/today-roster";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { PageHeader, SectionTitle } from "@/components/page-header";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -22,6 +23,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { DashboardControls } from "./dashboard-controls";
 import { BranchBars, TodayBoard } from "./today-board";
+
+/** "Selamat pagi/siang/sore/malam" by the Jakarta wall clock. */
+function greetingFor(now: Date): string {
+  const h = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jakarta" }).format(now),
+  );
+  const part = h < 11 ? "pagi" : h < 15 ? "siang" : h < 19 ? "sore" : "malam";
+  return `Selamat ${part}`;
+}
 
 function InlineError({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-destructive">{children}</p>;
@@ -79,7 +89,9 @@ export default async function DashboardPage({
   const ctx = contextRes.ok ? contextRes.ctx : undefined;
 
   const ym = toJakartaDateOnly(new Date()).slice(0, 7);
-  const [summary, trend, approvals, pendingPreview, exceptions, breakdown, activity] = await Promise.all([
+  // Named board: HR sees everyone (or the chosen branch); an atasan only their
+  // own team, which they are already allowed to see by name.
+  const [summary, trend, approvals, pendingPreview, exceptions, breakdown, activity, roster] = await Promise.all([
     getTodaySummary(db, branchId, ctx, teamIds),
     getMonthlyTrend(db, ym, branchId, teamIds),
     getPendingApprovalCount(db, employee),
@@ -87,6 +99,7 @@ export default async function DashboardPage({
     showExceptions ? getTodayExceptions(db, branchId, ctx) : Promise.resolve(null),
     showBranchBreakdown ? getBranchBreakdown(db, ctx) : Promise.resolve(null),
     isHrAdmin ? getRecentActivity(db) : Promise.resolve(null),
+    isHrAdmin || isAtasan ? getTodayRoster(db, branchId, ctx, teamIds) : Promise.resolve(null),
   ]);
 
   const showExceptionsCard = showExceptions && exceptions;
@@ -97,12 +110,13 @@ export default async function DashboardPage({
       <AutoRefresh intervalMs={60_000} />
       <PageHeader
         eyebrow={`Papan hari ini${isAtasan ? " · Tim saya" : ""}${branchName ? ` · ${branchName}` : ""}`}
-        title={new Intl.DateTimeFormat("id-ID", {
+        title={`${greetingFor(new Date())}, ${employee.nama.split(/\s+/)[0]}`}
+        description={`${new Intl.DateTimeFormat("id-ID", {
           weekday: "long",
           day: "numeric",
           month: "long",
           timeZone: "Asia/Jakarta",
-        }).format(new Date())}
+        }).format(new Date())} · Ringkasan presensi hari ini`}
         actions={<DashboardControls branches={branchList} selectedBranch={branchId ?? ""} />}
       />
 
@@ -115,7 +129,7 @@ export default async function DashboardPage({
 
       {/* who's in */}
       {summary.ok ? (
-        <TodayBoard summary={summary.summary} />
+        <TodayBoard summary={summary.summary} roster={roster?.ok ? roster.branches : undefined} />
       ) : (
         <Alert variant="destructive">
           <AlertTriangle className="size-4" />

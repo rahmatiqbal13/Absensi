@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { Minus, Plus } from "lucide-react";
 import { Field } from "@/components/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export function ScheduleForm({
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tol, setTol] = useState(defaults?.toleransiMenit ?? 15);
   const days = new Set(defaults?.hariKerja ?? [1, 2, 3, 4, 5]);
   // Live copy of the inputs, only for the week preview below.
   const [preview, setPreview] = useState({
@@ -75,7 +77,34 @@ export function ScheduleForm({
           <Input name="jamPulang" type="time" defaultValue={defaults?.jamPulang ?? "17:00"} onChange={(e) => setPreview((p) => ({ ...p, pulang: e.target.value }))} className="h-11.5 w-38 font-mono" />
         </Field>
         <Field id={`toleransiMenit-${key}`} label="Toleransi (menit)">
-          <Input name="toleransiMenit" type="number" min="0" defaultValue={defaults?.toleransiMenit ?? 15} className="h-11.5 w-28 font-mono" />
+          <div id={`toleransiMenit-${key}-stepper`} className="flex h-11.5 items-center overflow-hidden rounded-[10px] border border-input bg-field">
+            <button
+              type="button"
+              aria-label="Kurangi toleransi 5 menit"
+              onClick={() => setTol((t) => Math.max(0, t - 5))}
+              className="grid h-full w-11 place-items-center text-lg outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <Minus className="size-4" aria-hidden="true" />
+            </button>
+            <input
+              id={`toleransiMenit-${key}`}
+              name="toleransiMenit"
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={tol}
+              onChange={(e) => setTol(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+              className="h-full w-16 border-x border-border bg-transparent text-center font-mono text-[0.95rem] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <button
+              type="button"
+              aria-label="Tambah toleransi 5 menit"
+              onClick={() => setTol((t) => t + 5)}
+              className="grid h-full w-11 place-items-center text-lg outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+            </button>
+          </div>
         </Field>
       </div>
       <fieldset className="flex flex-col gap-2">

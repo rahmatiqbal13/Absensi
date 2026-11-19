@@ -1,6 +1,9 @@
 import type { AttendanceSummary } from "@/lib/dashboard/attendance-summary";
 import { cn } from "@/lib/utils";
 import { SectionTitle } from "@/components/page-header";
+import type { RosterBranch } from "@/lib/dashboard/today-roster";
+import { BUCKET_STYLE } from "@/lib/dashboard/bucket-style";
+import { RosterGroups } from "./roster-board";
 
 // One exclusive bucket per employee. `hadir` from the summary lib already
 // includes pulang_cepat / di_luar_lokasi, so those are peeled off here.
@@ -30,10 +33,17 @@ export function bucketCounts(s: AttendanceSummary): Record<BucketKey, number> {
   };
 }
 
-export function TodayBoard({ summary }: { summary: AttendanceSummary }) {
-  const counts = bucketCounts(summary);
+export function rosterCounts(branches: RosterBranch[]): Record<BucketKey, number> {
+  const c: Record<BucketKey, number> = { tepat: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0, alpa: 0, cuti: 0 };
+  for (const g of branches) for (const p of g.people) c[p.bucket]++;
+  return c;
+}
+
+export function TodayBoard({ summary, roster }: { summary: AttendanceSummary; roster?: RosterBranch[] }) {
+  // With a named roster the board and the legend count the same people.
+  const counts = roster ? rosterCounts(roster) : bucketCounts(summary);
   const people = BUCKETS.reduce((n, b) => n + counts[b.key], 0);
-  const present = summary.hadir + summary.terlambat;
+  const present = counts.tepat + counts.terlambat + counts.pulangCepat + counts.diLuarLokasi;
   const expected = Math.max(0, people - counts.cuti);
   const rate = expected > 0 ? Math.round((present / expected) * 100) : null;
 
@@ -48,16 +58,24 @@ export function TodayBoard({ summary }: { summary: AttendanceSummary }) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <SectionTitle marker="bg-success-solid">Siapa sudah datang</SectionTitle>
           <span className="text-sm text-muted-foreground">
-            {perCell === 1 ? "Satu kotak = satu karyawan" : "Satu kotak = 1% karyawan"}
+            {roster
+              ? "Satu kotak = satu karyawan · arahkan kursor atau ketuk untuk melihat jam absen"
+              : perCell === 1
+                ? "Satu kotak = satu karyawan"
+                : "Satu kotak = 1% karyawan"}
           </span>
         </div>
-        {/* Decorative; the legend beside it carries the same numbers as text. */}
-        <div aria-hidden="true" className="flex flex-wrap gap-1">
-          {cells.map((c) => (
-            <span key={c.id} className={cn("size-4 rounded-[4px]", c.swatch)} />
-          ))}
-          {cells.length === 0 && <span className="text-sm text-muted-foreground">Belum ada data hari ini.</span>}
-        </div>
+        {roster ? (
+          <RosterGroups branches={roster} />
+        ) : (
+          /* Decorative; the legend beside it carries the same numbers as text. */
+          <div aria-hidden="true" className="flex flex-wrap gap-1">
+            {cells.map((c) => (
+              <span key={c.id} className={cn("size-4 rounded-[4px]", c.swatch)} />
+            ))}
+            {cells.length === 0 && <span className="text-sm text-muted-foreground">Belum ada data hari ini.</span>}
+          </div>
+        )}
       </div>
       <div className="flex min-w-0 flex-col gap-4.5 border-border lg:border-l lg:pl-6">
         <div className="flex flex-col gap-0.5">
@@ -72,7 +90,16 @@ export function TodayBoard({ summary }: { summary: AttendanceSummary }) {
         <ul className="flex flex-col">
           {BUCKETS.map((b) => (
             <li key={b.key} className="flex min-h-[34px] items-center gap-2.5 border-t border-hairline text-sm">
-              <span aria-hidden="true" className={cn("size-3 rounded-[3px]", b.swatch)} />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "grid size-[18px] place-items-center rounded-[5px] font-mono text-[10.5px] font-bold",
+                  b.swatch,
+                  BUCKET_STYLE[b.key].fg,
+                )}
+              >
+                {BUCKET_STYLE[b.key].glyph}
+              </span>
               <span className="flex-1">{b.label}</span>
               <span className="font-mono font-semibold tabular-nums">{counts[b.key]}</span>
             </li>
