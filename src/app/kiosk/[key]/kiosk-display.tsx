@@ -15,9 +15,12 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 export function KioskDisplay({
   kioskKey,
   branchNama,
+  embed = false,
 }: {
   kioskKey: string;
   branchNama: string;
+  /** Compact QR-only layout for an iframe slot inside another display. */
+  embed?: boolean;
 }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [inactive, setInactive] = useState(false);
@@ -79,6 +82,43 @@ export function KioskDisplay({
     deadline && now ? Math.max(0, Math.ceil((deadline - now.getTime()) / 1000)) : null;
   const windowSec = QR_WINDOW_MS / 1000;
   const ringDeg = leftSec != null ? (leftSec / windowSec) * 360 : 0;
+
+  if (embed) {
+    // Sized to the iframe, not the TV: the QR takes whatever the slot allows
+    // after the label, countdown and instruction (~210px).
+    const qrSize = "min(calc(100vw - 4rem), calc(100vh - 13rem))";
+    return (
+      <main className="flex h-screen flex-col items-center justify-center gap-4 overflow-hidden bg-[#17154A] p-4 text-center text-[#EEF0FF]">
+        <span className="font-mono text-[0.8rem] tracking-[0.12em] text-[#EEF0FF]/65 uppercase">
+          Absen · {branchNama}
+        </span>
+        <div className="rounded-2xl bg-[#FFFFFF] p-3">
+          {dataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={dataUrl} width={512} height={512} alt="QR absen" style={{ width: qrSize, height: qrSize }} />
+          ) : (
+            <div className="grid place-items-center text-[#4F5675]" style={{ width: qrSize, height: qrSize }}>
+              Memuat…
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-full"
+            style={{ background: `conic-gradient(#5EEAD4 ${ringDeg}deg, rgb(238 240 255 / 0.15) 0)` }}
+          >
+            <span className="grid size-[31px] place-items-center rounded-full bg-[#17154A] font-mono text-[0.8rem] font-semibold">
+              {leftSec ?? "–"}
+            </span>
+          </span>
+          <span className="text-left text-[0.95rem] leading-snug text-[#EEF0FF]/85">
+            Buka tapabsen, pilih <b className="text-[#5EEAD4]">Scan QR</b>
+          </span>
+        </div>
+      </main>
+    );
+  }
 
   // The kiosk is a fixed dark wall display regardless of the viewer's theme.
   return (

@@ -35,6 +35,18 @@ describe("KioskDisplay", () => {
     );
   });
 
+  it("renders a compact QR-only layout in embed mode", async () => {
+    getKioskQr.mockResolvedValue(OK);
+    render(<KioskDisplay kioskKey="k" branchNama="Kantor" embed />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: /qr absen/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Absen · Kantor/)).toBeInTheDocument();
+    // The full kiosk's big wall clock and long instruction are left out.
+    expect(screen.queryByText(/Kiosk · Kantor/)).not.toBeInTheDocument();
+  });
+
   it("keeps the last QR on a thrown/network error and does not go inactive", async () => {
     getKioskQr.mockResolvedValueOnce(OK).mockRejectedValue(new Error("network"));
     render(<KioskDisplay kioskKey="k" branchNama="Kantor" />);

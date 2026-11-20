@@ -1,7 +1,18 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 const isDev = process.env.NODE_ENV === "development";
+
+// Testing on a phone over Wi-Fi hits the dev server at this machine's LAN IP.
+// Next blocks dev assets / the HMR socket for origins other than localhost, so
+// the page keeps reloading itself; allow this machine's own IPv4 addresses.
+const lanHosts = isDev
+  ? Object.values(networkInterfaces())
+      .flat()
+      .filter((i) => i && i.family === "IPv4" && !i.internal)
+      .map((i) => i!.address)
+  : [];
 
 // Supabase is reached from the browser for storage images (logo, profile and
 // leave attachment signed URLs) and by the set-password page's auth client.
@@ -29,6 +40,17 @@ const csp = [
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
+// The kiosk QR screen (/kiosk/<key>) may be embedded by other in-house displays
+// (e.g. the SIMDIR internal agenda TV). KIOSK_FRAME_ANCESTORS lists the origins
+// allowed to frame it, space-separated; anything that is not a bare https origin
+// is dropped. Unset → the kiosk stays unframeable like every other page.
+const kioskFrameAncestors = (process.env.KIOSK_FRAME_ANCESTORS ?? "")
+  .split(/\s+/)
+  .filter((o) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o) || (isDev && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)));
+const kioskCsp = kioskFrameAncestors.length
+  ? csp.replace("frame-ancestors 'none'", `frame-ancestors 'self' ${kioskFrameAncestors.join(" ")}`)
+  : csp;
+
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -45,6 +67,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: lanHosts,
   experimental: {
     serverActions: {
       // Clock-in posts a selfie. The client compresses it (~150–400 KB), but an
@@ -57,6 +80,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // Overrides the CSP above for the kiosk only (the last matching header
+      // wins). CSP frame-ancestors supersedes the X-Frame-Options: DENY that
+      // still ships, so browsers allow the listed origins to embed it.
+      { source: "/kiosk/:path*", headers: [{ key: "Content-Security-Policy", value: kioskCsp }] },
       {
         // Web Push service worker: never cached, so a fix reaches every device.
         source: "/sw.js",

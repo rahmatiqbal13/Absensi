@@ -10,12 +10,17 @@ export const metadata: Metadata = {
 // A branch-entrance monitor loads /kiosk/<secret-key> with no login. The key is a
 // server-only secret: it is read here and passed to the client only so the client
 // action can re-fetch a fresh QR — it is never rendered.
+// `?embed=1` renders a compact QR-only panel for embedding in another display
+// (an iframe slot on the SIMDIR internal agenda TV); see next.config.ts.
 export default async function KioskPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ key: string }>;
+  searchParams: Promise<{ embed?: string }>;
 }) {
   const { key } = await params;
+  const embed = (await searchParams).embed === "1";
   const db = createServiceRoleSupabaseClient();
   const { data: branch, error } = await db
     .from("branches")
@@ -32,5 +37,5 @@ export default async function KioskPage({
     );
   }
 
-  return <KioskDisplay kioskKey={key} branchNama={branch.nama ?? "Kiosk"} />;
+  return <KioskDisplay kioskKey={key} branchNama={branch.nama ?? "Kiosk"} embed={embed} />;
 }
