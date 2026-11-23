@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AttendanceCorrectionDialog } from "@/components/attendance-correction-dialog";
-import { toJakartaHHMM } from "@/lib/attendance/correction";
+import { toJakartaHHMMSS } from "@/lib/attendance/correction";
 import { hrCorrectAttendanceAction } from "../../../persetujuan-koreksi/actions";
 import { AttendanceEvidenceDialog } from "@/components/attendance-evidence-dialog";
 import { getAttendanceEvidence } from "./actions";
@@ -261,8 +261,8 @@ export default async function LaporanKaryawanPage({
                               action={correct}
                               defaults={{
                                 tanggal: r.tanggal,
-                                jamMasuk: toJakartaHHMM(r.jamMasuk),
-                                jamPulang: toJakartaHHMM(r.jamPulang),
+                                jamMasuk: toJakartaHHMMSS(r.jamMasuk),
+                                jamPulang: toJakartaHHMMSS(r.jamPulang),
                               }}
                               maxDate={today}
                               trigger="link"

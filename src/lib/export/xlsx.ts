@@ -1,5 +1,4 @@
 import writeXlsxFile, { type SheetData } from "write-excel-file/node";
-import type { RecapRow } from "@/lib/laporan/attendance-recap";
 
 export const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -46,25 +45,6 @@ export async function payrollToXlsx(rows: PayrollXlsxRow[], sheetName: string): 
     sheet: safeSheetName(sheetName),
     stickyRowsCount: 1,
     columns: [{ width: 5 }, { width: 32 }, { width: 22 }, { width: 16 }, { width: 12 }, { width: 15 }, { width: 18 }, { width: 14 }, { width: 17 }],
-  }).toBuffer();
-}
-
-/** The attendance recap (same columns as the CSV export). */
-export async function recapToXlsx(rows: RecapRow[], sheetName: string): Promise<Buffer> {
-  const data: SheetData = [
-    [
-      head("Nama"), head("Hadir"), head("Terlambat"), head("Pulang Cepat"), head("Di Luar Lokasi"),
-      head("Alpa"), head("Cuti"), head("Menit Terlambat"), head("Menit Lembur"), head("Hari Kerja Efektif"),
-    ],
-    ...rows.map((r) => [
-      text(r.nama), num(r.hadir), num(r.terlambat), num(r.pulangCepat), num(r.diLuarLokasi),
-      num(r.alpa), num(r.cuti), num(r.totalMenitTerlambat), num(r.menitLembur), num(r.hariKerjaEfektif),
-    ]),
-  ];
-  return writeXlsxFile(data, {
-    sheet: safeSheetName(sheetName),
-    stickyRowsCount: 1,
-    columns: [{ width: 32 }, ...Array.from({ length: 9 }, () => ({ width: 14 }))],
   }).toBuffer();
 }
 

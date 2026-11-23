@@ -22,8 +22,8 @@ type Result = { ok: true } | { ok: false; error: string };
 
 export type CorrectionDefaults = {
   tanggal: string; // YYYY-MM-DD
-  jamMasuk?: string; // HH:MM WIB
-  jamPulang?: string; // HH:MM WIB
+  jamMasuk?: string; // HH:MM:SS WIB
+  jamPulang?: string; // HH:MM:SS WIB
 };
 
 /**
@@ -94,10 +94,10 @@ export function AttendanceCorrectionForm({
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field id={`${uid}-masuk`} label="Jam masuk (WIB)">
-          <Input name="jamMasuk" type="time" required defaultValue={defaults.jamMasuk} className="h-11" />
+          <Input name="jamMasuk" type="time" step={1} required defaultValue={defaults.jamMasuk} className="h-11" />
         </Field>
         <Field id={`${uid}-pulang`} label="Jam pulang (WIB)" hint="Kosongkan jika belum pulang.">
-          <Input name="jamPulang" type="time" defaultValue={defaults.jamPulang} className="h-11" />
+          <Input name="jamPulang" type="time" step={1} defaultValue={defaults.jamPulang} className="h-11" />
         </Field>
       </div>
       <Field id={`${uid}-alasan`} label="Alasan">

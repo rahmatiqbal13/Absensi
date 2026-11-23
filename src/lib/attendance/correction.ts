@@ -10,11 +10,17 @@ export const EMPLOYEE_CORRECTION_MAX_DAYS_BACK = 31;
 export const ALASAN_MAX = 500;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** HH:MM or HH:MM:SS (a time input with step=1 may drop ":00" seconds). */
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
-/** Wall-clock time on a WIB calendar day as an ISO instant (WIB is fixed UTC+7, no DST). */
-export function jakartaInstant(tanggal: string, hhmm: string): string {
-  return new Date(`${tanggal}T${hhmm}:00+07:00`).toISOString();
+/** "08:05" -> "08:05:00"; "08:05:09" unchanged. */
+function withSeconds(time: string): string {
+  return time.length === 5 ? `${time}:00` : time;
+}
+
+/** Wall-clock time (HH:MM or HH:MM:SS) on a WIB calendar day as an ISO instant (WIB is fixed UTC+7, no DST). */
+export function jakartaInstant(tanggal: string, time: string): string {
+  return new Date(`${tanggal}T${withSeconds(time)}+07:00`).toISOString();
 }
 
 function shiftDate(dateOnly: string, days: number): string {
@@ -25,8 +31,8 @@ function shiftDate(dateOnly: string, days: number): string {
 
 export type CorrectionInput = {
   tanggal: string;
-  jamMasuk: string; // HH:MM, WIB
-  jamPulang: string; // HH:MM, WIB, or "" when not (yet) known
+  jamMasuk: string; // HH:MM[:SS], WIB
+  jamPulang: string; // HH:MM[:SS], WIB, or "" when not (yet) known
   alasan: string;
 };
 
@@ -42,8 +48,8 @@ export function validateCorrectionInput(
   ctx: { now: Date; today: string; maxDaysBack?: number },
 ): { ok: true; value: ValidCorrection } | { ok: false; error: string } {
   const tanggal = input.tanggal.trim();
-  const jamMasuk = input.jamMasuk.trim();
-  const jamPulang = input.jamPulang.trim();
+  const jamMasukRaw = input.jamMasuk.trim();
+  const jamPulangRaw = input.jamPulang.trim();
   const alasan = input.alasan.trim();
 
   if (!DATE_RE.test(tanggal) || Number.isNaN(Date.parse(`${tanggal}T00:00:00Z`))) {
@@ -56,8 +62,10 @@ export function validateCorrectionInput(
       error: `Koreksi hanya bisa diajukan untuk ${ctx.maxDaysBack} hari terakhir. Hubungi HR untuk tanggal lebih lama.`,
     };
   }
-  if (!TIME_RE.test(jamMasuk)) return { ok: false, error: "Jam masuk wajib diisi (format JJ:MM)." };
-  if (jamPulang && !TIME_RE.test(jamPulang)) return { ok: false, error: "Format jam pulang tidak valid." };
+  if (!TIME_RE.test(jamMasukRaw)) return { ok: false, error: "Jam masuk wajib diisi (format JJ:MM:DD)." };
+  if (jamPulangRaw && !TIME_RE.test(jamPulangRaw)) return { ok: false, error: "Format jam pulang tidak valid." };
+  const jamMasuk = withSeconds(jamMasukRaw);
+  const jamPulang = jamPulangRaw ? withSeconds(jamPulangRaw) : "";
   if (jamPulang && jamPulang <= jamMasuk) {
     return { ok: false, error: "Jam pulang harus setelah jam masuk." };
   }
@@ -99,17 +107,18 @@ export function correctedStatus(params: {
   return mergeAttendanceStatus(masuk, pulang);
 }
 
-const HHMM_WIB = new Intl.DateTimeFormat("en-GB", {
+const HHMMSS_WIB = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
   hour: "2-digit",
   minute: "2-digit",
+  second: "2-digit",
   hourCycle: "h23", // never "24:05"
 });
 
-/** ISO instant -> "HH:MM" in WIB (for prefilling time inputs). */
-export function toJakartaHHMM(iso: string | null): string | undefined {
+/** ISO instant -> "HH:MM:SS" in WIB (for prefilling time inputs). */
+export function toJakartaHHMMSS(iso: string | null): string | undefined {
   if (!iso) return undefined;
-  return HHMM_WIB.format(new Date(iso));
+  return HHMMSS_WIB.format(new Date(iso));
 }
 
 export function correctionMinDate(today: string): string {

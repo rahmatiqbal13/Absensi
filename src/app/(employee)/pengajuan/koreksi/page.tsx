@@ -3,7 +3,7 @@ import { ClipboardList } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
-import { correctionMinDate, toJakartaHHMM } from "@/lib/attendance/correction";
+import { correctionMinDate, toJakartaHHMMSS } from "@/lib/attendance/correction";
 import { RequestTabs } from "@/components/request-tabs";
 import { EmptyState } from "@/components/empty-state";
 import { AttendanceCorrectionForm } from "@/components/attendance-correction-dialog";
@@ -90,7 +90,7 @@ export default async function KoreksiPage({ searchParams }: { searchParams: Prom
                     <p className="text-sm text-foreground">
                       <span className="text-muted-foreground">Diajukan: </span>
                       <span className="font-mono tabular-nums">
-                        {toJakartaHHMM(c.jam_masuk)} – {toJakartaHHMM(c.jam_pulang) ?? "belum pulang"}
+                        {toJakartaHHMMSS(c.jam_masuk)} – {toJakartaHHMMSS(c.jam_pulang) ?? "belum pulang"}
                       </span>
                     </p>
                     <p className="text-sm text-muted-foreground">{c.alasan}</p>

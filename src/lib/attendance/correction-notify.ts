@@ -4,7 +4,7 @@ import { appUrl } from "@/lib/app-url";
 
 function fmtJam(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Jakarta" });
 }
 
 function fmtTanggal(dateOnly: string): string {

@@ -3,7 +3,7 @@ import {
   correctedStatus,
   correctionMinDate,
   jakartaInstant,
-  toJakartaHHMM,
+  toJakartaHHMMSS,
   validateCorrectionInput,
 } from "./correction";
 
@@ -11,13 +11,15 @@ const now = new Date("2026-11-18T10:00:00+07:00");
 const ctx = { now, today: "2026-11-18" };
 const base = { tanggal: "2026-11-17", jamMasuk: "08:05", jamPulang: "17:00", alasan: "Lupa absen pulang" };
 
-describe("jakartaInstant / toJakartaHHMM", () => {
+describe("jakartaInstant / toJakartaHHMMSS", () => {
   it("round-trips WIB wall-clock time", () => {
     const iso = jakartaInstant("2026-11-17", "08:05");
     expect(iso).toBe("2026-11-17T01:05:00.000Z");
-    expect(toJakartaHHMM(iso)).toBe("08:05");
-    expect(toJakartaHHMM(jakartaInstant("2026-11-17", "00:10"))).toBe("00:10");
-    expect(toJakartaHHMM(null)).toBeUndefined();
+    expect(toJakartaHHMMSS(iso)).toBe("08:05:00");
+    expect(toJakartaHHMMSS(jakartaInstant("2026-11-17", "00:10"))).toBe("00:10:00");
+    expect(jakartaInstant("2026-11-17", "08:05:42")).toBe("2026-11-17T01:05:42.000Z");
+    expect(toJakartaHHMMSS("2026-11-17T01:05:42.000Z")).toBe("08:05:42");
+    expect(toJakartaHHMMSS(null)).toBeUndefined();
   });
 });
 
@@ -54,6 +56,15 @@ describe("validateCorrectionInput", () => {
     const r = validateCorrectionInput({ ...base, ...patch }, ctx);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(msg);
+  });
+
+  it("accepts seconds and compares them", () => {
+    const r = validateCorrectionInput({ ...base, jamMasuk: "08:05:42", jamPulang: "17:00:09" }, ctx);
+    expect(r.ok && r.value.jamMasukIso).toBe("2026-11-17T01:05:42.000Z");
+    expect(r.ok && r.value.jamPulangIso).toBe("2026-11-17T10:00:09.000Z");
+    const same = validateCorrectionInput({ ...base, jamMasuk: "08:05:42", jamPulang: "08:05:42" }, ctx);
+    expect(!same.ok && same.error).toMatch(/setelah jam masuk/);
+    expect(validateCorrectionInput({ ...base, jamMasuk: "08:05:60" }, ctx).ok).toBe(false);
   });
 
   it("rejects times later today that haven't happened yet", () => {

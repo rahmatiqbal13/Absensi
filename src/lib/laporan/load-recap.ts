@@ -34,6 +34,8 @@ export type LoadRecapResult =
       daily: Record<string, DailyRow[]>;
       /** Each employee's schedule as text, e.g. "08:00–16:00, Sen, Sel, ...". */
       jadwal: Record<string, string>;
+      /** Each employee's jabatan (for the official Excel sheets). */
+      jabatan: Record<string, string>;
     }
   | { ok: false; error: string };
 
@@ -60,7 +62,7 @@ export async function loadRecap(
 
   let employeeQuery = db
     .from("employees")
-    .select("id, nama, slug, tanggal_mulai_kerja, department_id")
+    .select("id, nama, slug, jabatan, tanggal_mulai_kerja, department_id")
     .eq("branch_id", branchId)
     .eq("status", "aktif")
     .order("nama");
@@ -89,7 +91,7 @@ export async function loadRecap(
   if (scheduleRes.data.length === 0) return { ok: false, error: "Cabang ini belum punya jadwal kerja." };
 
   const employees = (employeesRes.data ?? []) as {
-    id: string; nama: string; slug: string; tanggal_mulai_kerja: string | null; department_id: string | null;
+    id: string; nama: string; slug: string; jabatan?: string | null; tanggal_mulai_kerja: string | null; department_id: string | null;
   }[];
 
   if (lemburRes.error) logOptionalLookup("loadRecap: hitung_lembur", lemburRes.error, "0039");
@@ -206,5 +208,6 @@ export async function loadRecap(
     });
   }
 
-  return { ok: true, rows, branchNama: (branch as { nama: string }).nama, daily, jadwal };
+  const jabatan = Object.fromEntries(employees.map((e) => [e.id, e.jabatan ?? ""]));
+  return { ok: true, rows, branchNama: (branch as { nama: string }).nama, daily, jadwal, jabatan };
 }

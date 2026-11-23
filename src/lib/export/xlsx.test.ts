@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
-import { payrollToXlsx, recapToXlsx, safeSheetName } from "./xlsx";
+import { payrollToXlsx, safeSheetName } from "./xlsx";
 
 /** All XML inside the .xlsx (a zip), concatenated, for content assertions. */
 function xml(buffer: Buffer): string {
@@ -24,18 +24,6 @@ describe("payrollToXlsx", () => {
     const content = xml(buf);
     for (const s of ["Budi", "Ani", "Gaji Akhir", "Total", "November 2026"]) expect(content).toContain(s);
     expect(content).toContain("6880000"); // total gaji akhir, written as a number
-  });
-});
-
-describe("recapToXlsx", () => {
-  it("includes the recap columns and names", async () => {
-    const buf = await recapToXlsx(
-      [{ employeeId: "e1", nama: "Citra", hadir: 20, terlambat: 2, pulangCepat: 0, diLuarLokasi: 0, alpa: 1, cuti: 0, lain: 0, totalMenitTerlambat: 15, menitLembur: 0, hariKerjaEfektif: 21 }],
-      "Rekap Kehadiran",
-    );
-    const content = xml(buf);
-    expect(content).toContain("Citra");
-    expect(content).toContain("Menit Terlambat");
   });
 });
 

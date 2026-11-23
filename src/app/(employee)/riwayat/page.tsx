@@ -6,7 +6,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
 import { monthLabel } from "@/lib/format/month";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { correctionMinDate, toJakartaHHMM } from "@/lib/attendance/correction";
+import { correctionMinDate, toJakartaHHMMSS } from "@/lib/attendance/correction";
 import { submitAttendanceCorrection } from "../pengajuan/koreksi/actions";
 import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
 import { toRiwayatRecords } from "./records";
@@ -108,8 +108,8 @@ export default async function RiwayatPage({ searchParams }: { searchParams: Prom
                     action: submitAttendanceCorrection,
                     defaults: {
                       tanggal: r.tanggal,
-                      jamMasuk: toJakartaHHMM(r.jamMasuk),
-                      jamPulang: toJakartaHHMM(r.jamPulang),
+                      jamMasuk: toJakartaHHMMSS(r.jamMasuk),
+                      jamPulang: toJakartaHHMMSS(r.jamPulang),
                     },
                     minDate,
                     maxDate: today,

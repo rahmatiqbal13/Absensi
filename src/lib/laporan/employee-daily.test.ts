@@ -40,8 +40,8 @@ describe("buildEmployeeDaily", () => {
 
   it("derives times, lateness, early leave and overtime on scheduled days", () => {
     const tue = rows[1];
-    expect(formatJamWib(tue.jamMasuk)).toBe("09:40");
-    expect(formatJamWib(tue.jamPulang)).toBe("18:30");
+    expect(formatJamWib(tue.jamMasuk)).toBe("09:40:00");
+    expect(formatJamWib(tue.jamPulang)).toBe("18:30:00");
     expect(tue).toMatchObject({ durasiMenit: 530, menitTerlambat: 25, menitPulangCepat: 0, menitLembur: 90 });
     expect(rows[0]).toMatchObject({ menitTerlambat: 0, menitLembur: 0, durasiMenit: 490 });
   });
@@ -105,7 +105,7 @@ describe("employeeDailyToCsv", () => {
     const csv = employeeDailyToCsv(rows.slice(0, 2));
     const lines = csv.replace(/^﻿/, "").split("\r\n");
     expect(lines[0]).toBe("Tanggal,Status,Jam Masuk,Jam Pulang,Durasi (menit),Terlambat (menit),Pulang Cepat (menit),Lembur (menit),Keterangan,Catatan,Peringatan Lokasi");
-    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40,18:30,530,25,0,90,,,");
+    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40:00,18:30:00,530,25,0,90,,,");
   });
 
   it("lists the day's GPS warnings, merged from clock-in and clock-out", () => {
@@ -143,5 +143,17 @@ describe("buildEmployeeDaily with a shift roster (0059)", () => {
     expect(rows.find((r) => r.tanggal === "2026-08-03")).toMatchObject({ kind: "bukan_hari_kerja", keterangan: "Libur (roster)" });
     // Tue–Fri regular (alpa, no attendance) + rostered Saturday = 5 working days.
     expect(summarizeDaily(rows).hariKerja).toBe(5);
+  });
+});
+
+describe("durasi to the second", () => {
+  it("measures and formats jam:menit:detik", async () => {
+    const { durasiDetik, formatDurasiJms, formatDurasiPanjang } = await import("./employee-daily");
+    const d = durasiDetik({ jamMasuk: "2026-11-02T07:36:21+07:00", jamPulang: "2026-11-02T16:03:05+07:00" });
+    expect(d).toBe(8 * 3600 + 26 * 60 + 44);
+    expect(formatDurasiJms(d!)).toBe("08:26:44");
+    expect(formatDurasiJms(169 * 3600 + 12 * 60 + 30)).toBe("169:12:30");
+    expect(formatDurasiPanjang(d!)).toBe("8 jam 26 menit 44 detik");
+    expect(durasiDetik({ jamMasuk: "2026-11-02T07:36:21+07:00", jamPulang: null })).toBeNull();
   });
 });

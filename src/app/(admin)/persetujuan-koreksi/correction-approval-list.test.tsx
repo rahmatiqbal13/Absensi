@@ -23,7 +23,7 @@ describe("CorrectionApprovalList", () => {
     const approve = vi.fn(async () => ({ ok: true as const }));
     render(<CorrectionApprovalList requests={[REQ]} approve={approve} reject={vi.fn()} />);
     expect(screen.getByText("Tidak ada absen")).toBeInTheDocument();
-    expect(screen.getByText(/08\.00 – 17\.00|08:00 – 17:00/)).toBeInTheDocument();
+    expect(screen.getByText(/08\.00\.00 – 17\.00\.00|08:00:00 – 17:00:00/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /setujui/i }));
     await waitFor(() => expect(approve).toHaveBeenCalledWith("c1", null));
   });

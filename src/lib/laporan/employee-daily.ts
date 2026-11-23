@@ -201,17 +201,35 @@ export function summarizeDaily(rows: readonly DailyRow[]): DailySummary {
   return s;
 }
 
-/** "08:57" in WIB, or "—". */
+/** "08:57:12" in WIB, or "—". */
 export function formatJamWib(iso: string | null): string {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hour12: false,
     timeZone: "Asia/Jakarta",
   })
     .format(new Date(iso))
-    .replace(".", ":");
+    .replace(/\./g, ":");
+}
+
+/** Seconds between jam masuk and jam pulang, or null when either is missing. */
+export function durasiDetik(r: Pick<DailyRow, "jamMasuk" | "jamPulang">): number | null {
+  if (!r.jamMasuk || !r.jamPulang) return null;
+  return Math.max(0, Math.floor((Date.parse(r.jamPulang) - Date.parse(r.jamMasuk)) / 1000));
+}
+
+/** 30425 -> "08:27:05" (hours are not capped at 24, so totals read "169:12:30"). */
+export function formatDurasiJms(detik: number): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(Math.floor(detik / 3600))}:${p(Math.floor((detik % 3600) / 60))}:${p(detik % 60)}`;
+}
+
+/** 30425 -> "8 jam 27 menit 5 detik". */
+export function formatDurasiPanjang(detik: number): string {
+  return `${Math.floor(detik / 3600)} jam ${Math.floor((detik % 3600) / 60)} menit ${detik % 60} detik`;
 }
 
 /** "8j 05m", or "—". */

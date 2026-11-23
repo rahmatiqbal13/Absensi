@@ -1,8 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
-import { loadRecap } from "@/lib/laporan/load-recap";
+import { loadRecap, type LoadRecapResult } from "@/lib/laporan/load-recap";
 import { validateRecapRange } from "@/lib/laporan/validate-range";
-import type { RecapRow } from "@/lib/laporan/attendance-recap";
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
 
@@ -13,7 +12,7 @@ const UUID_RE = /^[0-9a-f-]{36}$/i;
  */
 export async function loadRecapForRequest(
   request: Request,
-): Promise<{ ok: true; rows: RecapRow[]; from: string; to: string } | { ok: false; response: Response }> {
+): Promise<{ ok: true; recap: Extract<LoadRecapResult, { ok: true }>; rows: Extract<LoadRecapResult, { ok: true }>["rows"]; from: string; to: string } | { ok: false; response: Response }> {
   const fail = (body: string, status: number) => ({ ok: false as const, response: new Response(body, { status }) });
 
   const db = await createServerSupabaseClient();
@@ -36,5 +35,5 @@ export async function loadRecapForRequest(
     to: range.to,
   });
   if (!recap.ok) return fail(recap.error, 400);
-  return { ok: true, rows: recap.rows, from: range.from, to: range.to };
+  return { ok: true, recap, rows: recap.rows, from: range.from, to: range.to };
 }
