@@ -3,6 +3,7 @@ import {
   dailyStatusLabel,
   formatDurasiSingkat,
   formatJamWib,
+  sumberSingkat,
   summarizeDaily,
   type DailyRow,
 } from "@/lib/laporan/employee-daily";
@@ -60,6 +61,7 @@ const s = StyleSheet.create({
   cTgl: { width: "13%" },
   cStatus: { width: "15%" },
   cJam: { width: "11%", textAlign: "right" },
+  sumber: { fontSize: 6.5, color: "#6B6B76" },
   cNum: { width: "11%", textAlign: "right" },
   cKet: { width: "19%", paddingLeft: 16 },
   totals: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 10, paddingTop: 6, borderTop: "1px solid #333" },
@@ -131,8 +133,14 @@ export function EmployeeDailyPage({
           <View key={r.tanggal} style={[s.row, off ? s.muted : {}]} wrap={false}>
             <Text style={s.cTgl}>{tanggalLabel(r.tanggal)}</Text>
             <Text style={s.cStatus}>{dailyStatusLabel(r)}</Text>
-            <Text style={s.cJam}>{formatJamWib(r.jamMasuk)}</Text>
-            <Text style={s.cJam}>{formatJamWib(r.jamPulang)}</Text>
+            <Text style={s.cJam}>
+              {formatJamWib(r.jamMasuk)}
+              {r.jamMasuk ? <Text style={s.sumber}>{`\n${sumberSingkat(r.metodeMasuk, r.jamMasuk)}`}</Text> : null}
+            </Text>
+            <Text style={s.cJam}>
+              {formatJamWib(r.jamPulang)}
+              {r.jamPulang ? <Text style={s.sumber}>{`\n${sumberSingkat(r.metodePulang, r.jamPulang)}`}</Text> : null}
+            </Text>
             <Text style={s.cNum}>{formatDurasiSingkat(r.durasiMenit)}</Text>
             <Text style={s.cNum}>{mins(r.menitTerlambat)}</Text>
             <Text style={s.cKet}>{ket || "—"}</Text>

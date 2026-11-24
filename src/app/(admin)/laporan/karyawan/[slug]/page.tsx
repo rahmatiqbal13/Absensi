@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Download, FileBarChart, TriangleAlert } from "lucide-react";
+import { ChevronLeft, Download, FileBarChart, Fingerprint, PenLine, QrCode, Smartphone, TriangleAlert } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { employeeIdBySlug, paths } from "@/lib/routing/paths";
@@ -10,6 +10,8 @@ import { loadEmployeeDailyReport } from "@/lib/laporan/load-employee-daily";
 import {
   summarizeDaily,
   formatJamWib,
+  sumberLabel,
+  sumberSingkat,
   formatDurasiSingkat,
   dailyStatusLabel,
   locationFlagsLabel,
@@ -222,8 +224,8 @@ export default async function LaporanKaryawanPage({
             columns={[
               { key: "tgl", header: "Tanggal", cell: (r: DailyRow) => <span className="whitespace-nowrap font-medium">{tanggalLabel(r.tanggal)}</span> },
               { key: "status", header: "Status", cell: (r: DailyRow) => <StatusCell r={r} />, mobileLabel: "Status" },
-              { key: "masuk", header: "Masuk", cell: (r: DailyRow) => <span className="font-mono tabular-nums">{formatJamWib(r.jamMasuk)}</span>, mobileLabel: "Masuk" },
-              { key: "pulang", header: "Pulang", cell: (r: DailyRow) => <span className="font-mono tabular-nums">{formatJamWib(r.jamPulang)}</span>, mobileLabel: "Pulang" },
+              { key: "masuk", header: "Masuk", cell: (r: DailyRow) => <JamCell jam={r.jamMasuk} metode={r.metodeMasuk} />, mobileLabel: "Masuk" },
+              { key: "pulang", header: "Pulang", cell: (r: DailyRow) => <JamCell jam={r.jamPulang} metode={r.metodePulang} />, mobileLabel: "Pulang" },
               { key: "durasi", header: "Durasi", align: "right", cell: (r: DailyRow) => <span className="font-mono tabular-nums">{formatDurasiSingkat(r.durasiMenit)}</span>, mobileLabel: "Durasi" },
               { key: "telat", header: "Terlambat", align: "right", cell: (r: DailyRow) => <span className={r.menitTerlambat ? "text-warning-foreground" : "text-muted-foreground"}>{mins(r.menitTerlambat)}</span>, mobileLabel: "Terlambat" },
               { key: "pc", header: "Pulang cepat", align: "right", cell: (r: DailyRow) => <span className={r.menitPulangCepat ? "text-early-foreground" : "text-muted-foreground"}>{mins(r.menitPulangCepat)}</span>, mobileLabel: "Pulang cepat" },
@@ -283,5 +285,25 @@ export default async function LaporanKaryawanPage({
         </>
       )}
     </div>
+  );
+}
+
+const SUMBER_ICON = { mesin: Fingerprint, qr: QrCode, koreksi: PenLine } as const;
+
+/** Time plus where it came from (aplikasi GPS / QR, mesin finger, koreksi HR). */
+function JamCell({ jam, metode }: { jam: string | null; metode?: string | null }) {
+  const label = sumberLabel(metode, jam);
+  const Icon = SUMBER_ICON[(metode ?? "") as keyof typeof SUMBER_ICON] ?? Smartphone;
+  return (
+    <span className="inline-flex flex-col gap-0.5">
+      <span className="font-mono tabular-nums">{formatJamWib(jam)}</span>
+      {label && (
+        <span className="inline-flex items-center gap-1 text-[0.72rem] text-muted-foreground" title={label}>
+          <Icon className="size-3" aria-hidden="true" />
+          <span className="sr-only">{label}</span>
+          <span aria-hidden="true">{sumberSingkat(metode, jam)}</span>
+        </span>
+      )}
+    </span>
   );
 }

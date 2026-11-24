@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildEmployeeDaily, summarizeDaily, formatJamWib, employeeDailyToCsv, dailyStatusLabel } from "./employee-daily";
+import { buildEmployeeDaily, summarizeDaily, formatJamWib, employeeDailyToCsv, dailyStatusLabel, sumberLabel, sumberSingkat } from "./employee-daily";
 
 // Mon 3 Aug – Sun 9 Aug 2026; schedule 09:00–17:00, 15 min tolerance, Mon–Fri.
 const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, hariKerja: [1, 2, 3, 4, 5], hitungLembur: true };
@@ -104,8 +104,8 @@ describe("employeeDailyToCsv", () => {
   it("writes an Excel-friendly CSV with times in WIB", () => {
     const csv = employeeDailyToCsv(rows.slice(0, 2));
     const lines = csv.replace(/^﻿/, "").split("\r\n");
-    expect(lines[0]).toBe("Tanggal,Status,Jam Masuk,Jam Pulang,Durasi (menit),Terlambat (menit),Pulang Cepat (menit),Lembur (menit),Keterangan,Catatan,Peringatan Lokasi");
-    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40:00,18:30:00,530,25,0,90,,,");
+    expect(lines[0]).toBe("Tanggal,Status,Jam Masuk,Sumber Masuk,Jam Pulang,Sumber Pulang,Durasi (menit),Terlambat (menit),Pulang Cepat (menit),Lembur (menit),Keterangan,Catatan,Peringatan Lokasi");
+    expect(lines[2]).toBe("2026-08-04,Terlambat,09:40:00,Aplikasi (GPS),18:30:00,Aplikasi (GPS),530,25,0,90,,,");
   });
 
   it("lists the day's GPS warnings, merged from clock-in and clock-out", () => {
@@ -155,5 +155,27 @@ describe("durasi to the second", () => {
     expect(formatDurasiJms(169 * 3600 + 12 * 60 + 30)).toBe("169:12:30");
     expect(formatDurasiPanjang(d!)).toBe("8 jam 26 menit 44 detik");
     expect(durasiDetik({ jamMasuk: "2026-11-02T07:36:21+07:00", jamPulang: null })).toBeNull();
+  });
+});
+
+describe("sumber absen", () => {
+  it("carries each half's source onto the row (missing metode = GPS, from before 0031)", () => {
+    const [r] = buildEmployeeDaily({
+      from: "2026-08-03", to: "2026-08-03", schedule: SCHEDULE, holidays: new Map(), leaves: [], joinDate: null,
+      attendance: new Map([
+        ["2026-08-03", {
+          status: "tepat_waktu", jam_masuk: "2026-08-03T07:55:00+07:00", jam_pulang: "2026-08-03T16:05:00+07:00", catatan: null,
+          metode_masuk: "mesin", metode_pulang: null,
+        }],
+      ]),
+    });
+    expect(r).toMatchObject({ metodeMasuk: "mesin", metodePulang: "gps" });
+    expect(employeeDailyToCsv([r]).split("\r\n")[1]).toContain(",Mesin finger,16:05:00,Aplikasi (GPS),");
+  });
+
+  it("labels every source, and nothing without a time", () => {
+    expect(["mesin", "qr", "koreksi", "gps"].map((m) => sumberLabel(m, "x"))).toEqual(["Mesin finger", "Aplikasi (QR)", "Koreksi HR", "Aplikasi (GPS)"]);
+    expect(["mesin", "qr", "koreksi", null].map((m) => sumberSingkat(m, "x"))).toEqual(["Mesin", "QR", "Koreksi", "GPS"]);
+    expect(sumberLabel("mesin", null)).toBe(null);
   });
 });

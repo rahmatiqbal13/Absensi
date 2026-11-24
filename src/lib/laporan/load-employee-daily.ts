@@ -92,6 +92,20 @@ export async function loadEmployeeDailyReport(
     loadApprovedOvertime(db, [employeeId], from, to),
     loadRoster(db, [employeeId], from, to),
   ]);
+  // Source of each time (0031: gps/qr/koreksi, 0061: mesin), on its own so an
+  // older database simply shows no source.
+  const metodeRes = await db
+    .from("attendances")
+    .select("tanggal, metode_masuk, metode_pulang")
+    .eq("employee_id", employeeId)
+    .gte("tanggal", from)
+    .lte("tanggal", to);
+  if (metodeRes.error) logOptionalLookup("loadEmployeeDailyReport: metode", metodeRes.error, "0031");
+  const metodeByDate = new Map(
+    ((metodeRes.error ? [] : metodeRes.data ?? []) as { tanggal: string; metode_masuk: string | null; metode_pulang: string | null }[]).map(
+      (m) => [m.tanggal, m],
+    ),
+  );
   if (flagRes.error) logOptionalLookup("loadEmployeeDailyReport: flag_lokasi", flagRes.error, "0046");
   const flagsByDate = new Map(
     ((flagRes.error ? [] : flagRes.data ?? []) as {
@@ -124,7 +138,7 @@ export async function loadEmployeeDailyReport(
     attendance: new Map(
       ((attRes.data ?? []) as (DailyAttendance & { tanggal: string })[]).map((a) => [
         a.tanggal,
-        { ...a, ...flagsByDate.get(a.tanggal) },
+        { ...a, ...flagsByDate.get(a.tanggal), ...metodeByDate.get(a.tanggal) },
       ]),
     ),
     leaves: ((leaveRes.data ?? []) as { tanggal_mulai: string; tanggal_selesai: string; jenis: string }[]).map((l) => ({

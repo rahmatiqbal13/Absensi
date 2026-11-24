@@ -34,6 +34,9 @@ export type DailyRow = {
   shift?: string | null;
   /** An approved lembur request covers this day (0058). */
   lemburDisetujui?: boolean;
+  /** Where jam masuk / pulang came from: gps · qr (aplikasi) · mesin (fingerprint) · koreksi (HR). */
+  metodeMasuk?: string | null;
+  metodePulang?: string | null;
 };
 
 export const LEMBUR_LIBUR_NOTE = "Lembur hari libur (dicatat, belum dihitung ke gaji)";
@@ -54,7 +57,30 @@ export type DailyAttendance = {
   catatan: string | null;
   flag_lokasi_masuk?: string[] | null;
   flag_lokasi_pulang?: string[] | null;
+  metode_masuk?: string | null;
+  metode_pulang?: string | null;
 };
+
+/** Full label for a clock-in / clock-out source; null when there is no time. Rows from before 0031 count as GPS. */
+export function sumberLabel(metode: string | null | undefined, jam: string | null): string | null {
+  if (!jam) return null;
+  switch (metode ?? "gps") {
+    case "mesin":
+      return "Mesin finger";
+    case "qr":
+      return "Aplikasi (QR)";
+    case "koreksi":
+      return "Koreksi HR";
+    default:
+      return "Aplikasi (GPS)";
+  }
+}
+
+/** Short form for tight columns (web table, PDF). */
+export function sumberSingkat(metode: string | null | undefined, jam: string | null): string | null {
+  if (!jam) return null;
+  return { mesin: "Mesin", qr: "QR", koreksi: "Koreksi" }[metode ?? ""] ?? "GPS";
+}
 
 function mergeFlags(att: DailyAttendance): LocationFlag[] {
   return [...new Set([...(att.flag_lokasi_masuk ?? []), ...(att.flag_lokasi_pulang ?? [])])].filter(isLocationFlag);
@@ -147,6 +173,8 @@ export function buildEmployeeDaily(input: {
         shift: isWorkday && rostered?.nama ? rostered.nama : null,
         catatan: att.catatan,
         flagLokasi: mergeFlags(att),
+        metodeMasuk: att.jam_masuk ? att.metode_masuk ?? "gps" : null,
+        metodePulang: att.jam_pulang ? att.metode_pulang ?? "gps" : null,
       });
       continue;
     }
@@ -266,7 +294,7 @@ function csvField(v: string | number): string {
 /** Excel-friendly CSV (BOM + CRLF), same conventions as recap-csv.ts. */
 export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
   const header = [
-    "Tanggal", "Status", "Jam Masuk", "Jam Pulang", "Durasi (menit)",
+    "Tanggal", "Status", "Jam Masuk", "Sumber Masuk", "Jam Pulang", "Sumber Pulang", "Durasi (menit)",
     "Terlambat (menit)", "Pulang Cepat (menit)", "Lembur (menit)", "Keterangan", "Catatan", "Peringatan Lokasi",
   ];
   const lines = [header.map(csvField).join(",")];
@@ -274,7 +302,8 @@ export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
     lines.push(
       [
         r.tanggal, dailyStatusLabel(r),
-        r.jamMasuk ? formatJamWib(r.jamMasuk) : "", r.jamPulang ? formatJamWib(r.jamPulang) : "",
+        r.jamMasuk ? formatJamWib(r.jamMasuk) : "", sumberLabel(r.metodeMasuk, r.jamMasuk) ?? "",
+        r.jamPulang ? formatJamWib(r.jamPulang) : "", sumberLabel(r.metodePulang, r.jamPulang) ?? "",
         r.durasiMenit ?? "", r.menitTerlambat, r.menitPulangCepat, r.menitLembur,
         r.keterangan ?? "", r.catatan ?? "", locationFlagsLabel(r.flagLokasi),
       ].map(csvField).join(","),
