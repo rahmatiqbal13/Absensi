@@ -38,8 +38,9 @@ Cara tanpa jaringan tetap tersedia: **Pengaturan → Mesin absensi → Impor fil
    `Scan PIN … ` lalu `Terkirim … scan`.
    - macOS: izinkan **Local Network** untuk Terminal / VS Code dan koneksi masuk untuk `node`
      (System Settings → Privacy & Security → Local Network; Network → Firewall).
-7. **Otomatis saat login (macOS)** — buat LaunchAgent, atau cukup jalankan `node bridge.mjs`
-   di Terminal setiap tiba di kantor.
+7. **Otomatis saat login (macOS)** — `bash pasang-macos.sh` memasang LaunchAgent: jembatan
+   jalan sendiri setiap login dan hidup lagi bila berhenti. `bash pasang-macos.sh status`
+   untuk melihat log, `bash pasang-macos.sh lepas` untuk mencopot.
 
 Bila `APP_URL` / token belum diisi, scan tetap diterima dan disimpan di `antrian.json`;
 jalankan `node bridge.mjs --kirim` setelah diisi untuk mengirim semuanya.
