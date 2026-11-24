@@ -1,10 +1,12 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth/route-access";
 import { appUrl } from "@/lib/app-url";
 
 export type InviteEmployeeInput = {
   nama: string;
-  email: string;
+  /** null: no login yet (machine-only employee); HR adds the email later. */
+  email: string | null;
   jabatan: string;
   statusKontrak: string;
   statusPtkp?: string;
@@ -18,9 +20,12 @@ export type InviteEmployeeInput = {
 };
 
 export type InviteEmployeeResult =
-  | { ok: true; employeeId: string; setPasswordUrl: string }
+  | { ok: true; employeeId: string; setPasswordUrl: string | null }
   | { ok: false; error: string };
 
+
+/** Auth address for an employee without email: unique, never deliverable (RFC 2606 .invalid). */
+export const placeholderEmail = () => `tanpa-email-${randomUUID()}@tapabsen.invalid`;
 
 export async function inviteEmployee(
   input: InviteEmployeeInput,
@@ -36,16 +41,34 @@ export async function inviteEmployee(
     };
   }
 
-  const { data: linkData, error: linkErr } = await db.auth.admin.generateLink({
-    type: "invite",
-    email: input.email,
-    options: { redirectTo: `${appUrl()}/set-password` },
-  });
-  const authUserId = linkData?.user?.id;
-  const tokenHash = linkData?.properties?.hashed_token;
-  if (linkErr || !authUserId || !tokenHash) {
-    console.error("inviteEmployee: generateLink failed", linkErr);
-    return { ok: false, error: "Gagal membuat akun karyawan." };
+  let authUserId: string | undefined;
+  let tokenHash: string | undefined;
+  if (input.email) {
+    const { data: linkData, error: linkErr } = await db.auth.admin.generateLink({
+      type: "invite",
+      email: input.email,
+      options: { redirectTo: `${appUrl()}/set-password` },
+    });
+    authUserId = linkData?.user?.id;
+    tokenHash = linkData?.properties?.hashed_token;
+    if (linkErr || !authUserId || !tokenHash) {
+      console.error("inviteEmployee: generateLink failed", linkErr);
+      return { ok: false, error: "Gagal membuat akun karyawan." };
+    }
+  } else {
+    // employees.id must be an auth user. Without an email the account gets an
+    // internal address nobody can receive mail at and no password, so it cannot
+    // sign in until HR sets a real email (updateEmployee) and sends a link.
+    const { data, error } = await db.auth.admin.createUser({
+      email: placeholderEmail(),
+      email_confirm: true,
+      user_metadata: { tanpa_email: true },
+    });
+    authUserId = data?.user?.id;
+    if (error || !authUserId) {
+      console.error("inviteEmployee: createUser (tanpa email) failed", error);
+      return { ok: false, error: "Gagal membuat akun karyawan." };
+    }
   }
 
   const { data: employee, error: employeeErr } = await db
@@ -84,6 +107,6 @@ export async function inviteEmployee(
   // shorter, independent of the Supabase redirect allowlist, and the token is
   // only redeemed by JS on the page — chat-app link previews (which fetch the
   // URL but don't run JS) can't burn it the way they burn a /verify link.
-  const setPasswordUrl = `${appUrl()}/set-password?t=${encodeURIComponent(tokenHash)}`;
+  const setPasswordUrl = tokenHash ? `${appUrl()}/set-password?t=${encodeURIComponent(tokenHash)}` : null;
   return { ok: true, employeeId: employee.id, setPasswordUrl };
 }

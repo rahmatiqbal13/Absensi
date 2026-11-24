@@ -7,9 +7,9 @@ export const RESET_THROTTLE_MS = 60_000;
 
 export type RecoveryLinkResult =
   | { ok: true; url: string; email: string; nama: string }
-  | { ok: false; reason: "not-found" | "inactive" | "throttled" | "error" };
+  | { ok: false; reason: "not-found" | "inactive" | "no-email" | "throttled" | "error" };
 
-type EmployeeRow = { id: string; nama: string; email: string; status: string };
+type EmployeeRow = { id: string; nama: string; email: string | null; status: string };
 
 /**
  * Builds a one-time password-reset link on our own domain
@@ -38,6 +38,8 @@ export async function createRecoveryLink(
   const employee = data as EmployeeRow | null;
   if (!employee) return { ok: false, reason: "not-found" };
   if (employee.status !== "aktif") return { ok: false, reason: "inactive" };
+  // Added without email (machine-only): no login address to reset yet.
+  if (!employee.email) return { ok: false, reason: "no-email" };
 
   if (opts.throttle) {
     const { data: authUser, error: authErr } = await db.auth.admin.getUserById(employee.id);

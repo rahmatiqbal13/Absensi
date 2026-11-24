@@ -72,8 +72,8 @@ export async function runImport(text: string): Promise<{ ok: true; results: Impo
     );
     results.push(
       out.ok
-        ? { line: r.line, nama: v.nama, email: v.email, ok: true, setPasswordUrl: out.setPasswordUrl }
-        : { line: r.line, nama: v.nama, email: v.email, ok: false, error: "Gagal membuat akun (email mungkin sudah dipakai)." },
+        ? { line: r.line, nama: v.nama, email: v.email ?? "", ok: true, setPasswordUrl: out.setPasswordUrl ?? undefined }
+        : { line: r.line, nama: v.nama, email: v.email ?? "", ok: false, error: "Gagal membuat akun (email mungkin sudah dipakai)." },
     );
   }
   revalidatePath("/karyawan");

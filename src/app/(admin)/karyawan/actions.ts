@@ -44,7 +44,7 @@ function formRecord(formData: FormData): Record<string, FormDataEntryValue | nul
 
 export async function createEmployee(
   formData: FormData,
-): Promise<Result<{ setPasswordUrl: string }>> {
+): Promise<Result<{ setPasswordUrl: string | null }>> {
   const denied = await assertHrAdmin();
   if (denied) return denied;
 
@@ -94,7 +94,7 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
 
   const { data: target } = await db
     .from("employees")
-    .select("role, nama, slug")
+    .select("role, nama, slug, email")
     .eq("id", id)
     .single();
   if (
@@ -131,6 +131,14 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
     console.error("updateEmployee: update failed", error);
     return { ok: false, error: "Gagal menyimpan perubahan karyawan." };
   }
+
+  // An employee added without email gets one now: it becomes the login of the
+  // auth account (which had an internal placeholder). An email once set stays
+  // read-only here, as before.
+  if (target && !target.email && parsed.value.email) {
+    const added = await addEmployeeEmail(id, parsed.value.email);
+    if (!added.ok) return added;
+  }
   revalidatePath(routePatterns.karyawan, "page");
   revalidatePath("/karyawan");
   // A rename re-derives the URL slug (migration 0043); move the open page to it.
@@ -138,6 +146,32 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
     const { data: renamed } = await db.from("employees").select("slug").eq("id", id).single();
     if (renamed?.slug && renamed.slug !== target.slug) redirect(paths.karyawan(renamed.slug));
   }
+  return { ok: true };
+}
+
+async function addEmployeeEmail(id: string, email: string): Promise<Result> {
+  const me = await getCurrentEmployee(await createServerSupabaseClient());
+  const service = createServiceRoleSupabaseClient();
+  const { data: taken } = await service.from("employees").select("id").ilike("email", email.replace(/[\\%_]/g, (c) => `\\${c}`)).limit(1);
+  if (taken?.length) return { ok: false, error: "Email sudah dipakai karyawan lain." };
+
+  const { error: authErr } = await service.auth.admin.updateUserById(id, { email, email_confirm: true });
+  if (authErr) {
+    console.error("addEmployeeEmail: auth update failed", authErr);
+    return { ok: false, error: "Data tersimpan, tetapi email gagal dipasang ke akun (mungkin sudah dipakai akun lain)." };
+  }
+  const { error } = await service.from("employees").update({ email }).eq("id", id);
+  if (error) {
+    console.error("addEmployeeEmail: employees update failed", error);
+    return { ok: false, error: "Data tersimpan, tetapi email gagal disimpan." };
+  }
+  const { error: auditErr } = await service.from("audit_logs").insert({
+    actor_id: me?.id ?? null,
+    target_employee_id: id,
+    aksi: "employee_email_set",
+    detail: { after: email },
+  });
+  if (auditErr) console.error("addEmployeeEmail: audit insert failed", auditErr);
   return { ok: true };
 }
 
@@ -197,6 +231,9 @@ export async function createPasswordResetLink(id: string): Promise<Result<{ url:
       return { ok: false, error: "Karyawan nonaktif. Aktifkan kembali sebelum membuat link reset." };
     }
     if (result.reason === "not-found") return { ok: false, error: "Karyawan tidak ditemukan." };
+    if (result.reason === "no-email") {
+      return { ok: false, error: "Karyawan ini belum punya email. Isi email di form data karyawan dulu, lalu buat link." };
+    }
     return { ok: false, error: "Gagal membuat link reset kata sandi." };
   }
 

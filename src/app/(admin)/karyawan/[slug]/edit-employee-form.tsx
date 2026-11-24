@@ -68,7 +68,7 @@ export function EditEmployeeForm({
           departments={departments}
           approverOptions={approverOptions}
           defaults={defaults}
-          emailReadOnly
+          emailReadOnly={!!defaults.email}
         />
         {error && (
           <Alert variant="destructive">

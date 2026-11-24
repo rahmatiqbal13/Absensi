@@ -38,7 +38,12 @@ describe("validateEmployeeInput", () => {
 
   it("rejects a missing required field", () => {
     const result = validateEmployeeInput({ ...base, nama: "" });
-    expect(result).toEqual({ ok: false, error: "Nama, email, jabatan, tanggal mulai kerja, dan cabang wajib diisi." });
+    expect(result).toEqual({ ok: false, error: "Nama, jabatan, tanggal mulai kerja, dan cabang wajib diisi." });
+  });
+
+  it("accepts a blank email as no email (machine-only employee)", () => {
+    const result = validateEmployeeInput({ ...base, email: "  " });
+    expect(result.ok && result.value.email).toBe(null);
   });
 
   it("rejects an invalid email", () => {

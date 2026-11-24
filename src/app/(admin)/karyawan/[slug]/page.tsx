@@ -106,7 +106,7 @@ export default async function KaryawanDetailPage({
         eyebrow="Orang"
         title={emp.nama}
         description={[
-          emp.email,
+          emp.email ?? "Tanpa email — belum bisa masuk aplikasi",
           !personalError && (personal as { nomor_pegawai?: string | null } | null)?.nomor_pegawai
             ? `No. pegawai ${formatNomorPegawai((personal as { nomor_pegawai: string }).nomor_pegawai)}`
             : null,

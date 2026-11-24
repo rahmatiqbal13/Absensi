@@ -2,7 +2,8 @@ import type { Role } from "@/lib/auth/route-access";
 
 export type EmployeeFormInput = {
   nama: string;
-  email: string;
+  /** Optional: an employee who only clocks in on the machine may have none (migration 0063). */
+  email: string | null;
   jabatan: string;
   statusKontrak: string;
   /** TK/0 … K/3 — PTKP status for PPh 21 (migration 0039). */
@@ -33,7 +34,7 @@ export function validateEmployeeInput(
   raw: Record<string, FormDataEntryValue | null>,
 ): { ok: true; value: EmployeeFormInput } | { ok: false; error: string } {
   const nama = str(raw.nama);
-  const email = str(raw.email);
+  const email = str(raw.email) || null;
   const jabatan = str(raw.jabatan);
   const statusKontrak = str(raw.statusKontrak);
   const tanggalMulaiKerja = str(raw.tanggalMulaiKerja);
@@ -41,10 +42,10 @@ export function validateEmployeeInput(
   const role = str(raw.role);
   const designatedApproverId = orNull(raw.designatedApproverId);
 
-  if (!nama || !email || !jabatan || !tanggalMulaiKerja || !branchId) {
-    return { ok: false, error: "Nama, email, jabatan, tanggal mulai kerja, dan cabang wajib diisi." };
+  if (!nama || !jabatan || !tanggalMulaiKerja || !branchId) {
+    return { ok: false, error: "Nama, jabatan, tanggal mulai kerja, dan cabang wajib diisi." };
   }
-  if (!EMAIL.test(email)) {
+  if (email && !EMAIL.test(email)) {
     return { ok: false, error: "Format email tidak valid." };
   }
   if (!ISO_DATE.test(tanggalMulaiKerja)) {

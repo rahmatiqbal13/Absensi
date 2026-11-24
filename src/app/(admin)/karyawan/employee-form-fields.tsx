@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
 export type EmployeeFieldValues = {
-  nama: string; email: string; jabatan: string; statusKontrak: string; statusPtkp?: string;
+  nama: string; email: string | null; jabatan: string; statusKontrak: string; statusPtkp?: string;
   tanggalMulaiKerja: string; gajiPokok: string; role: string;
   branchId: string; departmentId: string; atasanId: string; designatedApproverId: string;
 };
@@ -102,12 +102,19 @@ export function EmployeeFormFields({
         <Field id="nama" label="Nama">
           <Input name="nama" defaultValue={defaults.nama} required />
         </Field>
-        <Field id="email" label="Email">
+        <Field
+          id="email"
+          label={emailReadOnly ? "Email" : "Email (opsional)"}
+          hint={
+            emailReadOnly
+              ? undefined
+              : "Kosongkan bila pegawai hanya absen lewat mesin fingerprint. Ia belum bisa masuk ke aplikasi sampai email diisi."
+          }
+        >
           <Input
             name="email"
             type="email"
-            defaultValue={defaults.email}
-            required
+            defaultValue={defaults.email ?? ""}
             readOnly={emailReadOnly}
             aria-readonly={emailReadOnly || undefined}
             className={emailReadOnly ? "bg-muted text-muted-foreground" : undefined}

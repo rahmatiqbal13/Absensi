@@ -100,7 +100,7 @@ export default async function ProfilPage() {
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3 rounded-xl border border-border bg-card p-4 text-sm">
         {[
           ["No. Pegawai", formatNomorPegawai(personal?.nomor_pegawai) ?? "Belum ada — isi tanggal lahir di Data diri"],
-          ["Email", me.email],
+          ["Email", me.email ?? "—"],
           ["Departemen", deptNama],
           ["Mulai Kerja", row?.tanggal_mulai_kerja ?? "-"],
         ].map(([k, v]) => (

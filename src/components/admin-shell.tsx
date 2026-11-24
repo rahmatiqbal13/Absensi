@@ -214,7 +214,7 @@ function UserMenu({ employee, avatarUrl }: { employee: CurrentEmployee; avatarUr
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="w-56">
-        <DropdownMenuLabel className="font-normal text-muted-foreground">{employee.email}</DropdownMenuLabel>
+        <DropdownMenuLabel className="font-normal text-muted-foreground">{employee.email ?? "—"}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profil">Profil</Link>

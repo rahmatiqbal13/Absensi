@@ -39,11 +39,13 @@ function makeDb(opts: { linkError?: string; insertError?: string; deleteError?: 
       : { data: { id: "auth-user-1" }, error: null },
   );
   const insert = vi.fn(() => ({ select: () => ({ single }) }));
+  const createUser = vi.fn(async () => ({ data: { user: { id: "auth-user-1" } }, error: null }));
   return {
     _generateLink: generateLink,
+    _createUser: createUser,
     _deleteUser: deleteUser,
     _insert: insert,
-    auth: { admin: { generateLink, deleteUser } },
+    auth: { admin: { generateLink, deleteUser, createUser } },
     from: vi.fn(() => ({ insert })),
   };
 }
@@ -63,6 +65,17 @@ describe("inviteEmployee", () => {
     expect(db._insert).toHaveBeenCalledWith(
       expect.objectContaining({ id: "auth-user-1", email: "sari@contoh.co.id", role: "karyawan" }),
     );
+  });
+
+  it("without email: creates a login-less auth user, stores email null, returns no link", async () => {
+    const db = makeDb();
+    const result = await inviteEmployee({ ...baseInput, email: null }, db as any);
+    expect(result).toEqual({ ok: true, employeeId: "auth-user-1", setPasswordUrl: null });
+    expect(db._generateLink).not.toHaveBeenCalled();
+    expect(db._createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: expect.stringMatching(/^tanpa-email-[0-9a-f-]{36}@tapabsen\.invalid$/), email_confirm: true }),
+    );
+    expect(db._insert).toHaveBeenCalledWith(expect.objectContaining({ id: "auth-user-1", email: null }));
   });
 
   it("rejects hr_admin without a designated approver before touching auth", async () => {

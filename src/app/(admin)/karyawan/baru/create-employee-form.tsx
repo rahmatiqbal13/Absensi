@@ -33,7 +33,7 @@ const INVITE_NOTES = [
   },
 ];
 
-type Result = { ok: true; setPasswordUrl: string } | { ok: false; error: string };
+type Result = { ok: true; setPasswordUrl: string | null } | { ok: false; error: string };
 
 export function CreateEmployeeForm({
   branches,
@@ -48,6 +48,8 @@ export function CreateEmployeeForm({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  // Created without email: no set-password link to hand out.
+  const [noLogin, setNoLogin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [invitee, setInvitee] = useState({ nama: "", email: "" });
@@ -67,12 +69,50 @@ export function CreateEmployeeForm({
         email: String(formData.get("email") ?? "").trim(),
       });
       setLink(r.setPasswordUrl);
+      setNoLogin(!r.setPasswordUrl);
     } catch (e) {
       console.error("create-employee-form action failed", e);
       setError("Terjadi kesalahan. Coba lagi.");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (noLogin) {
+    return (
+      <div className="flex max-w-[760px] flex-col gap-6">
+        <div className="flex flex-col gap-2.5">
+          <EyebrowPill tone="success">Pegawai ditambahkan</EyebrowPill>
+          <h2 className="text-[clamp(1.6rem,3.2vw,2.25rem)] leading-tight font-semibold tracking-[-0.03em]">
+            {invitee.nama ? `${invitee.nama} sudah terdaftar.` : "Karyawan sudah terdaftar."}
+          </h2>
+          <p className="max-w-[60ch] text-[0.95rem] leading-relaxed text-muted-foreground">
+            Didaftarkan tanpa email: absen lewat mesin fingerprint langsung tercatat setelah PIN mesinnya dipasangkan
+            (Pengaturan → Mesin absensi), tetapi ia belum bisa masuk ke aplikasi. Isi email di halaman pegawai kapan saja,
+            lalu buat link atur kata sandi dari sana.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Button asChild className="h-11 px-5">
+            <Link href="/pengaturan/mesin-absensi">Pasangkan PIN mesin</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-11 px-4">
+            <Link href="/karyawan">Kembali ke daftar karyawan</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 px-4"
+            onClick={() => {
+              setNoLogin(false);
+              setInvitee({ nama: "", email: "" });
+            }}
+          >
+            <UserPlus /> Tambah karyawan lain
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (link) {

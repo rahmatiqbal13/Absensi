@@ -102,19 +102,19 @@ export function validateImport(
   ref: {
     branches: { id: string; nama: string }[];
     departments: { id: string; nama: string; branch_id: string }[];
-    employees: { id: string; email: string }[];
+    employees: { id: string; email: string | null }[];
   },
 ): { ok: false; error: string } | { ok: true; rows: ImportRow[] } {
   const table = parseCsv(text);
   if (table.length < 2) return { ok: false, error: "File kosong. Isi minimal satu baris karyawan di bawah judul kolom." };
   const header = table[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
-  const missing = ["nama", "email", "jabatan", "tanggal_mulai_kerja", "cabang"].filter((h) => !header.includes(h));
+  const missing = ["nama", "jabatan", "tanggal_mulai_kerja", "cabang"].filter((h) => !header.includes(h));
   if (missing.length) return { ok: false, error: `Kolom wajib tidak ada: ${missing.join(", ")}. Gunakan template.` };
   if (table.length - 1 > IMPORT_MAX_ROWS) return { ok: false, error: `Maksimal ${IMPORT_MAX_ROWS} karyawan per file.` };
 
   const byName = (list: { id: string; nama: string }[], name: string) =>
     list.find((x) => x.nama.trim().toLowerCase() === name.trim().toLowerCase());
-  const existingEmails = new Map(ref.employees.map((e) => [e.email.toLowerCase(), e.id]));
+  const existingEmails = new Map(ref.employees.filter((e) => e.email).map((e) => [(e.email as string).toLowerCase(), e.id]));
   const seen = new Set<string>();
 
   const rows = table.slice(1).map((cells, i): ImportRow => {
