@@ -1,4 +1,4 @@
-import { correctedStatus } from "@/lib/attendance/correction";
+import { correctedStatus, jakartaInstant } from "@/lib/attendance/correction";
 import type { AttendanceStatus } from "@/lib/attendance/status";
 
 /**
@@ -7,14 +7,22 @@ import type { AttendanceStatus } from "@/lib/attendance/status";
  * Rules (the same whether scans come from a USB file or the LAN bridge, and
  * safe to re-run — importing the same scans twice changes nothing):
  * - Every known time of the day counts: the machine scans plus the jam masuk /
- *   pulang already recorded from the app (GPS / QR). Jam masuk = the earliest,
- *   jam pulang = the latest, when it is at least MIN_GAP_SEC after jam masuk
- *   (a double tap at the machine is not a clock-out).
+ *   pulang already recorded from the app (GPS / QR). Jam masuk = the earliest.
+ *   Jam pulang = the FIRST time from PULANG_WINDOW_MIN before the scheduled
+ *   jam pulang onwards, so scanning again later never moves it (every scan is
+ *   still kept in mesin_scans). Before that window a scan may be a lunch break,
+ *   so it only counts when nothing falls in the window (early leave) — then the
+ *   latest one. Either way at least MIN_GAP_SEC after jam masuk (a double tap
+ *   at the machine is not a clock-out).
  * - A half HR set by hand (metode 'koreksi') is never overwritten.
  * - Status is recomputed from the day's schedule like a correction; if a GPS
  *   half that was outside the geofence is kept, the day stays di_luar_lokasi.
  */
 export const MIN_GAP_SEC = 60;
+/** Scans from this many minutes before the scheduled jam pulang count as the clock-out. */
+export const PULANG_WINDOW_MIN = 60;
+
+const WIB_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
 
 export type ExistingDay = {
   jam_masuk: string | null;
@@ -57,7 +65,11 @@ export function mergeMachineDay(existing: ExistingDay | null, scans: readonly st
   let pulang: Stamp | null = fixedPulang;
   if (!pulang) {
     const later = candidates.filter((c) => c.t - masuk.t >= MIN_GAP_SEC * 1000);
-    pulang = later.length ? latest(later) : null;
+    // Shifts end on the day they start (0059), so the window is on jam masuk's WIB day.
+    const windowStart =
+      Date.parse(jakartaInstant(WIB_DATE.format(new Date(masuk.t)), schedule.jam_pulang)) - PULANG_WINDOW_MIN * 60_000;
+    const inWindow = later.filter((c) => c.t >= windowStart);
+    pulang = inWindow.length ? earliest(inWindow) : later.length ? latest(later) : null;
   }
 
   let status = correctedStatus({ jamMasukIso: masuk.iso, jamPulangIso: pulang?.iso ?? null, schedule });

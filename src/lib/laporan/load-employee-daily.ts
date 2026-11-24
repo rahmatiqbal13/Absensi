@@ -19,6 +19,7 @@ export type EmployeeDailyReport = {
   rows: DailyRow[];
 };
 
+const WIB_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -151,6 +152,30 @@ export async function loadEmployeeDailyReport(
     roster: rosters.get(employeeId),
   });
 
+  // Every raw machine scan (0061), so HR sees repeat scans that did not change
+  // jam masuk / pulang. RLS lets only HR read them; others get none.
+  const nextDay = new Date(`${to}T00:00:00Z`);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const scanRes = isHr
+    ? await db
+        .from("mesin_scans")
+        .select("waktu")
+        .eq("employee_id", employeeId)
+        .gte("waktu", new Date(`${from}T00:00:00+07:00`).toISOString())
+        .lt("waktu", new Date(`${nextDay.toISOString().slice(0, 10)}T00:00:00+07:00`).toISOString())
+        .order("waktu", { ascending: true })
+        .limit(5000)
+    : null;
+  if (scanRes?.error) logOptionalLookup("loadEmployeeDailyReport: mesin_scans", scanRes.error, "0061");
+  const scansByDate = new Map<string, string[]>();
+  for (const { waktu } of (scanRes && !scanRes.error ? scanRes.data ?? [] : []) as { waktu: string }[]) {
+    const tanggal = WIB_DATE.format(new Date(waktu));
+    scansByDate.set(tanggal, [...(scansByDate.get(tanggal) ?? []), waktu]);
+  }
+  const rowsWithScans = scansByDate.size
+    ? rows.map((r) => (scansByDate.has(r.tanggal) ? { ...r, scansMesin: scansByDate.get(r.tanggal) } : r))
+    : rows;
+
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
   return {
     ok: true,
@@ -164,7 +189,7 @@ export async function loadEmployeeDailyReport(
         tanggalMulaiKerja: (emp.tanggal_mulai_kerja as string | null) ?? null,
       },
       schedule,
-      rows,
+      rows: rowsWithScans,
     },
   };
 }

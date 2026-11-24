@@ -91,7 +91,8 @@ SDK bisa disesuaikan dengan `EASYLINK_PATH_BARU` / `EASYLINK_PATH_SEMUA`.
 
 - Aman diulang: scan yang sudah pernah diterima diabaikan server.
 - Bila internet / server putus, scan menunggu di `antrian.json` dan dikirim ulang otomatis.
-- Jam masuk = scan pertama, jam pulang = scan terakhir di hari itu (WIB). Absen lewat aplikasi
+- Jam masuk = scan pertama; jam pulang = scan pertama sejak 1 jam sebelum jadwal pulang (WIB) —
+  scan pulang berikutnya tidak menggeser jam pulang. Absen lewat aplikasi
   (GPS/QR) di hari yang sama digabung; absen yang dikoreksi HR tidak pernah ditimpa.
 - Hari di bulan yang payroll-nya sudah **final** tidak diubah.
 - Mengembalikan mesin ke cloud Fingerspot: Server IP `3.1.174.198`, Server Port `8014`.

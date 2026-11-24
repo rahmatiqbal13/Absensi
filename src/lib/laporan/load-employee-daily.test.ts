@@ -10,7 +10,7 @@ const EMP = {
 
 function q(result: unknown) {
   const b: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "gte", "lte", "in", "or", "order"]) b[m] = () => b;
+  for (const m of ["select", "eq", "gte", "lte", "lt", "in", "not", "or", "order", "limit"]) b[m] = () => b;
   b.maybeSingle = () => Promise.resolve(result);
   b.then = (res: (v: unknown) => unknown) => Promise.resolve(result).then(res);
   return b;
@@ -49,6 +49,32 @@ describe("loadEmployeeDailyReport access", () => {
   it("rejects a malformed id without querying", async () => {
     const d = db(EMP);
     expect(await loadEmployeeDailyReport(d, viewer("hr_admin"), "nope", "2026-08-03", "2026-08-03")).toMatchObject({ ok: false, status: 404 });
+  });
+});
+
+describe("loadEmployeeDailyReport machine scans (0061)", () => {
+  function dbWithScans(scans: string[]) {
+    return {
+      from: vi.fn((t: string) => {
+        if (t === "employees") return q({ data: EMP, error: null });
+        if (t === "mesin_scans") return q({ data: scans.map((waktu) => ({ waktu })), error: null });
+        return q({ data: [], error: null });
+      }),
+    } as never;
+  }
+
+  it("lists every scan on its WIB day for HR", async () => {
+    // 2026-08-03 17:30 UTC = 08-04 00:30 WIB.
+    const scans = ["2026-08-03T01:00:00Z", "2026-08-03T10:00:00Z", "2026-08-03T10:15:00Z", "2026-08-03T17:30:00Z"];
+    const res = await loadEmployeeDailyReport(dbWithScans(scans), viewer("hr_admin"), EMP_ID, "2026-08-03", "2026-08-04");
+    expect(res.ok && res.report.rows.map((r) => r.scansMesin)).toEqual([scans.slice(0, 3), [scans[3]]]);
+  });
+
+  it("does not look up scans for a non-HR viewer", async () => {
+    const d = dbWithScans(["2026-08-03T01:00:00Z"]);
+    const res = await loadEmployeeDailyReport(d, viewer("karyawan", EMP_ID), EMP_ID, "2026-08-03", "2026-08-03");
+    expect(res.ok && res.report.rows[0].scansMesin).toBeUndefined();
+    expect((d as unknown as { from: { mock: { calls: string[][] } } }).from.mock.calls.map((c) => c[0])).not.toContain("mesin_scans");
   });
 });
 

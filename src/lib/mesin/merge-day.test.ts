@@ -6,7 +6,7 @@ const at = (hms: string) => `2026-08-03T${hms}+07:00`;
 const iso = (hms: string) => new Date(at(hms)).toISOString();
 
 describe("mergeMachineDay", () => {
-  it("first scan = masuk, last scan = pulang", () => {
+  it("first scan = masuk, a midday scan is not pulang", () => {
     const r = mergeMachineDay(null, [at("07:55:01"), at("12:00:00"), at("16:05:09")], SCHED);
     expect(r).toMatchObject({ jamMasuk: iso("07:55:01"), jamPulang: iso("16:05:09"), metodeMasuk: "mesin", metodePulang: "mesin", status: "tepat_waktu", aksi: "baru" });
   });
@@ -16,7 +16,22 @@ describe("mergeMachineDay", () => {
     expect(mergeMachineDay(null, [at("07:50:00"), at("07:50:30")], SCHED)).toMatchObject({ jamPulang: null });
   });
 
-  it("combines with the app clock-in and keeps the earliest / latest", () => {
+  it("scanning pulang again does not move jam pulang", () => {
+    const r = mergeMachineDay(null, [at("07:55:00"), at("16:02:00"), at("16:20:00"), at("17:45:00")], SCHED);
+    expect(r).toMatchObject({ jamMasuk: iso("07:55:00"), jamPulang: iso("16:02:00") });
+    // ...also when the extra scan arrives later on its own (LAN bridge).
+    const ex: ExistingDay = { jam_masuk: iso("07:55:00"), jam_pulang: iso("16:02:00"), metode_masuk: "mesin", metode_pulang: "mesin", status: "tepat_waktu" };
+    expect(mergeMachineDay(ex, [at("16:20:00")], SCHED)).toMatchObject({ jamPulang: iso("16:02:00"), aksi: "tetap" });
+  });
+
+  it("the window starts an hour before jam pulang; earlier scans count only for an early leave", () => {
+    // 15:00 is inside the window, 16:10 is a re-scan.
+    expect(mergeMachineDay(null, [at("07:55:00"), at("12:00:00"), at("15:00:00"), at("16:10:00")], SCHED)?.jamPulang).toBe(iso("15:00:00"));
+    // Nothing in the window: left early, the latest scan is the clock-out.
+    expect(mergeMachineDay(null, [at("07:55:00"), at("12:00:00"), at("13:30:00")], SCHED)).toMatchObject({ jamPulang: iso("13:30:00"), status: "pulang_cepat" });
+  });
+
+  it("combines with the app clock-in and keeps the earliest masuk", () => {
     const ex: ExistingDay = { jam_masuk: iso("07:40:00"), jam_pulang: null, metode_masuk: "gps", metode_pulang: null, status: "tepat_waktu" };
     const r = mergeMachineDay(ex, [at("07:58:00"), at("16:30:00")], SCHED);
     expect(r).toMatchObject({ jamMasuk: iso("07:40:00"), metodeMasuk: "gps", jamPulang: iso("16:30:00"), metodePulang: "mesin", aksi: "ubah" });

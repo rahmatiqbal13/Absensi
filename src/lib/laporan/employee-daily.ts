@@ -37,6 +37,8 @@ export type DailyRow = {
   /** Where jam masuk / pulang came from: gps · qr (aplikasi) · mesin (fingerprint) · koreksi (HR). */
   metodeMasuk?: string | null;
   metodePulang?: string | null;
+  /** Every raw machine scan of this day (ISO, ascending) — HR only (mesin_scans RLS). */
+  scansMesin?: string[];
 };
 
 export const LEMBUR_LIBUR_NOTE = "Lembur hari libur (dicatat, belum dihitung ke gaji)";

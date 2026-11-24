@@ -31,6 +31,7 @@ import { toJakartaHHMMSS } from "@/lib/attendance/correction";
 import { hrCorrectAttendanceAction } from "../../../persetujuan-koreksi/actions";
 import { AttendanceEvidenceDialog } from "@/components/attendance-evidence-dialog";
 import { getAttendanceEvidence } from "./actions";
+import { ScanListPopover } from "./scan-list-popover";
 
 const HR_CORRECTION_COPY = {
   title: "Koreksi absensi",
@@ -225,7 +226,14 @@ export default async function LaporanKaryawanPage({
               { key: "tgl", header: "Tanggal", cell: (r: DailyRow) => <span className="whitespace-nowrap font-medium">{tanggalLabel(r.tanggal)}</span> },
               { key: "status", header: "Status", cell: (r: DailyRow) => <StatusCell r={r} />, mobileLabel: "Status" },
               { key: "masuk", header: "Masuk", cell: (r: DailyRow) => <JamCell jam={r.jamMasuk} metode={r.metodeMasuk} />, mobileLabel: "Masuk" },
-              { key: "pulang", header: "Pulang", cell: (r: DailyRow) => <JamCell jam={r.jamPulang} metode={r.metodePulang} />, mobileLabel: "Pulang" },
+              { key: "pulang", header: "Pulang", cell: (r: DailyRow) => (
+                  <span className="inline-flex flex-col gap-1">
+                    <JamCell jam={r.jamPulang} metode={r.metodePulang} />
+                    {r.scansMesin && r.scansMesin.length > 0 && (
+                      <ScanListPopover scans={r.scansMesin} jamMasuk={r.jamMasuk} jamPulang={r.jamPulang} tanggalLabel={tanggalLabel(r.tanggal)} />
+                    )}
+                  </span>
+                ), mobileLabel: "Pulang" },
               { key: "durasi", header: "Durasi", align: "right", cell: (r: DailyRow) => <span className="font-mono tabular-nums">{formatDurasiSingkat(r.durasiMenit)}</span>, mobileLabel: "Durasi" },
               { key: "telat", header: "Terlambat", align: "right", cell: (r: DailyRow) => <span className={r.menitTerlambat ? "text-warning-foreground" : "text-muted-foreground"}>{mins(r.menitTerlambat)}</span>, mobileLabel: "Terlambat" },
               { key: "pc", header: "Pulang cepat", align: "right", cell: (r: DailyRow) => <span className={r.menitPulangCepat ? "text-early-foreground" : "text-muted-foreground"}>{mins(r.menitPulangCepat)}</span>, mobileLabel: "Pulang cepat" },

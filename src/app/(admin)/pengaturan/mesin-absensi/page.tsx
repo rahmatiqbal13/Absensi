@@ -67,7 +67,7 @@ export default async function MesinAbsensiPage() {
       <PageHeader
         eyebrow="Sistem"
         title="Mesin absensi"
-        description="Masukkan absen dari mesin fingerprint (Fingerspot Revo) — lewat file dari flashdisk atau otomatis lewat jaringan kantor. Jam masuk = scan pertama, jam pulang = scan terakhir di hari itu."
+        description="Masukkan absen dari mesin fingerprint (Fingerspot Revo) — lewat file dari flashdisk atau otomatis lewat jaringan kantor. Jam masuk = scan pertama; jam pulang = scan pertama sejak 1 jam sebelum jadwal pulang, scan berikutnya tidak menggeser jam pulang (tetap tercatat di log)."
       />
 
       {notMigrated && (
