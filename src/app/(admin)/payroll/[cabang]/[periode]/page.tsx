@@ -10,7 +10,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { RincianHarianEntry } from "@/lib/payroll/deduction";
 import { monthLabel } from "@/lib/format/month";
 import { PayslipTable, type PayslipView } from "./payslip-table";
-import { generatePayroll, finalizePayroll, setPayrollPaid } from "../../actions";
+import { generatePayroll, finalizePayroll, reopenPayroll, setPayrollPaid } from "../../actions";
+import { ReopenPayrollButton } from "./reopen-button";
 import { PaymentPanel } from "./payment-panel";
 import { paths, payrollPeriodId } from "@/lib/routing/paths";
 
@@ -80,6 +81,11 @@ export default async function PayrollPeriodPage({
     return setPayrollPaid(periodId, tanggal);
   }
 
+  async function onReopen() {
+    "use server";
+    return reopenPayroll(periodId);
+  }
+
   // Who can be picked in the Generate dialog: active staff of this branch,
   // minus interns (status magang have no payroll).
   const { data: activeStaff } = await db
@@ -109,6 +115,9 @@ export default async function PayrollPeriodPage({
                   <FileSpreadsheet className="size-4" aria-hidden="true" /> Unduh Excel
                 </a>
               </Button>
+            )}
+            {period.status === "final" && !period.dibayar_pada && (
+              <ReopenPayrollButton periodLabel={`${monthLabel(period.bulan)} ${period.tahun}`} onReopen={onReopen} />
             )}
             <PayrollStatusBadge status={displayStatus} />
           </>

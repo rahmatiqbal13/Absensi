@@ -22,6 +22,7 @@ const KATEGORI_AKSI: Record<Exclude<AuditKategori, "lainnya">, string[]> = {
     "birth_date_corrected",
     "payroll_paid",
     "payroll_paid_undone",
+    "payroll_reopened",
     "mesin_absensi_import",
     "employee_pin_mesin_set",
   ],

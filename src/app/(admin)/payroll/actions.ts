@@ -17,6 +17,8 @@ import { loadPph21Config } from "@/lib/payroll/pph21-config";
 import { logOptionalLookup } from "@/lib/supabase/missing-column";
 import { loadApprovedOvertime } from "@/lib/requests/approved-overtime";
 import { loadRoster } from "@/lib/schedule/roster";
+import { getCurrentEmployee } from "@/lib/auth/session";
+import { reprocessStoredScans } from "@/lib/mesin/reprocess";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -29,6 +31,9 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   "payroll period is already finalized": "Periode ini sudah difinalisasi sebelumnya.",
   "cannot finalize a payroll period with no payslips":
     "Tidak dapat memfinalisasi periode tanpa slip gaji.",
+  "payroll period is still draft": "Periode ini belum difinalisasi.",
+  "payroll period is already paid":
+    "Periode ini sudah ditandai dibayar. Batalkan status dibayar dulu bila memang perlu dibuka kembali.",
 };
 
 function mapRpcError(message: string | undefined): string {
@@ -344,4 +349,43 @@ export async function setPayrollPaid(periodId: string, tanggal: string | null): 
   revalidatePath("/payroll");
   revalidatePath("/slip-gaji");
   return { ok: true, message: tanggal ? "Periode ditandai sudah dibayar." : "Status dibayar dibatalkan." };
+}
+
+/**
+ * Returns a finalized (not yet paid) period to draft, then puts the machine
+ * scans stored for that month — skipped while it was final — into attendance.
+ * HR then regenerates and finalizes the payslips again.
+ */
+export async function reopenPayroll(periodId: string): Promise<ActionResult> {
+  const db = await createServerSupabaseClient();
+  const { data: period } = await db.from("payroll_periods").select("branch_id, bulan, tahun").eq("id", periodId).maybeSingle();
+  const { error } = await db.rpc("reopen_payroll", { p_period_id: periodId });
+  if (error) {
+    if (error.message?.includes("reopen_payroll")) {
+      return { ok: false, error: "Fitur ini butuh migrasi 0064_reopen_payroll.sql." };
+    }
+    return { ok: false, error: mapRpcError(error.message) };
+  }
+
+  let message = "Periode dibuka kembali. Generate ulang slip lalu finalisasi lagi.";
+  if (period) {
+    const me = await getCurrentEmployee(db);
+    const r = await reprocessStoredScans(createServiceRoleSupabaseClient(), {
+      branchId: period.branch_id as string,
+      tahun: period.tahun as number,
+      bulan: period.bulan as number,
+      actorId: me?.id ?? null,
+    });
+    if (!r.ok) {
+      console.error("reopenPayroll: reprocessing stored scans failed", r.error);
+      message = "Periode dibuka kembali, tetapi scan mesin tersimpan gagal diproses. Coba tarik ulang dari mesin.";
+    } else if (r.ditulis) {
+      message = `Periode dibuka kembali; ${r.ditulis} hari absensi diisi dari ${r.scan} scan mesin tersimpan. Generate ulang slip lalu finalisasi lagi.`;
+    }
+  }
+  revalidatePath(routePatterns.payrollPeriod, "page");
+  revalidatePath("/payroll");
+  revalidatePath("/slip-gaji");
+  revalidatePath("/laporan");
+  return { ok: true, message };
 }
