@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
@@ -50,8 +51,11 @@ export function AuditFilters({
   defaults: { dari?: string; sampai?: string; target?: string; aksi?: string; q?: string; jenis?: string };
 }) {
   const router = useRouter();
+  // Filters changed since the last render: `defaults` lags behind while a
+  // navigation is in flight, so a second quick change must not resend a stale value.
+  const pending = useRef<Record<string, string>>({});
 
-  function hrefWith(overrides: Record<string, string>) {
+  function hrefWith(overrides: Record<string, string>, unrendered: Record<string, string> = {}) {
     const next = {
       q: defaults.q ?? "",
       jenis: defaults.jenis ?? "",
@@ -59,6 +63,7 @@ export function AuditFilters({
       sampai: defaults.sampai ?? "",
       target: defaults.target ?? "",
       aksi: defaults.aksi ?? "",
+      ...unrendered,
       ...overrides,
     };
     const params = new URLSearchParams();
@@ -68,7 +73,9 @@ export function AuditFilters({
   }
 
   function pushWith(overrides: Record<string, string>) {
-    router.push(hrefWith(overrides));
+    const href = hrefWith(overrides, pending.current);
+    pending.current = { ...pending.current, ...overrides };
+    router.push(href);
   }
 
   const tabs = [{ value: "", label: "Semua" }, ...AUDIT_KATEGORI];
