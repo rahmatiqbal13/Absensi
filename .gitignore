@@ -32,6 +32,27 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which holds no secrets
+!.env.local.example
+
+# keys, certificates & service credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+credentials*.json
+*service-account*.json
+*serviceAccount*.json
+.sentryclirc
+.netrc
+.npmrc
+
+# Supabase CLI local state (project ref, pooler URL, branches)
+/supabase/.temp/
+/supabase/.branches/
+/supabase/.env*
 
 # vercel
 .vercel
@@ -47,4 +68,22 @@ next-env.d.ts
 
 # Mesin absensi bridge: local secrets & queue
 scripts/mesin-bridge/bridge.env
+scripts/mesin-bridge/bridge.env.*
+!scripts/mesin-bridge/bridge.env.example
 scripts/mesin-bridge/antrian.json*
+scripts/mesin-bridge/*.log
+
+# Employee data that must never reach GitHub: attendance-machine logs (USB
+# export AGL001.TXT etc.) and downloaded reports / payroll exports.
+[Aa][Gg][Ll][0-9]*.[Tt][Xx][Tt]
+*.dat
+laporan-kehadiran-*.xlsx
+laporan-kehadiran-*.csv
+laporan-kehadiran-*.pdf
+link-undangan-karyawan.csv
+payroll-*.xlsx
+slip-gaji-*.pdf
+
+# logs
+*.log
+logs/
