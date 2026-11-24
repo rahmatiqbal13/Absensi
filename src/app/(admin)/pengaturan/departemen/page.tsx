@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { DepartmentForm } from "./department-form";
-import { addDepartment, deleteDepartment } from "./actions";
+import { EditDepartmentButton } from "./edit-department-button";
+import { addDepartment, deleteDepartment, updateDepartment } from "./actions";
 
 export default async function DepartemenPage() {
   const db = await createServerSupabaseClient();
@@ -38,6 +39,11 @@ export default async function DepartemenPage() {
       return { id: b.id as string, nama: b.nama as string, items, total: items.reduce((a, d) => a + d.n, 0) };
     })
     .filter((c) => c.items.length > 0);
+
+  async function update(id: string, fd: FormData) {
+    "use server";
+    return updateDepartment(id, fd);
+  }
 
   async function remove(id: string) {
     "use server";
@@ -103,6 +109,12 @@ export default async function DepartemenPage() {
                               </span>
                             </>
                           )}
+                          <EditDepartmentButton
+                            department={{ id: d.id, nama: d.nama, branchId: c.id }}
+                            branches={branches ?? []}
+                            headcount={staffErr ? null : d.n}
+                            updateDepartment={update.bind(null, d.id)}
+                          />
                           <ConfirmDeleteButton
                             action={remove.bind(null, d.id)}
                             title="Hapus departemen?"

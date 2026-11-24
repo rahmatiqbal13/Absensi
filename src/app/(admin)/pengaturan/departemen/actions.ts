@@ -33,6 +33,56 @@ export async function addDepartment(formData: FormData): Promise<Result> {
   return { ok: true };
 }
 
+/**
+ * Renames a department, or moves it to another branch. A move is only allowed
+ * while nobody is in it: an employee's department must belong to their branch.
+ */
+export async function updateDepartment(id: string, formData: FormData): Promise<Result> {
+  const { db, denied } = await assertHrAdmin();
+  if (denied) return denied;
+
+  const nama = String(formData.get("nama") ?? "").trim();
+  const branchId = String(formData.get("branchId") ?? "").trim();
+  if (!nama || !branchId) {
+    return { ok: false, error: "Nama departemen dan cabang wajib diisi." };
+  }
+  if (nama.length > 100) return { ok: false, error: "Nama departemen maksimal 100 karakter." };
+
+  const { data: current, error: readErr } = await db.from("departments").select("id, branch_id").eq("id", id).maybeSingle();
+  if (readErr || !current) {
+    if (readErr) console.error("updateDepartment: read failed", readErr);
+    return { ok: false, error: "Departemen tidak ditemukan." };
+  }
+  if (current.branch_id !== branchId) {
+    const { count, error: countErr } = await db
+      .from("employees")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", id);
+    if (countErr) {
+      console.error("updateDepartment: member count failed", countErr);
+      return { ok: false, error: "Gagal mengubah departemen." };
+    }
+    if (count && count > 0) {
+      return {
+        ok: false,
+        error: `Departemen masih dipakai ${count} karyawan, jadi cabangnya tidak bisa dipindah. Ubah namanya saja, atau pindahkan karyawannya dulu.`,
+      };
+    }
+  }
+
+  const { data, error } = await db.from("departments").update({ nama, branch_id: branchId }).eq("id", id).select("id");
+  if (error) {
+    console.error("updateDepartment: update failed", error);
+    return { ok: false, error: "Gagal mengubah departemen." };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Gagal mengubah departemen atau Anda tidak berhak." };
+  }
+  revalidatePath("/pengaturan/departemen");
+  revalidatePath("/karyawan");
+  return { ok: true };
+}
+
 export async function deleteDepartment(id: string): Promise<Result> {
   const { db, denied } = await assertHrAdmin();
   if (denied) return denied;
