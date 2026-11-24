@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { PinEmployee } from "./mesin-import";
+import type { SetPinResult } from "./actions";
 
-type SetPin = (employeeId: string, pin: string) => Promise<{ ok: true; diproses: number } | { ok: false; error: string }>;
+type SetPin = (employeeId: string, pin: string) => Promise<SetPinResult>;
 
 /** Every active employee with their machine PIN, editable in place. */
 export function PinTable({ employees, setPin }: { employees: PinEmployee[]; setPin: SetPin }) {

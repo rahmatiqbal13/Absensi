@@ -2,15 +2,27 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CircleAlert, Link2, LoaderCircle, UserRoundSearch } from "lucide-react";
+import { CheckCircle2, CircleAlert, Link2, LoaderCircle, Unlink, UserRoundSearch } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { suggestEmployee } from "@/lib/mesin/suggest";
 import type { PinEmployee } from "./mesin-import";
+import type { SetPinResult } from "./actions";
 
-type SetPin = (employeeId: string, pin: string) => Promise<{ ok: true; diproses: number } | { ok: false; error: string }>;
+type SetPin = (employeeId: string, pin: string) => Promise<SetPinResult>;
 type Request = () => Promise<{ ok: true } | { ok: false; error: string }>;
 
 export type PullJob = {
@@ -112,8 +124,11 @@ export function MachineUsers({
                     <td className="px-3 py-2">{u.nama ?? <span className="text-muted-foreground">tanpa nama</span>}</td>
                     <td className="px-3 py-2">
                       {linked ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <CheckCircle2 className="size-4 text-success" aria-hidden="true" /> {linked.nama}
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CheckCircle2 className="size-4 text-success" aria-hidden="true" /> {linked.nama}
+                          </span>
+                          <UnlinkButton user={u} employee={linked} setPin={setPin} onDone={() => router.refresh()} />
                         </span>
                       ) : (
                         <LinkRow key={`${u.pin}:${free.length}`} user={u} free={free} setPin={setPin} onLinked={() => router.refresh()} />
@@ -231,5 +246,69 @@ function LinkRow({ user, free, setPin, onLinked }: { user: MachineUser; free: Pi
         <Link2 className="size-4" aria-hidden="true" /> Pasangkan
       </Button>
     </div>
+  );
+}
+
+/** Undoes a wrong pairing: frees the PIN and takes its scans back out of that employee's attendance. */
+function UnlinkButton({
+  user,
+  employee,
+  setPin,
+  onDone,
+}: {
+  user: MachineUser;
+  employee: PinEmployee;
+  setPin: SetPin;
+  onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
+          <Unlink className="size-4" aria-hidden="true" /> Lepaskan
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Lepaskan PIN {user.pin} dari {employee.nama}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Absen dari mesin untuk PIN ini dikeluarkan dari absensi {employee.nama}: hari yang hanya berisi scan mesin dihapus,
+            jam dari aplikasi (GPS / QR) dan koreksi HR tetap. Scan-nya disimpan dan langsung masuk ke pegawai yang benar begitu
+            PIN {user.pin} dipasangkan lagi. Bulan yang payroll-nya sudah final tidak diubah.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Batal</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            disabled={pending}
+            onClick={(e) => {
+              e.preventDefault();
+              startTransition(async () => {
+                const r = await setPin(employee.id, "");
+                if (!r.ok) return void toast.error(r.error);
+                const d = r.dilepas;
+                const parts = d
+                  ? [
+                      d.hariDihapus ? `${d.hariDihapus} hari dihapus` : null,
+                      d.hariDiubah ? `${d.hariDiubah} hari diperbarui` : null,
+                      d.hariDilewati ? `${d.hariDilewati} hari tidak diubah (payroll final)` : null,
+                    ].filter(Boolean)
+                  : [];
+                toast.success(`PIN ${user.pin} dilepas dari ${employee.nama}${parts.length ? `: ${parts.join(", ")}` : ""}.`);
+                setOpen(false);
+                onDone();
+              });
+            }}
+          >
+            {pending ? "Melepaskan…" : "Lepaskan"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

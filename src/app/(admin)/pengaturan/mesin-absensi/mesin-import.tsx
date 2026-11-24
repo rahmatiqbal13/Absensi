@@ -13,10 +13,10 @@ import type { AttendanceStatus } from "@/lib/attendance/status";
 import { formatJamWib } from "@/lib/laporan/employee-daily";
 import { suggestEmployee } from "@/lib/mesin/suggest";
 import type { DayOutcome } from "@/lib/mesin/apply-scans";
-import type { MachineImportResult } from "./actions";
+import type { MachineImportResult, SetPinResult } from "./actions";
 
 type Action = (formData: FormData) => Promise<MachineImportResult>;
-type SetPin = (employeeId: string, pin: string) => Promise<{ ok: true; diproses: number } | { ok: false; error: string }>;
+type SetPin = (employeeId: string, pin: string) => Promise<SetPinResult>;
 export type PinEmployee = { id: string; nama: string; pin: string | null };
 
 const AKSI: Record<DayOutcome["aksi"], { label: string; variant: "success" | "info" | "neutral" | "warning" }> = {

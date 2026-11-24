@@ -6,6 +6,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { decodeMachineFile, parseMachineLog } from "@/lib/mesin/parse-log";
 import { applyMachineScans, type DayOutcome, type UnmappedPin } from "@/lib/mesin/apply-scans";
 import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
+import { detachMachineScans, type DetachResult } from "@/lib/mesin/detach-scans";
 
 export type MachineImportResult =
   | {
@@ -100,11 +101,15 @@ export async function requestMachineUsers(): Promise<{ ok: true } | { ok: false;
   return { ok: true };
 }
 
+export type SetPinResult =
+  | { ok: true; diproses: number; dilepas?: { scan: number; hariDihapus: number; hariDiubah: number; hariDilewati: number } }
+  | { ok: false; error: string };
+
 /** Links a machine PIN to an employee (or clears it with an empty pin). */
 export async function setEmployeePin(
   employeeId: string,
   pin: string,
-): Promise<{ ok: true; diproses: number } | { ok: false; error: string }> {
+): Promise<SetPinResult> {
   const me = await requireHr();
   if (!me) return { ok: false, error: "Hanya HR yang dapat mengatur PIN mesin." };
   const value = pin.trim().replace(/^0+(?=\d)/, "");
@@ -117,6 +122,22 @@ export async function setEmployeePin(
     .eq("id", employeeId)
     .maybeSingle();
   if (readErr || !before) return { ok: false, error: "Pegawai tidak ditemukan." };
+
+  // Unpairing (or changing) a PIN takes its scans back out of this employee's
+  // attendance; they wait unassigned until the PIN is paired with the right person.
+  let dilepas: Extract<DetachResult, { ok: true }> | null = null;
+  if (value) {
+    // Check first: a taken PIN must not leave the old PIN's scans detached.
+    const { data: owner } = await service.from("employees").select("nama").eq("pin_mesin", value).neq("id", employeeId).limit(1);
+    if (owner?.length) {
+      return { ok: false, error: `PIN ${value} sudah dipakai ${owner[0].nama}. Lepaskan dulu dari pegawai tersebut.` };
+    }
+  }
+  if (before.pin_mesin && before.pin_mesin !== value) {
+    const d = await detachMachineScans(service, employeeId, before.pin_mesin);
+    if (!d.ok) return d;
+    dilepas = d;
+  }
 
   const { error } = await service.from("employees").update({ pin_mesin: value || null }).eq("id", employeeId);
   if (error) {
@@ -151,11 +172,28 @@ export async function setEmployeePin(
     actor_id: me.id,
     target_employee_id: employeeId,
     aksi: "employee_pin_mesin_set",
-    detail: { before: before.pin_mesin ?? null, after: value || null },
+    detail: {
+      before: before.pin_mesin ?? null,
+      after: value || null,
+      ...(dilepas ? { scan_dilepas: dilepas.scanDilepas, hari_dihapus: dilepas.hariDihapus, hari_diubah: dilepas.hariDiubah } : {}),
+    },
   });
   if (auditErr) console.error("setEmployeePin: audit insert failed", auditErr);
 
   revalidatePath("/pengaturan/mesin-absensi");
-  if (diproses) revalidatePath("/laporan");
-  return { ok: true, diproses };
+  if (diproses || dilepas?.scanDilepas) revalidatePath("/laporan");
+  return {
+    ok: true,
+    diproses,
+    ...(dilepas
+      ? {
+          dilepas: {
+            scan: dilepas.scanDilepas,
+            hariDihapus: dilepas.hariDihapus,
+            hariDiubah: dilepas.hariDiubah,
+            hariDilewati: dilepas.hariDilewati,
+          },
+        }
+      : {}),
+  };
 }
