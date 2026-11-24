@@ -6,7 +6,14 @@ import { loadSchedules } from "@/lib/schedule/resolve";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { BranchScheduleCard } from "./branch-schedule-card";
-import { saveSchedule, removeDepartmentSchedule } from "./actions";
+import { CustomSchedules, type CustomSchedule } from "./custom-schedules";
+import {
+  deleteCustomSchedule,
+  removeDepartmentSchedule,
+  saveCustomSchedule,
+  saveSchedule,
+  setCustomScheduleMembers,
+} from "./actions";
 
 export default async function JadwalPage() {
   const db = await createServerSupabaseClient();
@@ -30,6 +37,25 @@ export default async function JadwalPage() {
   if (deptRes.error) console.error("jadwal: departments query failed", deptRes.error);
   if (schedRes.error) console.error("jadwal: schedules query failed", schedRes.error);
 
+  // Who follows which jadwal khusus (0065). Before the migration the column is
+  // missing: fall back to the plain list, so the section shows but nobody is assigned.
+  let staffRes = await db
+    .from("employees")
+    .select("id, nama, branch_id, department_id, work_schedule_id")
+    .eq("status", "aktif")
+    .order("nama");
+  const khususReady = !staffRes.error;
+  if (staffRes.error) {
+    staffRes = (await db
+      .from("employees")
+      .select("id, nama, branch_id, department_id")
+      .eq("status", "aktif")
+      .order("nama")) as typeof staffRes;
+  }
+  const staff = (staffRes.data ?? []) as {
+    id: string; nama: string; branch_id: string; department_id: string | null; work_schedule_id?: string | null;
+  }[];
+
   const toDefaults = (s: (typeof schedRes.data)[number]) => ({
     jamMasuk: s.jam_masuk.slice(0, 5),
     jamPulang: s.jam_pulang.slice(0, 5),
@@ -39,12 +65,24 @@ export default async function JadwalPage() {
     hitungLembur: s.hitung_lembur === true,
   });
   const branchDefault = new Map(
-    schedRes.data.filter((s) => s.department_id === null).map((s) => [s.branch_id, toDefaults(s)]),
+    schedRes.data.filter((s) => s.department_id === null && !s.nama).map((s) => [s.branch_id, toDefaults(s)]),
   );
   const deptSchedule = new Map(
     schedRes.data.filter((s) => s.department_id !== null).map((s) => [s.department_id as string, toDefaults(s)]),
   );
   const departments = (deptRes.data ?? []) as { id: string; nama: string; branch_id: string }[];
+  const deptName = new Map(departments.map((d) => [d.id, d.nama]));
+  const customByBranch = new Map<string, CustomSchedule[]>();
+  for (const s of schedRes.data.filter((s) => s.nama)) {
+    const list = customByBranch.get(s.branch_id) ?? [];
+    list.push({
+      id: s.id as string,
+      nama: s.nama as string,
+      schedule: toDefaults(s),
+      memberIds: staff.filter((e) => e.work_schedule_id === s.id).map((e) => e.id),
+    });
+    customByBranch.set(s.branch_id, list);
+  }
   const branches = branchRes.data ?? [];
 
   return (
@@ -52,24 +90,44 @@ export default async function JadwalPage() {
       <PageHeader
         eyebrow="Pengaturan"
         title="Jadwal Kerja"
-        description="Satu jadwal per cabang, dan jadwal khusus per departemen bila jam kerjanya berbeda — dipakai untuk status terlambat dan perhitungan payroll."
+        description="Satu jadwal per cabang, jadwal sendiri per departemen, dan jadwal khusus untuk pegawai tertentu yang jam kerjanya berbeda — dipakai untuk status terlambat dan perhitungan payroll."
       />
       {branches.length === 0 ? (
         <EmptyState icon={Clock} message="Belum ada cabang." />
       ) : (
         <div className="space-y-4">
           {branches.map((b) => (
-            <BranchScheduleCard
-              key={b.id}
-              branchId={b.id}
-              branchNama={b.nama}
-              branchSchedule={branchDefault.get(b.id) ?? null}
-              departments={departments
-                .filter((d) => d.branch_id === b.id)
-                .map((d) => ({ id: d.id, nama: d.nama, schedule: deptSchedule.get(d.id) ?? null }))}
-              saveSchedule={saveSchedule}
-              removeDepartmentSchedule={removeDepartmentSchedule}
-            />
+            <div key={b.id} className="space-y-4">
+              <BranchScheduleCard
+                branchId={b.id}
+                branchNama={b.nama}
+                branchSchedule={branchDefault.get(b.id) ?? null}
+                departments={departments
+                  .filter((d) => d.branch_id === b.id)
+                  .map((d) => ({ id: d.id, nama: d.nama, schedule: deptSchedule.get(d.id) ?? null }))}
+                saveSchedule={saveSchedule}
+                removeDepartmentSchedule={removeDepartmentSchedule}
+              />
+              {/* Right under its branch: the jadwal khusus of that branch (0065). */}
+              {khususReady && (
+                <CustomSchedules
+                  branchId={b.id}
+                  branchNama={b.nama}
+                  schedules={(customByBranch.get(b.id) ?? []).sort((x, y) => x.nama.localeCompare(y.nama))}
+                  employees={staff
+                    .filter((e) => e.branch_id === b.id)
+                    .map((e) => ({
+                      id: e.id,
+                      nama: e.nama,
+                      departemen: e.department_id ? deptName.get(e.department_id) ?? null : null,
+                      scheduleId: e.work_schedule_id ?? null,
+                    }))}
+                  saveCustomSchedule={saveCustomSchedule}
+                  deleteCustomSchedule={deleteCustomSchedule}
+                  setCustomScheduleMembers={setCustomScheduleMembers}
+                />
+              )}
+            </div>
           ))}
         </div>
       )}

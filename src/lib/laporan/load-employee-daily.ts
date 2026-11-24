@@ -55,10 +55,10 @@ export async function loadEmployeeDailyReport(
   const cols = "jam_masuk, jam_pulang, toleransi_terlambat_menit, hari_kerja";
   let sched = await loadEmployeeSchedule<{
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number; hari_kerja: number[]; hitung_lembur?: boolean;
-  }>(db, `${cols}, hitung_lembur`, branchId, emp.department_id as string | null);
+  }>(db, `${cols}, hitung_lembur`, branchId, emp.department_id as string | null, emp.id as string);
   if (sched.error && isMissingColumn(sched.error)) {
     logOptionalLookup("loadEmployeeDailyReport: hitung_lembur", sched.error, "0039");
-    sched = await loadEmployeeSchedule(db, cols, branchId, emp.department_id as string | null);
+    sched = await loadEmployeeSchedule(db, cols, branchId, emp.department_id as string | null, emp.id as string);
   }
 
   const [attRes, holRes, leaveRes, flagRes, approvedOvertime, rosters] = await Promise.all([

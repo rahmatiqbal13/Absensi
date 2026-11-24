@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { loadRoster } from "@/lib/schedule/roster";
 import { mergeMachineDay, type DaySchedule, type ExistingDay } from "./merge-day";
 
@@ -92,7 +92,7 @@ export async function detachMachineScans(service: SupabaseClient, employeeId: st
 
   const from = dates[0];
   const to = dates[dates.length - 1];
-  const [schedRes, roster, payrollRes, attRes] = await Promise.all([
+  const [schedRes, roster, payrollRes, attRes, assigned] = await Promise.all([
     loadSchedules<DaySchedule>(service, "jam_masuk, jam_pulang, toleransi_terlambat_menit", [emp.branch_id]),
     loadRoster(service, [employeeId], from, to),
     service.from("payroll_periods").select("bulan, tahun").eq("status", "final").eq("branch_id", emp.branch_id),
@@ -101,6 +101,7 @@ export async function detachMachineScans(service: SupabaseClient, employeeId: st
       .select("tanggal, jam_masuk, jam_pulang, metode_masuk, metode_pulang, status")
       .eq("employee_id", employeeId)
       .in("tanggal", dates),
+    loadScheduleAssignments(service, [employeeId]),
   ]);
   if (schedRes.error || payrollRes.error || attRes.error) {
     console.error("detachMachineScans: reference lookup failed", { s: schedRes.error, p: payrollRes.error, a: attRes.error });
@@ -109,7 +110,7 @@ export async function detachMachineScans(service: SupabaseClient, employeeId: st
   const finals = new Set(
     ((payrollRes.data ?? []) as { bulan: number; tahun: number }[]).map((p) => `${p.tahun}-${String(p.bulan).padStart(2, "0")}`),
   );
-  const regular = pickSchedule(schedRes.data, emp.branch_id, emp.department_id);
+  const regular = pickSchedule(schedRes.data, emp.branch_id, emp.department_id, assigned.get(employeeId));
 
   for (const day of (attRes.data ?? []) as (ExistingDay & { tanggal: string })[]) {
     if (finals.has(day.tanggal.slice(0, 7))) {

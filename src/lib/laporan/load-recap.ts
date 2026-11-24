@@ -1,6 +1,6 @@
 // src/lib/laporan/load-recap.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { logOptionalLookup } from "@/lib/supabase/missing-column";
 import {
   computeAttendanceRecap,
@@ -99,10 +99,12 @@ export async function loadRecap(
     (lemburRes.error ? [] : (lemburRes.data ?? [])).map((r) => [r.id as string, r.hitung_lembur === true]),
   );
 
+  // Jadwal khusus per pegawai (0065) first, then department, then branch.
+  const assigned = await loadScheduleAssignments(db, employees.map((e) => e.id));
   type Schedule = (typeof scheduleRes.data)[number];
   const groups = new Map<string, { schedule: Schedule; employees: typeof employees }>();
   for (const e of employees) {
-    const schedule = pickSchedule(scheduleRes.data, branchId, e.department_id);
+    const schedule = pickSchedule(scheduleRes.data, branchId, e.department_id, assigned.get(e.id));
     if (!schedule) {
       return { ok: false, error: "Sebagian karyawan belum punya jadwal kerja. Atur jadwal cabang atau departemennya dulu." };
     }
@@ -182,7 +184,7 @@ export async function loadRecap(
   const daily: Record<string, DailyRow[]> = {};
   const jadwal: Record<string, string> = {};
   for (const e of employees) {
-    const sch = pickSchedule(scheduleRes.data, branchId, e.department_id)!;
+    const sch = pickSchedule(scheduleRes.data, branchId, e.department_id, assigned.get(e.id))!;
     const schedule = {
       jamMasuk: sch.jam_masuk.slice(0, 5),
       jamPulang: sch.jam_pulang.slice(0, 5),

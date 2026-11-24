@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { loadRoster } from "@/lib/schedule/roster";
 import { mergeMachineDay, type DaySchedule, type ExistingDay } from "./merge-day";
 
@@ -120,7 +120,7 @@ export async function applyMachineScans(
   const from = dates[0];
   const to = dates[dates.length - 1];
 
-  const [schedRes, roster, payrollRes, attRes] = await Promise.all([
+  const [schedRes, roster, payrollRes, attRes, assigned] = await Promise.all([
     loadSchedules<{ jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number }>(
       service,
       "jam_masuk, jam_pulang, toleransi_terlambat_menit",
@@ -134,6 +134,7 @@ export async function applyMachineScans(
       .in("employee_id", empIds)
       .gte("tanggal", from)
       .lte("tanggal", to),
+    loadScheduleAssignments(service, empIds),
   ]);
   if (schedRes.error || payrollRes.error || attRes.error) {
     console.error("applyMachineScans: reference lookup failed", {
@@ -165,7 +166,7 @@ export async function applyMachineScans(
       days.push(skip("Payroll bulan ini sudah final"));
       continue;
     }
-    const regular = pickSchedule(schedRes.data, g.emp.branch_id, g.emp.department_id);
+    const regular = pickSchedule(schedRes.data, g.emp.branch_id, g.emp.department_id, assigned.get(g.emp.id));
     if (!regular) {
       days.push(skip("Jadwal kerja belum diatur"));
       continue;

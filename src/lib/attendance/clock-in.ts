@@ -98,10 +98,10 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
   const branchQrEnabled = qrRow?.qr_enabled ?? false;
   const branchQrSecret = typeof qrRow?.qr_secret === "string" ? qrRow.qr_secret : null;
 
-  // The department's own schedule when it has one, else the branch default.
+  // Their jadwal khusus, else the department's schedule, else the branch default.
   const { data: baseSchedule, error: scheduleErr } = await loadEmployeeSchedule<{
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
-  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branch_id, employee.department_id);
+  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branch_id, employee.department_id, input.employeeId);
   if (scheduleErr || !baseSchedule) {
     return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
   }

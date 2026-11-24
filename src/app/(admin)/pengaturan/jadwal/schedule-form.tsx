@@ -28,7 +28,7 @@ export const DAYS_MON_FIRST = [
  * that department's own schedule.
  */
 export function ScheduleForm({
-  branchId, departmentId = null, label, defaults, saveSchedule, extraActions,
+  branchId, departmentId = null, label, defaults, saveSchedule, extraActions, leading, formKey,
 }: {
   branchId: string;
   departmentId?: string | null;
@@ -37,8 +37,12 @@ export function ScheduleForm({
   defaults: ScheduleDefaults;
   saveSchedule: (branchId: string, departmentId: string | null, fd: FormData) => Promise<Result>;
   extraActions?: ReactNode;
+  /** Fields shown above the times (the jadwal khusus name). */
+  leading?: ReactNode;
+  /** Unique id prefix when several forms share a branch (jadwal khusus). */
+  formKey?: string;
 }) {
-  const key = departmentId ?? branchId;
+  const key = formKey ?? departmentId ?? branchId;
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +73,7 @@ export function ScheduleForm({
 
   return (
     <form action={action} className="flex flex-col gap-5.5">
+      {leading}
       <div className="flex flex-wrap items-end gap-4">
         <Field id={`jamMasuk-${key}`} label="Jam Masuk">
           <Input name="jamMasuk" type="time" defaultValue={defaults?.jamMasuk ?? "09:00"} onChange={(e) => setPreview((p) => ({ ...p, masuk: e.target.value }))} className="h-11.5 w-38 font-mono" />

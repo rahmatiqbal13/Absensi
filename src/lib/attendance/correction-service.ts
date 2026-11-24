@@ -136,7 +136,7 @@ export async function decideCorrection(
       jam_masuk: string;
       jam_pulang: string;
       toleransi_terlambat_menit: number;
-    }>(service, "jam_masuk, jam_pulang, toleransi_terlambat_menit", emp.branch_id, emp.department_id);
+    }>(service, "jam_masuk, jam_pulang, toleransi_terlambat_menit", emp.branch_id, emp.department_id, corr.employee_id);
     if (schedErr || !schedule) {
       if (schedErr) console.error("decideCorrection: schedule lookup failed", schedErr);
       return { ok: false, error: "Jadwal kerja karyawan belum diatur, status tidak bisa dihitung." };

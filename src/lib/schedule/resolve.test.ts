@@ -25,6 +25,22 @@ describe("pickSchedule", () => {
   });
 });
 
+describe("pickSchedule with jadwal khusus (0065)", () => {
+  const withKhusus = [...rows, { id: "b1-lab", branch_id: "b1", department_id: null, nama: "Pagi Lab" }];
+  it("puts the employee's own jadwal khusus before department and branch", () => {
+    expect(pickSchedule(withKhusus, "b1", "gudang", "b1-lab")?.id).toBe("b1-lab");
+  });
+  it("never treats a jadwal khusus as the branch default", () => {
+    const onlyKhusus = [{ id: "b9-lab", branch_id: "b9", department_id: null, nama: "Pagi Lab" }];
+    expect(pickSchedule(onlyKhusus, "b9", null)).toBeNull();
+    expect(pickSchedule(withKhusus, "b1", null)?.id).toBe("b1-default");
+  });
+  it("ignores an assignment from another branch or one that no longer exists", () => {
+    expect(pickSchedule(withKhusus, "b2", null, "b1-lab")?.id).toBe("b2-default");
+    expect(pickSchedule(withKhusus, "b1", "gudang", "gone")?.id).toBe("b1-gudang");
+  });
+});
+
 function makeDb(responses: { data: unknown; error: unknown }[]) {
   const selects: string[] = [];
   const db = {
@@ -44,20 +60,33 @@ function makeDb(responses: { data: unknown; error: unknown }[]) {
 }
 
 describe("loadSchedules", () => {
-  it("reads department_id alongside the requested columns", async () => {
-    const { db, selects } = makeDb([{ data: [{ id: "x", branch_id: "b1", department_id: "d1" }], error: null }]);
+  it("reads id, department_id and nama alongside the requested columns, without duplicates", async () => {
+    const { db, selects } = makeDb([{ data: [{ id: "x", branch_id: "b1", department_id: "d1", nama: null }], error: null }]);
     const res = await loadSchedules(db, "id", ["b1"]);
-    expect(selects[0]).toBe("id, branch_id, department_id");
+    expect(selects[0]).toBe("id, branch_id, department_id, nama");
     expect(res.data[0].department_id).toBe("d1");
   });
 
-  it("falls back to branch-only rows before migration 0034", async () => {
+  it("drops nama before migration 0065", async () => {
+    const missing = { code: "42703", message: "column work_schedules.nama does not exist" };
     const { db, selects } = makeDb([
-      { data: null, error: { code: "42703", message: "column work_schedules.department_id does not exist" } },
+      { data: null, error: missing },
+      { data: [{ id: "x", branch_id: "b1", department_id: null }], error: null },
+    ]);
+    const res = await loadSchedules(db, "jam_masuk", ["b1"]);
+    expect(selects[1]).toBe("jam_masuk, id, branch_id, department_id");
+    expect(res.data).toEqual([{ id: "x", branch_id: "b1", department_id: null }]);
+  });
+
+  it("falls back to branch-only rows before migration 0034", async () => {
+    const missing = { code: "42703", message: "column does not exist" };
+    const { db, selects } = makeDb([
+      { data: null, error: missing },
+      { data: null, error: missing },
       { data: [{ id: "x", branch_id: "b1" }], error: null },
     ]);
     const res = await loadSchedules(db, "id", ["b1"]);
-    expect(selects[1]).toBe("id, branch_id");
+    expect(selects[2]).toBe("id, branch_id");
     expect(res.error).toBeNull();
     expect(res.data).toEqual([{ id: "x", branch_id: "b1", department_id: null }]);
   });

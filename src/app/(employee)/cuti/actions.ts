@@ -142,7 +142,7 @@ export async function previewLeaveDays(jenis: string, from: string, to: string):
   if (!employee) return { ok: false };
 
   const [sched, hol] = await Promise.all([
-    loadEmployeeSchedule<{ hari_kerja: number[] | null }>(db, "hari_kerja", employee.branchId, employee.departmentId),
+    loadEmployeeSchedule<{ hari_kerja: number[] | null }>(db, "hari_kerja", employee.branchId, employee.departmentId, employee.id),
     db
       .from("holidays")
       .select("tanggal, branch_id")

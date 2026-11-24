@@ -99,10 +99,10 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
   const branchQrEnabled = qrRow?.qr_enabled ?? false;
   const branchQrSecret = typeof qrRow?.qr_secret === "string" ? qrRow.qr_secret : null;
 
-  // The department's own schedule when it has one, else the branch default.
+  // Their jadwal khusus, else the department's schedule, else the branch default.
   const { data: baseSchedule, error: scheduleErr } = await loadEmployeeSchedule<{
     jam_pulang: string;
-  }>(db, "jam_pulang", employee.branch_id, employee.department_id);
+  }>(db, "jam_pulang", employee.branch_id, employee.department_id, input.employeeId);
   if (scheduleErr || !baseSchedule) {
     console.error("clockOut: work schedule lookup failed", scheduleErr);
     return { ok: false, error: "Jadwal kerja cabang tidak ditemukan." };

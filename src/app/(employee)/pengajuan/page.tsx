@@ -37,7 +37,7 @@ export default async function PengajuanPage({ searchParams }: { searchParams: Pr
       .eq("jenis", jenis)
       .order("tanggal_mulai", { ascending: false })
       .limit(30),
-    loadEmployeeSchedule<{ jam_pulang: string }>(db, "jam_pulang", me.branchId, me.departmentId),
+    loadEmployeeSchedule<{ jam_pulang: string }>(db, "jam_pulang", me.branchId, me.departmentId, me.id),
   ]);
   if (listRes.error) console.error("PengajuanPage: list failed", listRes.error);
   const rows = (listRes.data ?? []) as {

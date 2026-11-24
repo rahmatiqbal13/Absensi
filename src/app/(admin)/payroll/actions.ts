@@ -11,7 +11,7 @@ import {
   type ApprovedLeave,
 } from "@/lib/payroll/compute";
 import type { AttendanceRowLite } from "@/lib/payroll/deduction";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { shouldDeductAlpa } from "@/lib/payroll/absence-deduction";
 import { loadPph21Config } from "@/lib/payroll/pph21-config";
 import { logOptionalLookup } from "@/lib/supabase/missing-column";
@@ -201,10 +201,11 @@ export async function generatePayroll(periodId: string, employeeIds?: string[]):
     department_id: string | null;
   }[];
 
-  // Group employees by the schedule that applies to them.
+  // Group employees by the schedule that applies to them (jadwal khusus 0065 first).
+  const assigned = await loadScheduleAssignments(db, employees.map((e) => e.id));
   const groups = new Map<string, { schedule: (typeof scheduleRes.data)[number]; employees: typeof employees }>();
   for (const e of employees) {
-    const schedule = pickSchedule(scheduleRes.data, period.branch_id, e.department_id);
+    const schedule = pickSchedule(scheduleRes.data, period.branch_id, e.department_id, assigned.get(e.id));
     if (!schedule) {
       return {
         ok: false,

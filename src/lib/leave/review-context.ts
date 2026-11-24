@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculateLeaveDays, requiresBalanceCheck } from "./balance";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { annualAllowance } from "./balance-lookup";
 import { isMagang } from "@/lib/employees/contracts";
 
@@ -214,13 +214,14 @@ export async function loadLeaveReviewContext(
   }
   const deptName = new Map(((deptRes.data ?? []) as { id: string; nama: string }[]).map((d) => [d.id, d.nama]));
 
+  const assigned = await loadScheduleAssignments(db, requests.map((r) => r.employeeId));
   for (const r of requests) {
     const branchHolidays = holidays
       .filter((h) => h.branch_id === null || h.branch_id === r.branchId)
       .map((h) => h.tanggal);
     // Department schedule, else branch default. No schedule row → fall back to
     // Mon–Fri rather than reporting zero days.
-    const schedule = r.branchId ? pickSchedule(schedules, r.branchId, r.departmentId) : null;
+    const schedule = r.branchId ? pickSchedule(schedules, r.branchId, r.departmentId, assigned.get(r.employeeId)) : null;
     const hariKerja = schedule?.hari_kerja ?? [1, 2, 3, 4, 5];
 
     let balance: LeaveReview["balance"] = null;

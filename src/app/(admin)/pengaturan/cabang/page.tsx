@@ -21,7 +21,7 @@ export default async function CabangPage() {
 
   // Only the branch default counts as "schedule set"; department rows are overrides.
   const { data: scheds } = await loadSchedules<object>(db, "id");
-  const schedSet = new Set(scheds.filter((s) => s.department_id === null).map((s) => s.branch_id));
+  const schedSet = new Set(scheds.filter((s) => s.department_id === null && !s.nama).map((s) => s.branch_id));
 
   const rows: BranchRow[] = (branches ?? []).map((b) => ({
     id: b.id,

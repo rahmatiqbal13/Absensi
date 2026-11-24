@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
-import { loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 
 export type TodayContext = {
   today: string;                      // Jakarta YYYY-MM-DD
@@ -93,8 +93,10 @@ export async function getTodayContext(
 
   // No schedule at all => not "off" (unchanged from the branch-only behaviour).
   const offToday = new Set<string>();
-  for (const e of (empRes.data ?? []) as { id: string; branch_id: string; department_id: string | null }[]) {
-    const schedule = pickSchedule(schedRes.data, e.branch_id, e.department_id);
+  const todayEmployees = (empRes.data ?? []) as { id: string; branch_id: string; department_id: string | null }[];
+  const assigned = await loadScheduleAssignments(db, todayEmployees.map((e) => e.id));
+  for (const e of todayEmployees) {
+    const schedule = pickSchedule(schedRes.data, e.branch_id, e.department_id, assigned.get(e.id));
     if (schedule && !worksToday(schedule)) offToday.add(e.id);
   }
 

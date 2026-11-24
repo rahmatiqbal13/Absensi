@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toJakartaDateOnly } from "./jakarta-date";
 import { dueClockReminders, dueReminders, type ReminderEmployee, type ReminderSchedule } from "./reminder";
-import { loadSchedules } from "@/lib/schedule/resolve";
+import { loadScheduleAssignments, loadSchedules } from "@/lib/schedule/resolve";
 import { loadRoster } from "@/lib/schedule/roster";
 import { jakartaMinutesOfDay } from "@/lib/payroll/minutes";
 import { createNotifications, type NewNotification } from "@/lib/notifications/create";
@@ -68,9 +68,13 @@ export async function sendAttendanceReminders(db: SupabaseClient, now = new Date
     ids(((remRes.data ?? []) as { employee_id: string; kunci: string }[]).filter((r) => r.kunci === kunci));
   const attendance = (attRes.data ?? []) as { employee_id: string; jam_pulang: string | null }[];
   const employees = (empRes.data ?? []) as ReminderEmployee[];
-  const rosters = await loadRoster(db, employees.map((e) => e.id), tanggal, tanggal);
+  const [rosters, assignments] = await Promise.all([
+    loadRoster(db, employees.map((e) => e.id), tanggal, tanggal),
+    loadScheduleAssignments(db, employees.map((e) => e.id)),
+  ]);
   const common = {
     rosters,
+    assignments,
     tanggal,
     nowMinutes,
     employees,

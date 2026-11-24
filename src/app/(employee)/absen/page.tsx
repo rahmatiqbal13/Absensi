@@ -48,7 +48,7 @@ export default async function AbsenPage() {
 
   const { data: baseSchedule, error: scheduleErr } = await loadEmployeeSchedule<{
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
-  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branchId, employee.departmentId);
+  }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branchId, employee.departmentId, employee.id);
   if (scheduleErr) console.error("absen: work schedule query failed", scheduleErr);
 
   // Do NOT use `new Date().toISOString().slice(0, 10)` here — that's the UTC

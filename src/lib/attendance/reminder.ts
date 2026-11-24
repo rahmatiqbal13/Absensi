@@ -35,13 +35,15 @@ type PlanInput = {
   holidays: readonly { branch_id: string | null }[];
   onLeave: ReadonlySet<string>;
   rosters?: Map<string, Roster>;
+  /** employee id → jadwal khusus id (0065). */
+  assignments?: Map<string, string>;
 };
 
 /** Today's plan for an employee who should clock in today, or null. */
 function workingPlan(e: ReminderEmployee, input: PlanInput) {
   if (e.role === "super_admin" || input.onLeave.has(e.id)) return null;
   if (e.tanggal_mulai_kerja && e.tanggal_mulai_kerja > input.tanggal) return null;
-  const s = pickSchedule(input.schedules, e.branch_id, e.department_id);
+  const s = pickSchedule(input.schedules, e.branch_id, e.department_id, input.assignments?.get(e.id));
   if (!s) return null;
   const orgHoliday = input.holidays.some((h) => h.branch_id === null);
   const plan = dayPlan(
