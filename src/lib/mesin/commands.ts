@@ -112,6 +112,12 @@ export async function recordCommandResult(
     .eq("id", cmd.id);
 
   const rootId: string = cmd.induk_id ?? cmd.id;
+
+  if (cmd.cmd_code === "GET_LOG_DATA") {
+    await handleLogResult(db, { id: cmd.id, rootId, ok, params: (cmd.params ?? {}) as Record<string, unknown>, hasil: input.hasil, by: cmd.diminta_oleh });
+    return { ok: true, pengguna: 0 };
+  }
+
   const users = ok ? extractMachineUsers(input.hasil) : [];
   if (users.length) await saveMachineUsers(db, users, input.sn);
 
@@ -148,4 +154,64 @@ export async function recordCommandResult(
   }
 
   return { ok: true, pengguna: users.length };
+}
+
+/**
+ * "Tarik semua absen": one GET_LOG_DATA per month of the requested range. The
+ * scans themselves travel bridge → /api/mesin/scans (the normal, idempotent
+ * path); this only receives the bridge's summary { jumlah_log, dari, sampai }.
+ */
+export type LogWindow = { begin_time: string; end_time: string };
+
+/** Splits [dari, sampai] (YYYY-MM-DD, WIB) into calendar-month windows, oldest first. */
+export function monthWindows(dari: string, sampai: string): LogWindow[] {
+  const out: LogWindow[] = [];
+  const compact = (d: string) => d.replaceAll("-", "");
+  let [y, m] = dari.split("-").map(Number);
+  for (let guard = 0; guard < 240; guard++) {
+    const start = `${y}-${String(m).padStart(2, "0")}-01`;
+    if (start > sampai) break;
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const end = `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+    out.push({
+      begin_time: `${compact(start < dari ? dari : start)}000000`,
+      end_time: `${compact(end > sampai ? sampai : end)}235959`,
+    });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+const toWall = (compact: string) =>
+  `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)} ${compact.slice(8, 10)}:${compact.slice(10, 12)}:${compact.slice(12, 14)}`;
+
+async function handleLogResult(
+  db: SupabaseClient,
+  c: { id: string; rootId: string; ok: boolean; params: Record<string, unknown>; hasil: unknown; by: string | null },
+) {
+  const h = (c.hasil ?? {}) as { dari?: unknown; sampai?: unknown };
+  const begin = typeof c.params.begin_time === "string" ? c.params.begin_time : null;
+  const end = typeof c.params.end_time === "string" ? c.params.end_time : null;
+  const skipRest = async () =>
+    db
+      .from("mesin_commands")
+      .update({ status: "selesai", kode_balasan: "DILEWATI", selesai_at: new Date().toISOString() })
+      .or(`id.eq.${c.rootId},induk_id.eq.${c.rootId}`)
+      .eq("cmd_code", "GET_LOG_DATA")
+      .eq("status", "menunggu");
+
+  if (!c.ok && begin) {
+    // Firmware that rejects a time range: ask once for the whole log instead.
+    await skipRest();
+    await db.from("mesin_commands").insert({ cmd_code: "GET_LOG_DATA", params: {}, induk_id: c.rootId, diminta_oleh: c.by });
+    return;
+  }
+  // A machine that ignores the range sends everything at once: the other months are moot.
+  const outside =
+    begin && end && ((typeof h.dari === "string" && h.dari < toWall(begin)) || (typeof h.sampai === "string" && h.sampai > toWall(end)));
+  if (outside || !begin) await skipRest();
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordCommandResult } from "./commands";
+import { monthWindows, recordCommandResult } from "./commands";
 
 type Call = { table: string; op: string; payload?: unknown; filters: unknown[][] };
 
@@ -79,5 +79,41 @@ describe("recordCommandResult", () => {
   it("404s an unknown command", async () => {
     const { db } = fakeDb(null);
     expect(await recordCommandResult(db, { id: "x", kodeBalasan: "OK", hasil: {}, sn: null })).toMatchObject({ ok: false, status: 404 });
+  });
+});
+
+describe("monthWindows", () => {
+  it("splits a range into calendar months, clipped at both ends", () => {
+    expect(monthWindows("2026-01-15", "2026-03-10")).toEqual([
+      { begin_time: "20260115000000", end_time: "20260131235959" },
+      { begin_time: "20260201000000", end_time: "20260228235959" },
+      { begin_time: "20260301000000", end_time: "20260310235959" },
+    ]);
+  });
+  it("crosses a year boundary", () => {
+    expect(monthWindows("2025-12-01", "2026-01-31").map((w) => w.begin_time)).toEqual(["20251201000000", "20260101000000"]);
+  });
+});
+
+describe("recordCommandResult GET_LOG_DATA", () => {
+  const LOG = { ...ROOT, cmd_code: "GET_LOG_DATA", params: { begin_time: "20260101000000", end_time: "20260131235959" } };
+
+  it("records a month in range without touching the other months", async () => {
+    const { db, calls } = fakeDb(LOG);
+    await recordCommandResult(db, { id: "r1", kodeBalasan: "OK", hasil: { jumlah_log: 40, dari: "2026-01-02 07:01:00", sampai: "2026-01-30 16:10:00" }, sn: null });
+    expect(calls.filter((c) => c.op === "update")).toHaveLength(1);
+    expect(calls.some((c) => c.op === "insert")).toBe(false);
+  });
+
+  it("skips the remaining months when the machine ignored the range", async () => {
+    const { db, calls } = fakeDb(LOG);
+    await recordCommandResult(db, { id: "r1", kodeBalasan: "OK", hasil: { jumlah_log: 900, dari: "2025-03-01 07:00:00", sampai: "2026-11-20 16:00:00" }, sn: null });
+    expect(calls.filter((c) => c.op === "update")[1].payload).toMatchObject({ kode_balasan: "DILEWATI" });
+  });
+
+  it("falls back to the whole log when a range is rejected", async () => {
+    const { db, calls } = fakeDb(LOG);
+    await recordCommandResult(db, { id: "r1", kodeBalasan: "ERROR_INVALID_PARAMETER", hasil: null, sn: null });
+    expect(calls.find((c) => c.op === "insert")?.payload).toMatchObject({ cmd_code: "GET_LOG_DATA", params: {}, induk_id: "r1" });
   });
 });

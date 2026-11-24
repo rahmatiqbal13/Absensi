@@ -63,6 +63,22 @@ tabel PIN / nama di mesin dengan tombol **Pasangkan** ke pegawai.
 - Pegawai yang baru didaftarkan di mesin (`realtime_enroll_data`) juga ikut masuk ke
   tabel — hanya PIN + nama, templat sidik jari tidak pernah diteruskan.
 
+## Tarik semua absen dari mesin
+
+*Pengaturan → Mesin absensi → "Tarik semua absen dari mesin"* mengambil seluruh log absen
+yang tersimpan di mesin untuk rentang tanggal yang dipilih (bawaan: awal tahun s.d. hari ini).
+
+- Aplikasi memecahnya per bulan (`GET_LOG_DATA` dengan `begin_time` / `end_time`); jembatan
+  menyerahkannya ke mesin satu per satu (± 20 detik per bulan).
+- Scan masuk lewat antrian biasa (`antrian.json` → `/api/mesin/scans`), jadi aturannya sama:
+  yang sudah ada diabaikan, koreksi HR tidak ditimpa, bulan payroll final tidak diubah.
+  Aman diulang kapan saja.
+- Mesin yang mengabaikan rentang tanggal mengirim seluruh log sekaligus — bulan sisanya
+  otomatis dilewati. Mesin yang menolak rentang tanggal diminta seluruh log sekali.
+- Tiga rekaman pertama tiap balasan dicatat di log (`Rekaman log #…`) beserta hasil
+  bacaannya. Bila jumlah scan 0 atau PIN / waktunya salah, kirimkan baris itu untuk
+  menyesuaikan pembacanya dengan firmware mesin.
+
 ## Mode easylink (opsional, PC Windows)
 
 Untuk mesin yang dibaca lewat Fingerspot EasyLink SDK: `MODE=easylink`, isi `MESIN_SN`

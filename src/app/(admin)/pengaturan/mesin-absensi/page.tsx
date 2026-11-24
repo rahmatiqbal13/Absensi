@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { MesinImport } from "./mesin-import";
 import { PinTable } from "./pin-table";
 import { MachineUsers, type MachineUser, type PullJob } from "./machine-users";
-import { importMachineFile, previewMachineFile, requestMachineUsers, setEmployeePin } from "./actions";
+import { MachineLogs, type LogJob } from "./machine-logs";
+import { importMachineFile, previewMachineFile, requestMachineLogs, requestMachineUsers, setEmployeePin } from "./actions";
 import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
 
 export const metadata = { title: "Mesin absensi" };
@@ -22,7 +23,7 @@ export default async function MesinAbsensiPage() {
   if (!me) redirect("/login");
   if (me.role !== "hr_admin" && me.role !== "super_admin") redirect("/dashboard");
 
-  const [empRes, lastLan, pendingLan, jobRes, usersRes] = await Promise.all([
+  const [empRes, lastLan, pendingLan, jobRes, usersRes, logRootRes] = await Promise.all([
     db.from("employees").select("id, nama, pin_mesin").eq("status", "aktif").order("nama"),
     db.from("mesin_scans").select("created_at, sn").eq("sumber", "jaringan").order("created_at", { ascending: false }).limit(1),
     db.from("mesin_scans").select("pin").is("employee_id", null).limit(1000),
@@ -34,7 +35,16 @@ export default async function MesinAbsensiPage() {
       .order("created_at", { ascending: false })
       .limit(1),
     db.from("mesin_users").select("pin, nama").limit(1000),
+    db
+      .from("mesin_commands")
+      .select("id, status, kode_balasan, created_at, hasil")
+      .eq("cmd_code", "GET_LOG_DATA")
+      .is("induk_id", null)
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
+  const logJob = await loadLogJob(db, (logRootRes.data?.[0] ?? null) as LogRow | null);
+  const todayWib = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
   const notMigrated = !!empRes.error;
   const employees = ((empRes.data ?? []) as { id: string; nama: string; pin_mesin: string | null }[]).map((e) => ({
     id: e.id,
@@ -87,6 +97,7 @@ export default async function MesinAbsensiPage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Network className="size-5" aria-hidden="true" /> 3. Tarik otomatis lewat jaringan kantor
         </h2>
+        <MachineLogs job={logJob} defaultDari={`${todayWib.slice(0, 4)}-01-01`} defaultSampai={todayWib} request={requestMachineLogs} />
         <div className="space-y-2 rounded-xl border border-border bg-card p-4 text-sm">
           <p className="flex flex-wrap items-center gap-2">
             Token jembatan:{" "}
@@ -133,4 +144,36 @@ async function loadPullJob(db: Awaited<ReturnType<typeof createServerSupabaseCli
   else if (expired) tahap = root.status === "selesai" ? "selesai" : "kedaluwarsa";
   else tahap = root.status === "menunggu" ? "menunggu" : "dikirim";
   return { tahap, dibuat: root.created_at, kodeBalasan: root.kode_balasan, rinci };
+}
+
+type LogRow = { id: string; status: string; kode_balasan: string | null; created_at: string; hasil: unknown };
+
+/** The latest "Tarik semua absen" request: its months (root + children) folded into one status. */
+async function loadLogJob(db: Awaited<ReturnType<typeof createServerSupabaseClient>>, root: LogRow | null): Promise<LogJob | null> {
+  if (!root) return null;
+  const { data } = await db.from("mesin_commands").select("status, kode_balasan, hasil").eq("induk_id", root.id).limit(500);
+  const rows = [root, ...((data ?? []) as Omit<LogRow, "id" | "created_at">[])];
+  const done = rows.filter((r) => r.status === "selesai" || r.status === "gagal");
+  let scan = 0;
+  const times: string[] = [];
+  for (const r of rows) {
+    const h = (r.hasil ?? {}) as { jumlah_log?: unknown; dari?: unknown; sampai?: unknown };
+    if (typeof h.jumlah_log === "number") scan += h.jumlah_log;
+    if (typeof h.dari === "string") times.push(h.dari);
+    if (typeof h.sampai === "string") times.push(h.sampai);
+  }
+  times.sort();
+  const failed = rows.find((r) => r.status === "gagal");
+  const expired = Date.now() - new Date(root.created_at).getTime() > COMMAND_TTL_MS;
+  const tahap: LogJob["tahap"] =
+    done.length === rows.length ? (scan === 0 && failed ? "gagal" : "selesai") : expired ? "kedaluwarsa" : "berjalan";
+  return {
+    tahap,
+    dibuat: root.created_at,
+    bulan: { total: rows.length, selesai: done.length },
+    scan,
+    dari: times[0] ?? null,
+    sampai: times[times.length - 1] ?? null,
+    kodeBalasan: failed?.kode_balasan ?? null,
+  };
 }

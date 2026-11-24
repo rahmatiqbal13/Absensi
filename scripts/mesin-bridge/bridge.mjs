@@ -72,7 +72,8 @@ const cfg = {
 const args = new Set(process.argv.slice(2));
 const QUEUE = join(HERE, "antrian.json");
 const BATCH = 1000;
-const MAX_BODY = 256 * 1024;
+// Balasan GET_LOG_DATA (seluruh log mesin) bisa beberapa MB.
+const MAX_BODY = 32 * 1024 * 1024;
 
 function log(...a) {
   const t = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour12: false });
@@ -214,6 +215,8 @@ function expandBins(json, bins) {
       const blk = blockOf(v);
       if (!blk) {
         out[k] = walk(v);
+      } else if (/log/i.test(k)) {
+        out[k] = decodeLogBlock(node, blk);
       } else if (/^user_?id_?(array|list)$/i.test(k)) {
         const size = Number(node.one_user_id_size) || 0;
         const count = Number(node.user_id_count) || (size ? Math.floor(blk.length / size) : 0);
@@ -234,6 +237,85 @@ function expandBins(json, bins) {
     return out;
   };
   return walk(json);
+}
+
+/** "20261112080655" / "2026-11-12 08:06:55" → "2026-11-12 08:06:55" (WIB), atau null. */
+function wallTime(v) {
+  const s = String(v ?? "").trim();
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})[ T]?(\d{2}):?(\d{2}):?(\d{2})$/.exec(s);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, se] = m.map(Number);
+  if (y < 2000 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 59) return null;
+  return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]}`;
+}
+
+/**
+ * Satu rekaman log biner → { user_id, io_time }. Tata letaknya belum
+ * terdokumentasi, jadi dicari: PIN = teks di awal rekaman; waktu = 14 digit
+ * ASCII ("20261112080655") atau tahun 2 byte LE + bulan/tgl/jam/mnt/dtk.
+ */
+function decodeLogRecord(rec) {
+  const user_id = binText(rec);
+  const ascii = rec.toString("latin1");
+  const m = /20\d{12}/.exec(ascii);
+  if (m && wallTime(m[0])) return { user_id, io_time: m[0] };
+  for (let o = 0; o + 7 <= rec.length; o++) {
+    const y = rec.readUInt16LE(o);
+    const [mo, d, h, mi, se] = [rec[o + 2], rec[o + 3], rec[o + 4], rec[o + 5], rec[o + 6]];
+    if (y >= 2000 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h <= 23 && mi <= 59 && se <= 59) {
+      const p = (n) => String(n).padStart(2, "0");
+      return { user_id, io_time: `${y}${p(mo)}${p(d)}${p(h)}${p(mi)}${p(se)}` };
+    }
+  }
+  return { user_id, io_time: null };
+}
+
+function decodeLogBlock(node, blk) {
+  const sizeKey = Object.keys(node).find((k) => /^one_.*size$/i.test(k));
+  const countKey = Object.keys(node).find((k) => /log.*count|count.*log/i.test(k));
+  const size = Number(node[sizeKey]) || 0;
+  if (!size) {
+    // Mungkin JSON di dalam blok.
+    try {
+      return JSON.parse(binText(blk));
+    } catch {
+      log(`Blok log ${blk.length} byte tanpa ukuran rekaman; 64 byte awal: ${blk.subarray(0, 64).toString("hex")}`);
+      return [];
+    }
+  }
+  const count = Math.min(Number(node[countKey]) || Math.floor(blk.length / size), Math.floor(blk.length / size));
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const rec = blk.subarray(i * size, (i + 1) * size);
+    const r = decodeLogRecord(rec);
+    if (i < 3) log(`Rekaman log #${i + 1} (${size} byte): ${rec.toString("hex")} → PIN "${r.user_id}" waktu ${r.io_time ?? "?"}`);
+    out.push(r);
+  }
+  return out;
+}
+
+/** Semua scan di balasan log: objek ber-PIN dan ber-waktu, di mana pun letaknya. */
+function extractLogScans(json) {
+  const out = [];
+  const walk = (n, depth) => {
+    if (depth > 6 || !n || typeof n !== "object") return;
+    if (Array.isArray(n)) return n.forEach((x) => walk(x, depth + 1));
+    const pinRaw = n.user_id ?? n.userId ?? n.pin;
+    const waktu = wallTime(n.io_time ?? n.ioTime ?? n.time ?? n.log_time ?? n.datetime);
+    const pin = String(pinRaw ?? "").trim().replace(/^0+(?=\d)/, "");
+    if (waktu && /^[0-9A-Za-z]{1,20}$/.test(pin)) out.push({ pin, waktu });
+    for (const v of Object.values(n)) if (v && typeof v === "object") walk(v, depth + 1);
+  };
+  walk(json, 0);
+  return out;
+}
+
+/** Ringkasan kecil untuk aplikasi (scan-nya sendiri lewat antrian → /api/mesin/scans). */
+function logSummary(json, scans) {
+  const times = scans.map((s) => s.waktu).sort();
+  const top = {};
+  for (const [k, v] of Object.entries(json ?? {})) if (v === null || typeof v !== "object") top[k] = v;
+  return { jumlah_log: scans.length, dari: times[0] ?? null, sampai: times[times.length - 1] ?? null, balasan: top };
 }
 
 function reply(socket, transId, ok) {
@@ -371,14 +453,23 @@ function startPush() {
       if (code === "send_cmd_result") {
         const kode = headers["cmd_return_code"] ?? null;
         reply(socket, transId, true);
-        const hasil = expandBins(json, bins);
+        let hasil = expandBins(json, bins);
         // Balasan mentah dicatat agar bentuk data firmware ini bisa diperiksa.
         log(`Balasan mesin (trans_id ${transId}, cmd_return_code ${kode ?? "-"}):`, JSON.stringify(hasil)?.slice(0, 1500) ?? "(kosong)");
         const mine = command && command.id === transId;
+        const cmdCode = mine ? command.cmd_code : null;
         if (mine) command = null;
+        if (cmdCode === "GET_LOG_DATA" || (cmdCode === null && /log/i.test(Object.keys(json ?? {}).join(",")))) {
+          // Log absen: lewat antrian scan biasa (disimpan dulu, dikirim bertahap, aman diulang).
+          const scans = extractLogScans(hasil);
+          const baru = scans.length ? enqueue(scans) : 0;
+          log(`Log absen dari mesin: ${scans.length} scan (${baru} belum ada di antrian).`);
+          hasil = logSummary(json, scans);
+          setTimeout(flush, 500);
+        }
         if (!appConfigured() || !/^[0-9a-f-]{36}$/i.test(transId ?? "")) return;
         postToApp({ id: transId, kodeBalasan: kode, hasil })
-          .then((b) => log(`Balasan diteruskan ke aplikasi: ${b.pengguna} pengguna terbaca.`))
+          .then((b) => log(`Balasan diteruskan ke aplikasi${b.pengguna ? `: ${b.pengguna} pengguna terbaca` : ""}.`))
           .catch((e) => log("Gagal meneruskan balasan mesin:", e.message))
           .finally(() => fetchCommand());
         return;

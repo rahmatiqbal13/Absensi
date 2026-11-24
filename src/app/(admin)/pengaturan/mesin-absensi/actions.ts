@@ -5,7 +5,7 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { decodeMachineFile, parseMachineLog } from "@/lib/mesin/parse-log";
 import { applyMachineScans, type DayOutcome, type UnmappedPin } from "@/lib/mesin/apply-scans";
-import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
+import { COMMAND_TTL_MS, monthWindows } from "@/lib/mesin/commands";
 import { detachMachineScans, type DetachResult } from "@/lib/mesin/detach-scans";
 
 export type MachineImportResult =
@@ -99,6 +99,67 @@ export async function requestMachineUsers(): Promise<{ ok: true } | { ok: false;
   }
   revalidatePath("/pengaturan/mesin-absensi");
   return { ok: true };
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_MONTHS = 36;
+
+/**
+ * "Tarik semua absen dari mesin": one GET_LOG_DATA per month in [dari, sampai]
+ * (WIB dates), handed to the machine one after another by the LAN bridge. The
+ * scans go through the normal path, so re-pulling a period changes nothing.
+ */
+export async function requestMachineLogs(dari: string, sampai: string): Promise<{ ok: true; bulan: number } | { ok: false; error: string }> {
+  const me = await requireHr();
+  if (!me) return { ok: false, error: "Hanya HR yang dapat menarik data dari mesin." };
+  if ((process.env.MESIN_ABSENSI_TOKEN ?? "").length < 24) {
+    return { ok: false, error: "Token jembatan (MESIN_ABSENSI_TOKEN) belum diatur di server." };
+  }
+  if (!ISO_DATE.test(dari) || !ISO_DATE.test(sampai) || dari > sampai) {
+    return { ok: false, error: "Pilih rentang tanggal yang valid." };
+  }
+  const windows = monthWindows(dari, sampai);
+  if (windows.length > MAX_MONTHS) return { ok: false, error: `Maksimal ${MAX_MONTHS} bulan sekali tarik.` };
+
+  const service = createServiceRoleSupabaseClient();
+  const { data: active, error: readErr } = await service
+    .from("mesin_commands")
+    .select("id")
+    .eq("cmd_code", "GET_LOG_DATA")
+    .in("status", ["menunggu", "diambil"])
+    .gt("created_at", new Date(Date.now() - COMMAND_TTL_MS).toISOString())
+    .limit(1);
+  if (readErr) {
+    console.error("requestMachineLogs: read failed", readErr);
+    return { ok: false, error: "Database belum siap. Jalankan migrasi 0062_mesin_commands.sql." };
+  }
+  if (active?.length) return { ok: false, error: "Penarikan absen sebelumnya masih diproses mesin." };
+
+  // Explicit, increasing created_at: the bridge takes the oldest first, so months go in order.
+  const t0 = Date.now();
+  const { data: root, error } = await service
+    .from("mesin_commands")
+    .insert({ cmd_code: "GET_LOG_DATA", params: windows[0], diminta_oleh: me.id, created_at: new Date(t0).toISOString() })
+    .select("id")
+    .single();
+  if (error || !root) {
+    console.error("requestMachineLogs: insert failed", error);
+    return { ok: false, error: "Gagal membuat permintaan ke mesin." };
+  }
+  if (windows.length > 1) {
+    const { error: kidsErr } = await service.from("mesin_commands").insert(
+      windows.slice(1).map((w, i) => ({
+        cmd_code: "GET_LOG_DATA",
+        params: w,
+        induk_id: root.id,
+        diminta_oleh: me.id,
+        created_at: new Date(t0 + i + 1).toISOString(),
+      })),
+    );
+    if (kidsErr) console.error("requestMachineLogs: month inserts failed", kidsErr);
+  }
+  revalidatePath("/pengaturan/mesin-absensi");
+  return { ok: true, bulan: windows.length };
 }
 
 export type SetPinResult =
