@@ -23,8 +23,12 @@
  *   node bridge.mjs --sekali   (easylink) tarik sekali lalu keluar
  *   node bridge.mjs --semua    (easylink) kirim ulang seluruh log di mesin
  *
+ * Perintah dari aplikasi (tombol "Tarik data pegawai dari mesin"): program ini
+ * menanyakan /api/mesin/perintah, menyerahkannya ke mesin sebagai balasan
+ * receive_cmd, lalu meneruskan hasilnya (send_cmd_result) ke aplikasi.
+ *
  * Data sidik jari (realtime_enroll_data) yang ikut dikirim mesin TIDAK pernah
- * disimpan atau diteruskan — hanya dibalas OK.
+ * disimpan atau diteruskan — hanya PIN + nama pengguna baru yang diteruskan.
  */
 import net from "node:net";
 import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
@@ -54,6 +58,9 @@ const cfg = {
   // "No Mesin" di menu Jaringan mesin (dev_id). Kosong = terima dari mesin mana pun.
   mesinId: (process.env.MESIN_ID ?? "").trim(),
   kirimDetik: Math.max(5, Number(process.env.KIRIM_DETIK ?? 15)),
+  // Bentuk badan perintah ke mesin: "fk" = 4 byte panjang (LE) + JSON + NUL,
+  // seperti yang dikirim mesin; "json" = JSON polos (varian R6).
+  cmdFormat: (process.env.CMD_FORMAT ?? "fk").toLowerCase(),
   // easylink
   sdkUrl: (process.env.EASYLINK_URL ?? "http://127.0.0.1:7005").replace(/\/+$/, ""),
   sn: process.env.MESIN_SN ?? "",
@@ -167,6 +174,79 @@ function reply(socket, transId, ok) {
   );
 }
 
+// ---- perintah dari aplikasi ke mesin ------------------------------------
+let command = null; // { id, cmd_code, params, sentAt }
+let fetchingCmd = false;
+const CMD_RESEND_MS = 150_000;
+
+async function fetchCommand() {
+  if (fetchingCmd || command || !appConfigured()) return;
+  fetchingCmd = true;
+  try {
+    const res = await fetch(`${cfg.appUrl}/api/mesin/perintah`, {
+      headers: { authorization: `Bearer ${cfg.token}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body.ok && body.perintah) {
+      command = { ...body.perintah, sentAt: 0 };
+      log(`Perintah dari aplikasi: ${command.cmd_code} ${JSON.stringify(command.params)} — diserahkan saat mesin bertanya.`);
+    } else if (res.status === 404) {
+      // Aplikasi versi lama tanpa saluran perintah: diam saja.
+    } else if (!res.ok) {
+      log(`Gagal menanyakan perintah: HTTP ${res.status} ${body.error ?? ""}`);
+    }
+  } catch (e) {
+    log("Gagal menanyakan perintah:", e.message);
+  } finally {
+    fetchingCmd = false;
+  }
+}
+
+async function postToApp(payload) {
+  const res = await fetch(`${cfg.appUrl}/api/mesin/perintah`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify({ sn: cfg.mesinId || null, ...payload }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.ok) throw new Error(`HTTP ${res.status} ${body.error ?? ""}`);
+  return body;
+}
+
+function replyCommand(socket, cmd) {
+  const json = Buffer.from(JSON.stringify(cmd.params ?? {}), "utf8");
+  let body;
+  if (cfg.cmdFormat === "json") body = json;
+  else {
+    const withNul = Buffer.concat([json, Buffer.from([0])]);
+    const len = Buffer.alloc(4);
+    len.writeUInt32LE(withNul.length, 0);
+    body = Buffer.concat([len, withNul]);
+  }
+  socket.end(
+    Buffer.concat([
+      Buffer.from(
+        `HTTP/1.0 200 OK\r\nresponse_code: OK\r\ntrans_id: ${cmd.id}\r\ncmd_code: ${cmd.cmd_code}\r\n` +
+          `Content-Type: application/octet-stream\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n`,
+        "latin1",
+      ),
+      body,
+    ]),
+  );
+}
+
+/** Hanya PIN + nama dari data pendaftaran — templat sidik jari tidak pernah ikut. */
+function enrollIdentity(json) {
+  if (!json || typeof json !== "object") return null;
+  const pick = (keys) => keys.map((k) => json[k]).find((v) => typeof v === "string" || typeof v === "number");
+  const pin = pick(["user_id", "userId", "pin"]);
+  if (pin == null) return null;
+  const nama = pick(["user_name", "userName", "name"]);
+  return { user_id: String(pin), user_name: nama == null ? null : String(nama) };
+}
+
 function startPush() {
   const server = net.createServer((socket) => {
     let buf = Buffer.alloc(0);
@@ -205,8 +285,45 @@ function startPush() {
         }
         return;
       }
-      // receive_cmd (mesin menanyakan perintah), realtime_enroll_data (data sidik
-      // jari — sengaja tidak disimpan), dan lainnya: cukup OK, tanpa perintah.
+      if (code === "receive_cmd") {
+        if (command && command.sentAt && Date.now() - command.sentAt > CMD_RESEND_MS) {
+          log(`Mesin belum membalas ${command.cmd_code}; dikirim ulang.`);
+          command.sentAt = 0;
+        }
+        if (command && !command.sentAt) {
+          command.sentAt = Date.now();
+          log(`Menyerahkan ${command.cmd_code} ke mesin.`);
+          return replyCommand(socket, command);
+        }
+        reply(socket, transId, true);
+        fetchCommand();
+        return;
+      }
+      if (code === "send_cmd_result") {
+        const kode = headers["cmd_return_code"] ?? null;
+        reply(socket, transId, true);
+        // Balasan mentah dicatat agar bentuk data firmware ini bisa diperiksa.
+        log(`Balasan mesin (trans_id ${transId}, cmd_return_code ${kode ?? "-"}):`, JSON.stringify(json)?.slice(0, 1500) ?? "(kosong)");
+        const mine = command && command.id === transId;
+        if (mine) command = null;
+        if (!appConfigured() || !/^[0-9a-f-]{36}$/i.test(transId ?? "")) return;
+        postToApp({ id: transId, kodeBalasan: kode, hasil: json })
+          .then((b) => log(`Balasan diteruskan ke aplikasi: ${b.pengguna} pengguna terbaca.`))
+          .catch((e) => log("Gagal meneruskan balasan mesin:", e.message))
+          .finally(() => fetchCommand());
+        return;
+      }
+      if (code === "realtime_enroll_data") {
+        reply(socket, transId, true);
+        const who = enrollIdentity(json);
+        if (who && appConfigured()) {
+          postToApp({ pengguna: who })
+            .then(() => log(`Pengguna mesin ${who.user_id}${who.user_name ? ` (${who.user_name})` : ""} diteruskan ke aplikasi.`))
+            .catch((e) => log("Gagal meneruskan pengguna baru:", e.message));
+        }
+        return;
+      }
+      // Lainnya: cukup OK, tanpa perintah.
       reply(socket, transId, true);
     });
   });
@@ -221,7 +338,9 @@ function startPush() {
     }
   });
   setInterval(flush, cfg.kirimDetik * 1000);
+  setInterval(fetchCommand, cfg.kirimDetik * 1000);
   flush();
+  fetchCommand();
 }
 
 // ---- mode easylink: tarik dari Fingerspot EasyLink SDK -------------------

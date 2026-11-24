@@ -8,7 +8,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { MesinImport } from "./mesin-import";
 import { PinTable } from "./pin-table";
-import { importMachineFile, previewMachineFile, setEmployeePin } from "./actions";
+import { MachineUsers, type MachineUser, type PullJob } from "./machine-users";
+import { importMachineFile, previewMachineFile, requestMachineUsers, setEmployeePin } from "./actions";
+import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
 
 export const metadata = { title: "Mesin absensi" };
 
@@ -20,10 +22,18 @@ export default async function MesinAbsensiPage() {
   if (!me) redirect("/login");
   if (me.role !== "hr_admin" && me.role !== "super_admin") redirect("/dashboard");
 
-  const [empRes, lastLan, pendingLan] = await Promise.all([
+  const [empRes, lastLan, pendingLan, jobRes, usersRes] = await Promise.all([
     db.from("employees").select("id, nama, pin_mesin").eq("status", "aktif").order("nama"),
     db.from("mesin_scans").select("created_at, sn").eq("sumber", "jaringan").order("created_at", { ascending: false }).limit(1),
     db.from("mesin_scans").select("pin").is("employee_id", null).limit(1000),
+    db
+      .from("mesin_commands")
+      .select("id, status, kode_balasan, created_at")
+      .eq("cmd_code", "GET_USER_ID_LIST")
+      .is("induk_id", null)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    db.from("mesin_users").select("pin, nama").limit(1000),
   ]);
   const notMigrated = !!empRes.error;
   const employees = ((empRes.data ?? []) as { id: string; nama: string; pin_mesin: string | null }[]).map((e) => ({
@@ -33,6 +43,10 @@ export default async function MesinAbsensiPage() {
   }));
   const tokenSet = (process.env.MESIN_ABSENSI_TOKEN ?? "").length >= 24;
   const last = (lastLan.data?.[0] ?? null) as { created_at: string; sn: string | null } | null;
+  const job = await loadPullJob(db, (jobRes.data?.[0] ?? null) as JobRow | null);
+  const machineUsers = ((usersRes.data ?? []) as MachineUser[]).sort(
+    (a, b) => a.pin.length - b.pin.length || a.pin.localeCompare(b.pin),
+  );
   const orphanPins = [...new Set(((pendingLan.data ?? []) as { pin: string }[]).map((p) => p.pin))];
 
   return (
@@ -65,6 +79,7 @@ export default async function MesinAbsensiPage() {
           Isi dengan nomor ID / PIN pegawai yang terdaftar di mesin (kolom EnNo). Absen hanya masuk untuk pegawai yang PIN-nya diisi.
           Absen yang dikoreksi HR tidak pernah ditimpa data mesin.
         </p>
+        <MachineUsers job={job} users={machineUsers} employees={employees} request={requestMachineUsers} setPin={setEmployeePin} />
         <PinTable employees={employees} setPin={setEmployeePin} />
       </section>
 
@@ -100,4 +115,22 @@ export default async function MesinAbsensiPage() {
       </section>
     </div>
   );
+}
+
+type JobRow = { id: string; status: string; kode_balasan: string | null; created_at: string };
+
+/** The latest "Tarik data pegawai" request, folded with its per-PIN follow-ups. */
+async function loadPullJob(db: Awaited<ReturnType<typeof createServerSupabaseClient>>, root: JobRow | null): Promise<PullJob | null> {
+  if (!root) return null;
+  const { data } = await db.from("mesin_commands").select("status").eq("induk_id", root.id).limit(2000);
+  const kids = (data ?? []) as { status: string }[];
+  const done = (st: string) => st === "selesai" || st === "gagal";
+  const rinci = { total: kids.length, selesai: kids.filter((k) => done(k.status)).length };
+  const expired = Date.now() - new Date(root.created_at).getTime() > COMMAND_TTL_MS;
+  let tahap: PullJob["tahap"];
+  if (root.status === "gagal") tahap = "gagal";
+  else if (root.status === "selesai" && rinci.selesai === rinci.total) tahap = "selesai";
+  else if (expired) tahap = root.status === "selesai" ? "selesai" : "kedaluwarsa";
+  else tahap = root.status === "menunggu" ? "menunggu" : "dikirim";
+  return { tahap, dibuat: root.created_at, kodeBalasan: root.kode_balasan, rinci };
 }

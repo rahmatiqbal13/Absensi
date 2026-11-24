@@ -45,6 +45,24 @@ Cara tanpa jaringan tetap tersedia: **Pengaturan → Mesin absensi → Impor fil
 Bila `APP_URL` / token belum diisi, scan tetap diterima dan disimpan di `antrian.json`;
 jalankan `node bridge.mjs --kirim` setelah diisi untuk mengirim semuanya.
 
+## Tarik data pegawai dari mesin
+
+*Pengaturan → Mesin absensi → "Tarik data pegawai dari mesin"* meminta daftar pengguna
+(PIN + nama) dari mesin lewat jembatan ini: aplikasi menaruh perintah, jembatan
+mengambilnya dan menyerahkannya ke mesin saat mesin menanyakan perintah (`receive_cmd`),
+lalu balasan mesin (`send_cmd_result`) diteruskan ke aplikasi. Hasilnya tampil sebagai
+tabel PIN / nama di mesin dengan tombol **Pasangkan** ke pegawai.
+
+- Butuh migrasi `0062_mesin_commands.sql` dan jembatan versi ini (jalankan ulang setelah
+  memperbarui: `bash pasang-macos.sh` atau hentikan lalu `node bridge.mjs`).
+- Urutan: `GET_USER_ID_LIST`, lalu `GET_USER_INFO` per PIN bila daftar tidak membawa nama.
+  Butuh beberapa detik per pegawai (mengikuti seberapa sering mesin bertanya).
+- Setiap balasan mesin dicatat mentah di log jembatan (`Balasan mesin …`) — bila tabel
+  tetap kosong, kirimkan baris itu untuk menyesuaikan dengan firmware mesin. Bila mesin
+  tidak pernah membalas, coba `CMD_FORMAT=json` di `bridge.env`.
+- Pegawai yang baru didaftarkan di mesin (`realtime_enroll_data`) juga ikut masuk ke
+  tabel — hanya PIN + nama, templat sidik jari tidak pernah diteruskan.
+
 ## Mode easylink (opsional, PC Windows)
 
 Untuk mesin yang dibaca lewat Fingerspot EasyLink SDK: `MODE=easylink`, isi `MESIN_SN`

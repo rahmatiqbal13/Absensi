@@ -5,6 +5,7 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { decodeMachineFile, parseMachineLog } from "@/lib/mesin/parse-log";
 import { applyMachineScans, type DayOutcome, type UnmappedPin } from "@/lib/mesin/apply-scans";
+import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
 
 export type MachineImportResult =
   | {
@@ -63,6 +64,40 @@ export async function previewMachineFile(formData: FormData): Promise<MachineImp
 /** Stores the raw scans and writes jam masuk / pulang for every mapped employee. */
 export async function importMachineFile(formData: FormData): Promise<MachineImportResult> {
   return run(formData, false);
+}
+
+/**
+ * "Tarik data pegawai dari mesin": queues GET_USER_ID_LIST for the LAN bridge.
+ * The page polls until the machine has answered.
+ */
+export async function requestMachineUsers(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireHr();
+  if (!me) return { ok: false, error: "Hanya HR yang dapat menarik data dari mesin." };
+  if ((process.env.MESIN_ABSENSI_TOKEN ?? "").length < 24) {
+    return { ok: false, error: "Token jembatan (MESIN_ABSENSI_TOKEN) belum diatur di server." };
+  }
+  const service = createServiceRoleSupabaseClient();
+  const { data: active, error: readErr } = await service
+    .from("mesin_commands")
+    .select("id")
+    .is("induk_id", null)
+    .eq("cmd_code", "GET_USER_ID_LIST")
+    .in("status", ["menunggu", "diambil"])
+    .gt("created_at", new Date(Date.now() - COMMAND_TTL_MS).toISOString())
+    .limit(1);
+  if (readErr) {
+    console.error("requestMachineUsers: read failed", readErr);
+    return { ok: false, error: "Database belum siap. Jalankan migrasi 0062_mesin_commands.sql." };
+  }
+  if (active?.length) return { ok: false, error: "Permintaan sebelumnya masih diproses mesin." };
+
+  const { error } = await service.from("mesin_commands").insert({ cmd_code: "GET_USER_ID_LIST", params: {}, diminta_oleh: me.id });
+  if (error) {
+    console.error("requestMachineUsers: insert failed", error);
+    return { ok: false, error: "Gagal membuat permintaan ke mesin." };
+  }
+  revalidatePath("/pengaturan/mesin-absensi");
+  return { ok: true };
 }
 
 /** Links a machine PIN to an employee (or clears it with an empty pin). */

@@ -54,14 +54,19 @@ cat > "$PLIST" <<EOF
 EOF
 plutil -lint "$PLIST" >/dev/null
 
-# Satu jembatan saja yang boleh memegang port (mis. yang dijalankan manual di Terminal).
+# Hentikan jembatan LaunchAgent yang lama dulu (pembaruan), baru periksa port:
+# yang masih memegang port setelah itu adalah jembatan lain (mis. manual di Terminal).
+launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 PORT="$(grep -E '^PUSH_PORT=' "$DIR/bridge.env" | cut -d= -f2 || true)"
-if lsof -t -i ":${PORT:-8014}" >/dev/null 2>&1; then
+for _ in 1 2 3 4 5; do
+  lsof -t -iTCP:"${PORT:-8014}" -sTCP:LISTEN >/dev/null 2>&1 || break
+  sleep 1
+done
+if lsof -t -iTCP:"${PORT:-8014}" -sTCP:LISTEN >/dev/null 2>&1; then
   echo "Port ${PORT:-8014} sedang dipakai proses lain (jembatan manual?). Hentikan dulu (Ctrl+C di Terminal-nya), lalu ulangi."
   exit 1
 fi
 
-launchctl bootout "$DOMAIN" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
 sleep 2
 echo "Jembatan terpasang dan berjalan. Log: $LOG"

@@ -1,8 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { applyMachineScans } from "@/lib/mesin/apply-scans";
 import { wibToIso } from "@/lib/mesin/parse-log";
+import { bridgeAuthorized } from "@/lib/mesin/commands";
 
 /**
  * Receives scans from the office LAN bridge (scripts/mesin-bridge), which
@@ -22,16 +22,8 @@ const MAX_SCANS = 5000;
 const PIN_RE = /^[0-9A-Za-z]{1,20}$/;
 const WAKTU_RE = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/;
 
-function authorized(request: NextRequest): boolean {
-  const secret = process.env.MESIN_ABSENSI_TOKEN;
-  if (!secret || secret.length < 24) return false;
-  const given = Buffer.from(request.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
 export async function POST(request: NextRequest) {
-  if (!authorized(request)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!bridgeAuthorized(request.headers.get("authorization"))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   let body: unknown;
   try {
