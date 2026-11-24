@@ -201,7 +201,7 @@ function binText(b) {
  * daftar PIN dan nama. Blok lain (templat sidik jari, foto) diganti ukurannya
  * saja dan tidak pernah diteruskan.
  */
-function expandBins(json, bins) {
+function expandBins(json, bins, tahun = null) {
   if (!json || typeof json !== "object" || !bins.length) return json;
   const blockOf = (v) => {
     const m = typeof v === "string" ? /^BIN_(\d+)$/.exec(v) : null;
@@ -216,7 +216,7 @@ function expandBins(json, bins) {
       if (!blk) {
         out[k] = walk(v);
       } else if (/log/i.test(k)) {
-        out[k] = decodeLogBlock(node, blk);
+        out[k] = decodeLogBlock(node, blk, tahun);
       } else if (/^user_?id_?(array|list)$/i.test(k)) {
         const size = Number(node.one_user_id_size) || 0;
         const count = Number(node.user_id_count) || (size ? Math.floor(blk.length / size) : 0);
@@ -250,12 +250,43 @@ function wallTime(v) {
 }
 
 /**
+ * Rekaman log Fingerspot Revo (FK), 48 byte — dipetakan dari balasan nyata
+ * (Jan–Nov 2026, dicocokkan per bulan):
+ *   0–31  PIN (teks, NUL-padded)
+ *   35    detik (6 bit)
+ *   37    bulan (4 bit atas)
+ *   38–39 u16 LE: tanggal (bit 0–4) · jam (bit 5–9) · menit (bit 10–15)
+ * Tahun tidak terbaca jelas dari rekaman, jadi diambil dari rentang yang
+ * diminta (`tahun`); tanpa rentang dipakai tahun terdekat yang tidak di masa depan.
+ */
+function decodeFkLog48(rec, tahun) {
+  if (rec.length !== 48) return null;
+  const sec = rec[35] & 63;
+  const mon = rec[37] >> 4;
+  const d16 = rec[38] | (rec[39] << 8);
+  const day = d16 & 31;
+  const hour = (d16 >> 5) & 31;
+  const min = d16 >> 10;
+  if (mon < 1 || mon > 12 || day < 1 || day > 31 || hour > 23 || min > 59 || sec > 59) return null;
+  const p = (n) => String(n).padStart(2, "0");
+  let year = tahun;
+  if (!year) {
+    const now = new Date(Date.now() + 7 * 3600_000); // WIB
+    year = now.getUTCFullYear();
+    if (mon > now.getUTCMonth() + 1) year -= 1;
+  }
+  return `${year}${p(mon)}${p(day)}${p(hour)}${p(min)}${p(sec)}`;
+}
+
+/**
  * Satu rekaman log biner → { user_id, io_time }. Tata letaknya belum
  * terdokumentasi, jadi dicari: PIN = teks di awal rekaman; waktu = 14 digit
  * ASCII ("20261112080655") atau tahun 2 byte LE + bulan/tgl/jam/mnt/dtk.
  */
-function decodeLogRecord(rec) {
+function decodeLogRecord(rec, tahun) {
   const user_id = binText(rec);
+  const fk = decodeFkLog48(rec, tahun);
+  if (fk) return { user_id, io_time: fk };
   const ascii = rec.toString("latin1");
   const m = /20\d{12}/.exec(ascii);
   if (m && wallTime(m[0])) return { user_id, io_time: m[0] };
@@ -270,7 +301,7 @@ function decodeLogRecord(rec) {
   return { user_id, io_time: null };
 }
 
-function decodeLogBlock(node, blk) {
+function decodeLogBlock(node, blk, tahun) {
   const sizeKey = Object.keys(node).find((k) => /^one_.*size$/i.test(k));
   const countKey = Object.keys(node).find((k) => /log.*count|count.*log/i.test(k));
   const size = Number(node[sizeKey]) || 0;
@@ -287,7 +318,7 @@ function decodeLogBlock(node, blk) {
   const out = [];
   for (let i = 0; i < count; i++) {
     const rec = blk.subarray(i * size, (i + 1) * size);
-    const r = decodeLogRecord(rec);
+    const r = decodeLogRecord(rec, tahun);
     if (i < 3) log(`Rekaman log #${i + 1} (${size} byte): ${rec.toString("hex")} → PIN "${r.user_id}" waktu ${r.io_time ?? "?"}`);
     out.push(r);
   }
@@ -453,7 +484,10 @@ function startPush() {
       if (code === "send_cmd_result") {
         const kode = headers["cmd_return_code"] ?? null;
         reply(socket, transId, true);
-        let hasil = expandBins(json, bins);
+        const held = command && command.id === transId ? command : null;
+        // Tahun log = tahun rentang yang diminta (rekaman mesin tidak membawanya dengan jelas).
+        const tahun = /^\d{4}/.test(String(held?.params?.begin_time ?? "")) ? Number(String(held.params.begin_time).slice(0, 4)) : null;
+        let hasil = expandBins(json, bins, tahun);
         // Balasan mentah dicatat agar bentuk data firmware ini bisa diperiksa.
         log(`Balasan mesin (trans_id ${transId}, cmd_return_code ${kode ?? "-"}):`, JSON.stringify(hasil)?.slice(0, 1500) ?? "(kosong)");
         const mine = command && command.id === transId;

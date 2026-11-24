@@ -75,6 +75,8 @@ yang tersimpan di mesin untuk rentang tanggal yang dipilih (bawaan: awal tahun s
   Aman diulang kapan saja.
 - Mesin yang mengabaikan rentang tanggal mengirim seluruh log sekaligus — bulan sisanya
   otomatis dilewati. Mesin yang menolak rentang tanggal diminta seluruh log sekali.
+- Revo W-231N mengirim rekaman biner 48 byte (PIN, detik, bulan, tanggal/jam/menit); tahun
+  diambil dari bulan yang diminta. Pembacanya sudah dicocokkan dengan data nyata mesin.
 - Tiga rekaman pertama tiap balasan dicatat di log (`Rekaman log #…`) beserta hasil
   bacaannya. Bila jumlah scan 0 atau PIN / waktunya salah, kirimkan baris itu untuk
   menyesuaikan pembacanya dengan firmware mesin.
