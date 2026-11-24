@@ -156,15 +156,84 @@ function parseRequest(buf) {
   if (body.length < len) return null;
   // Body mesin: 4 byte panjang JSON (little-endian), JSON, lalu blok biner (sidik jari).
   let json = null;
+  let bins = [];
   if (body.length >= 4) {
     const jl = body.readUInt32LE(0);
+    bins = splitBins(body.subarray(4 + jl, len));
     try {
       json = JSON.parse(body.subarray(4, 4 + jl).toString("utf8").replace(/\0+$/, ""));
     } catch {
       json = null;
     }
   }
-  return { headers, json };
+  return { headers, json, bins };
+}
+
+/** Blok biner setelah JSON ("BIN_1", "BIN_2", …): masing-masing 4 byte panjang (LE) + isi. */
+function splitBins(rest) {
+  const out = [];
+  let o = 0;
+  while (o + 4 <= rest.length) {
+    const n = rest.readUInt32LE(o);
+    if (n === 0 || o + 4 + n > rest.length) break;
+    out.push(rest.subarray(o + 4, o + 4 + n));
+    o += 4 + n;
+  }
+  // Tanpa awalan panjang: seluruh sisa dianggap satu blok.
+  if (out.length === 0 && rest.length) out.push(rest);
+  return out;
+}
+
+/** Teks dari potongan byte: ASCII/UTF-8 sampai NUL, atau UTF-16LE bila byte kedua NUL. */
+function binText(b) {
+  if (b.length >= 2 && b[1] === 0 && b[0] !== 0) {
+    let end = 0;
+    while (end + 1 < b.length && (b[end] || b[end + 1])) end += 2;
+    return b.subarray(0, end).toString("utf16le").trim();
+  }
+  const nul = b.indexOf(0);
+  return b.subarray(0, nul < 0 ? b.length : nul).toString("utf8").trim();
+}
+
+/**
+ * Mengganti rujukan "BIN_n" di balasan perintah dengan isinya — HANYA untuk
+ * daftar PIN dan nama. Blok lain (templat sidik jari, foto) diganti ukurannya
+ * saja dan tidak pernah diteruskan.
+ */
+function expandBins(json, bins) {
+  if (!json || typeof json !== "object" || !bins.length) return json;
+  const blockOf = (v) => {
+    const m = typeof v === "string" ? /^BIN_(\d+)$/.exec(v) : null;
+    return m ? bins[Number(m[1]) - 1] ?? null : null;
+  };
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== "object") return node;
+    const out = {};
+    for (const [k, v] of Object.entries(node)) {
+      const blk = blockOf(v);
+      if (!blk) {
+        out[k] = walk(v);
+      } else if (/^user_?id_?(array|list)$/i.test(k)) {
+        const size = Number(node.one_user_id_size) || 0;
+        const count = Number(node.user_id_count) || (size ? Math.floor(blk.length / size) : 0);
+        const ids = [];
+        for (let i = 0; size && i < count && (i + 1) * size <= blk.length; i++) {
+          const rec = blk.subarray(i * size, (i + 1) * size);
+          const id = binText(rec);
+          if (i < 2) log(`Rekaman PIN #${i + 1} (${size} byte): ${rec.toString("hex")} → "${id}"`);
+          if (id) ids.push({ user_id: id });
+        }
+        out[k] = ids;
+      } else if (/name|nama/i.test(k)) {
+        out[k] = binText(blk);
+      } else {
+        out[k] = { bin_bytes: blk.length }; // isi tidak diteruskan
+      }
+    }
+    return out;
+  };
+  return walk(json);
 }
 
 function reply(socket, transId, ok) {
@@ -260,7 +329,7 @@ function startPush() {
       const req = parseRequest(buf);
       if (!req) return;
       handled = true;
-      const { headers, json } = req;
+      const { headers, json, bins } = req;
       const code = headers["request_code"];
       const transId = headers["trans_id"];
       if (cfg.mesinId && headers["dev_id"] !== cfg.mesinId) {
@@ -302,12 +371,13 @@ function startPush() {
       if (code === "send_cmd_result") {
         const kode = headers["cmd_return_code"] ?? null;
         reply(socket, transId, true);
+        const hasil = expandBins(json, bins);
         // Balasan mentah dicatat agar bentuk data firmware ini bisa diperiksa.
-        log(`Balasan mesin (trans_id ${transId}, cmd_return_code ${kode ?? "-"}):`, JSON.stringify(json)?.slice(0, 1500) ?? "(kosong)");
+        log(`Balasan mesin (trans_id ${transId}, cmd_return_code ${kode ?? "-"}):`, JSON.stringify(hasil)?.slice(0, 1500) ?? "(kosong)");
         const mine = command && command.id === transId;
         if (mine) command = null;
         if (!appConfigured() || !/^[0-9a-f-]{36}$/i.test(transId ?? "")) return;
-        postToApp({ id: transId, kodeBalasan: kode, hasil: json })
+        postToApp({ id: transId, kodeBalasan: kode, hasil })
           .then((b) => log(`Balasan diteruskan ke aplikasi: ${b.pengguna} pengguna terbaca.`))
           .catch((e) => log("Gagal meneruskan balasan mesin:", e.message))
           .finally(() => fetchCommand());

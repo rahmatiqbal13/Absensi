@@ -53,6 +53,16 @@ export function MachineUsers({
   const byPin = new Map(employees.filter((e) => e.pin).map((e) => [e.pin as string, e]));
   const free = employees.filter((e) => !e.pin);
   const unlinked = users.filter((u) => !byPin.has(u.pin));
+  // Unambiguous name matches, each employee claimed by at most one machine user.
+  const matches = (() => {
+    const picks = unlinked
+      .map((u) => ({ u, e: u.nama ? suggestEmployee(u.nama, free) : null }))
+      .filter((m): m is { u: MachineUser; e: PinEmployee } => !!m.e);
+    const count = new Map<string, number>();
+    for (const m of picks) count.set(m.e.id, (count.get(m.e.id) ?? 0) + 1);
+    return picks.filter((m) => count.get(m.e.id) === 1);
+  })();
+  const [linking, startLinking] = useTransition();
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm">
@@ -114,6 +124,37 @@ export function MachineUsers({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {matches.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted px-3 py-2">
+          <span>
+            {matches.length} nama di mesin cocok dengan pegawai yang belum punya PIN:{" "}
+            {matches.map((m) => `${m.u.nama} → ${m.e.nama}`).join(", ")}.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={linking}
+            onClick={() =>
+              startLinking(async () => {
+                let ok = 0;
+                let hari = 0;
+                for (const m of matches) {
+                  const r = await setPin(m.e.id, m.u.pin);
+                  if (r.ok) {
+                    ok++;
+                    hari += r.diproses;
+                  } else toast.error(`PIN ${m.u.pin}: ${r.error}`);
+                }
+                if (ok) toast.success(`${ok} PIN dipasangkan${hari ? `, ${hari} hari absensi dimasukkan` : ""}.`);
+                router.refresh();
+              })
+            }
+          >
+            <Link2 className="size-4" aria-hidden="true" /> {linking ? "Memasangkan…" : "Pasangkan semua yang cocok"}
+          </Button>
         </div>
       )}
       {users.length > 0 && (
