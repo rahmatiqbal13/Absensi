@@ -44,3 +44,7 @@ next-env.d.ts
 /.agents/
 /.claude/
 /skills-lock.json
+
+# Mesin absensi bridge: local secrets & queue
+scripts/mesin-bridge/bridge.env
+scripts/mesin-bridge/antrian.json*

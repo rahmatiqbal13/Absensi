@@ -26,6 +26,8 @@ const AKSI_OPTIONS = [
   { value: "leave_rejected", label: "Cuti Ditolak" },
   { value: "leave_cancelled", label: "Cuti Dibatalkan" },
   { value: "branch_location_update", label: "Lokasi Kantor Diubah" },
+  { value: "mesin_absensi_import", label: "Impor Mesin Absensi" },
+  { value: "employee_pin_mesin_set", label: "PIN Mesin Diatur" },
   { value: "branch_created", label: "Cabang Dibuat" },
   { value: "branch_updated", label: "Cabang Diubah" },
   { value: "branch_deleted", label: "Cabang Dihapus" },

@@ -17,6 +17,7 @@ const HUB = [
   { href: "/pengaturan/shift", title: "Shift & roster", desc: "Shift per cabang dan roster mingguan: siapa masuk shift apa di tanggal berapa." },
   { href: "/pengaturan/cabang", title: "Cabang", desc: "Tambah, ubah nama atau alamat, hapus kantor cabang." },
   { href: "/pengaturan/lokasi", title: "Lokasi kantor", desc: "Titik kantor dan radius geofence per cabang dan departemen." },
+  { href: "/pengaturan/mesin-absensi", title: "Mesin absensi", desc: "Impor log mesin fingerprint (flashdisk) atau tarik otomatis lewat jaringan kantor; PIN pegawai di mesin." },
 ];
 
 // Number tiles cycle through the area hues (redesign).

@@ -17,6 +17,8 @@ const CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   leave_rejected: { label: "Cuti Ditolak", variant: "danger" },
   leave_cancelled: { label: "Cuti Dibatalkan", variant: "neutral" },
   branch_location_update: { label: "Lokasi Kantor Diubah", variant: "info" },
+  mesin_absensi_import: { label: "Impor Mesin Absensi", variant: "info" },
+  employee_pin_mesin_set: { label: "PIN Mesin Diatur", variant: "info" },
   branch_created: { label: "Cabang Dibuat", variant: "success" },
   branch_updated: { label: "Cabang Diubah", variant: "info" },
   branch_deleted: { label: "Cabang Dihapus", variant: "danger" },

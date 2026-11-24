@@ -22,6 +22,8 @@ const KATEGORI_AKSI: Record<Exclude<AuditKategori, "lainnya">, string[]> = {
     "birth_date_corrected",
     "payroll_paid",
     "payroll_paid_undone",
+    "mesin_absensi_import",
+    "employee_pin_mesin_set",
   ],
   hapus: ["employee_deactivated", "employee_deleted", "branch_deleted", "contract_deleted"],
   setujui: ["leave_approved", "attendance_correction_approved", "work_request_approved"],
