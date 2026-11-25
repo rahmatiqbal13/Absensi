@@ -27,22 +27,15 @@ describe("DashboardControls", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("does not render the 'Diperbarui' label during the initial render, then stamps it client-side", () => {
-    render(<DashboardControls branches={BRANCHES} selectedBranch="" />);
-    // The stamp lands in a useEffect, which act() flushes on render; advancing
-    // 0ms is a no-op tick to be explicit that no timer is involved.
-    act(() => { vi.advanceTimersByTime(0); });
-    expect(screen.getByText(/Diperbarui/)).toBeTruthy();
+  it("shows when the data was rendered, in WIB", () => {
+    render(<DashboardControls branches={BRANCHES} selectedBranch="" renderedAt="2026-11-25T02:05:09Z" />);
+    expect(screen.getByText("Diperbarui 09.05.09")).toBeTruthy();
   });
 
-  it("auto-refreshes every 30 seconds and stops on unmount", () => {
+  it("does not poll on its own (the page's AutoRefresh does, only while visible)", () => {
     const { unmount } = render(<DashboardControls branches={BRANCHES} selectedBranch="" />);
-    act(() => { vi.advanceTimersByTime(30_000); });
-    expect(refresh).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(30_000); });
-    expect(refresh).toHaveBeenCalledTimes(2);
+    act(() => { vi.advanceTimersByTime(5 * 60_000); });
+    expect(refresh).not.toHaveBeenCalled();
     unmount();
-    act(() => { vi.advanceTimersByTime(60_000); });
-    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -9,25 +8,25 @@ import { cn } from "@/lib/utils";
 
 const TIME_FMT = new Intl.DateTimeFormat("id-ID", { timeStyle: "medium", timeZone: "Asia/Jakarta" });
 
+/**
+ * Branch switcher, manual reload, and when the data was rendered. The periodic
+ * refresh is the page's single <AutoRefresh> (every 60 s, only while the tab
+ * is visible); this used to run its own 30 s timer as well, even in a hidden
+ * tab, tripling the dashboard's requests and bandwidth.
+ */
 export function DashboardControls({
   branches,
   selectedBranch,
+  renderedAt,
 }: {
   branches: { id: string; nama: string }[];
   selectedBranch: string;
+  /** Server render time (ISO); changes on every router.refresh(). */
+  renderedAt?: string;
 }) {
   const router = useRouter();
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-
-  useEffect(() => {
-    const stamp = () => setUpdatedAt(TIME_FMT.format(new Date()));
-    stamp();
-    const id = setInterval(() => {
-      router.refresh();
-      stamp();
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [router]);
+  // Asia/Jakarta is fixed, so server and client format the same string.
+  const updatedAt = renderedAt ? TIME_FMT.format(new Date(renderedAt)) : null;
 
   const options = [{ id: "", nama: "Semua cabang" }, ...branches];
 

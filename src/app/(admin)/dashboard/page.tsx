@@ -117,7 +117,7 @@ export default async function DashboardPage({
           month: "long",
           timeZone: "Asia/Jakarta",
         }).format(new Date())} · Ringkasan presensi hari ini`}
-        actions={<DashboardControls branches={branchList} selectedBranch={branchId ?? ""} />}
+        actions={<DashboardControls branches={branchList} selectedBranch={branchId ?? ""} renderedAt={new Date().toISOString()} />}
       />
 
       {branchesError && (
