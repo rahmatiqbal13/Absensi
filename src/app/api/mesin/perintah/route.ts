@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { bridgeAuthorized, recordCommandResult, saveMachineUsers, takeNextCommand } from "@/lib/mesin/commands";
 import { extractMachineUsers } from "@/lib/mesin/machine-users";
+import { parseBridgeReport, saveBridgeStatus } from "@/lib/mesin/bridge-status";
 
 /**
  * Command channel for the office LAN bridge (scripts/mesin-bridge).
@@ -15,6 +16,8 @@ import { extractMachineUsers } from "@/lib/mesin/machine-users";
  *        The machine's answer (send_cmd_result): cmd_return_code + JSON body.
  *   POST /api/mesin/perintah  { pengguna: <realtime_enroll_data JSON>, sn }
  *        A user just enrolled on the machine (PIN + name only).
+ *   POST /api/mesin/perintah  { status: { mesinAt, ip, port, mesinIp }, sn }
+ *        The bridge's heartbeat, every minute (0066).
  *
  * Authorization: Bearer $MESIN_ABSENSI_TOKEN (same token as /api/mesin/scans).
  */
@@ -47,6 +50,10 @@ export async function POST(request: NextRequest) {
   const db = createServiceRoleSupabaseClient();
 
   try {
+    if ("status" in body) {
+      await saveBridgeStatus(db, parseBridgeReport(body.status, sn));
+      return NextResponse.json({ ok: true });
+    }
     if ("pengguna" in body) {
       const users = extractMachineUsers(body.pengguna);
       await saveMachineUsers(db, users, sn);

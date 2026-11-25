@@ -28,7 +28,9 @@ Cara tanpa jaringan tetap tersedia: **Pengaturan → Mesin absensi → Impor fil
 4. **IP laptop harus tetap** — minta admin jaringan membuat *DHCP reservation* untuk
    MAC Wi-Fi laptop (macOS: System Settings → Wi-Fi → Details → alamat MAC Wi-Fi —
    matikan "Private Wi-Fi address" untuk jaringan kantor). Tanpa ini IP laptop berganti
-   tiap hari dan mesin mengirim ke alamat yang salah.
+   tiap hari dan mesin mengirim ke alamat yang salah. Jembatan melapor IP-nya tiap
+   menit; halaman Pengaturan → Mesin absensi memperingatkan bila mesin lama tidak
+   terhubung dan menampilkan Server IP yang benar (butuh migrasi `0066`).
 5. **Mesin** — Menu → Komunikasi → Jaringan:
    - Mode: **Internet**
    - Server IP: **IP laptop/PC** (macOS: `ipconfig getifaddr en0`)

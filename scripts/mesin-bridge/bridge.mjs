@@ -31,6 +31,7 @@
  * disimpan atau diteruskan — hanya PIN + nama pengguna baru yang diteruskan.
  */
 import net from "node:net";
+import { networkInterfaces } from "node:os";
 import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -397,6 +398,37 @@ async function postToApp(payload) {
   return body;
 }
 
+// ---- laporan status ke aplikasi (0066) -----------------------------------
+// Tiap menit: kapan mesin terakhir menghubungi program ini, dan IP laptop/PC
+// ini (yang harus diisi sebagai Server IP di mesin). Aplikasi memperingatkan HR
+// bila mesin lama tidak menghubungi, mis. karena IP laptop berganti.
+let lastMesin = { at: null, ip: null };
+const STATUS_DETIK = 60;
+
+/** IPv4 LAN laptop/PC ini; antarmuka kabel / Wi-Fi didahulukan dari VPN. */
+function lanIp() {
+  const list = Object.entries(networkInterfaces()).flatMap(([name, addrs]) =>
+    (addrs ?? []).filter((a) => a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")).map((a) => ({ name, ...a })),
+  );
+  const rank = (n) => (/^(en|eth|wlan|wl|Ethernet|Wi-Fi)/i.test(n) ? 0 : 1);
+  return list.sort((a, b) => rank(a.name) - rank(b.name))[0]?.address ?? null;
+}
+
+let lastIp = null;
+async function reportStatus() {
+  if (!appConfigured() || cfg.mode !== "push") return;
+  const ip = lanIp();
+  if (lastIp && ip !== lastIp) {
+    log(`IP laptop ini berganti ${lastIp} → ${ip}. Ubah Server IP di mesin menjadi ${ip} (port ${cfg.port}).`);
+  }
+  lastIp = ip;
+  try {
+    await postToApp({ status: { mesinAt: lastMesin.at, ip, port: cfg.port, mesinIp: lastMesin.ip } });
+  } catch (e) {
+    if (!/HTTP 400/.test(e.message)) log("Gagal melapor status:", e.message);
+  }
+}
+
 function replyCommand(socket, cmd) {
   const json = Buffer.from(JSON.stringify(cmd.params ?? {}), "utf8");
   let body;
@@ -449,6 +481,7 @@ function startPush() {
         log(`Kiriman dari mesin lain (${headers["dev_id"] ?? "?"}) diabaikan.`);
         return reply(socket, transId, false);
       }
+      lastMesin = { at: new Date().toISOString(), ip: (socket.remoteAddress ?? "").replace(/^::ffff:/, "") || null };
       if (code === "realtime_glog") {
         const waktu = ioTime(json?.io_time);
         const pin = String(json?.user_id ?? "").trim().replace(/^0+(?=\d)/, "");
@@ -534,6 +567,8 @@ function startPush() {
   });
   setInterval(flush, cfg.kirimDetik * 1000);
   setInterval(fetchCommand, cfg.kirimDetik * 1000);
+  setInterval(reportStatus, STATUS_DETIK * 1000);
+  reportStatus();
   flush();
   fetchCommand();
 }

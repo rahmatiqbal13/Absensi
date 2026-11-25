@@ -44,6 +44,7 @@ const WIB_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", ye
 const wibDate = (iso: string) => WIB_DATE.format(new Date(iso));
 
 const MAX_SCANS = 20_000;
+const WRITE_CHUNK = 500;
 
 export async function applyMachineScans(
   service: SupabaseClient,
@@ -155,6 +156,7 @@ export async function applyMachineScans(
   );
 
   const days: DayOutcome[] = [];
+  const writes: { index: number; skip: (alasan: string) => DayOutcome; row: Record<string, string | null> }[] = [];
   let ditulis = 0;
   list.sort((a, b) => a.emp.nama.localeCompare(b.emp.nama) || a.tanggal.localeCompare(b.tanggal));
   for (const g of list) {
@@ -187,22 +189,35 @@ export async function applyMachineScans(
     days.push({ ...base, jamMasuk: merged.jamMasuk, jamPulang: merged.jamPulang, status: merged.status, aksi: merged.aksi });
     if (opts.dryRun || merged.aksi === "tetap") continue;
 
-    const values = {
-      jam_masuk: merged.jamMasuk,
-      jam_pulang: merged.jamPulang,
-      metode_masuk: merged.metodeMasuk,
-      metode_pulang: merged.metodePulang,
-      status: merged.status,
-    };
-    const { error } = before
-      ? await service.from("attendances").update(values).eq("employee_id", g.emp.id).eq("tanggal", g.tanggal)
-      : await service.from("attendances").insert({ employee_id: g.emp.id, tanggal: g.tanggal, ...values });
+    writes.push({
+      index: days.length - 1,
+      skip,
+      row: {
+        employee_id: g.emp.id,
+        tanggal: g.tanggal,
+        jam_masuk: merged.jamMasuk,
+        jam_pulang: merged.jamPulang,
+        metode_masuk: merged.metodeMasuk,
+        metode_pulang: merged.metodePulang,
+        status: merged.status,
+      },
+    });
+  }
+
+  // One upsert per chunk instead of one query per day: a month of a whole
+  // office is hundreds of days, and awaiting them one by one made the bridge
+  // wait minutes. Only the columns sent are updated on conflict.
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    const chunk = writes.slice(i, i + WRITE_CHUNK);
+    const { error } = await service
+      .from("attendances")
+      .upsert(chunk.map((w) => w.row), { onConflict: "employee_id,tanggal" });
     if (error) {
-      console.error("applyMachineScans: attendance write failed", { key, error });
-      days[days.length - 1] = skip("Gagal menyimpan");
+      console.error("applyMachineScans: attendance write failed", { from: chunk[0].row.tanggal, error });
+      for (const w of chunk) days[w.index] = w.skip("Gagal menyimpan");
       continue;
     }
-    ditulis += 1;
+    ditulis += chunk.length;
   }
 
   // The LAN bridge re-sends often; only log batches that brought something new.

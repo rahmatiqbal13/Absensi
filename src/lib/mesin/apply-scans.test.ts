@@ -78,8 +78,10 @@ describe("applyMachineScans", () => {
     expect(r.ok && r.ditulis).toBe(1);
     const upsert = calls.find((c) => c.table === "mesin_scans" && c.op === "upsert");
     expect((upsert?.payload as unknown[]).length).toBe(2); // the duplicate scan was dropped
-    const insert = calls.find((c) => c.table === "attendances" && c.op === "insert");
-    expect(insert?.payload).toMatchObject({ employee_id: "e1", tanggal: "2026-08-03", metode_masuk: "mesin", status: "tepat_waktu" });
+    const writes = calls.filter((c) => c.table === "attendances" && c.op !== "select");
+    expect(writes).toHaveLength(1); // all days in one upsert
+    expect(writes[0].op).toBe("upsert");
+    expect(writes[0].payload).toEqual([expect.objectContaining({ employee_id: "e1", tanggal: "2026-08-03", metode_masuk: "mesin", status: "tepat_waktu" })]);
     expect(calls.find((c) => c.table === "audit_logs")?.payload).toMatchObject({ aksi: "mesin_absensi_import", actor_id: "hr" });
   });
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, Network } from "lucide-react";
+import { ChevronLeft, Network, Unplug } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +12,7 @@ import { MachineUsers, type MachineUser, type PullJob } from "./machine-users";
 import { MachineLogs, type LogJob } from "./machine-logs";
 import { importMachineFile, previewMachineFile, requestMachineLogs, requestMachineUsers, setEmployeePin } from "./actions";
 import { COMMAND_TTL_MS } from "@/lib/mesin/commands";
+import { bridgeHealth, type BridgeHealth, type BridgeStatusRow } from "@/lib/mesin/bridge-status";
 
 export const metadata = { title: "Mesin absensi" };
 
@@ -23,7 +24,7 @@ export default async function MesinAbsensiPage() {
   if (!me) redirect("/login");
   if (me.role !== "hr_admin" && me.role !== "super_admin") redirect("/dashboard");
 
-  const [empRes, lastLan, pendingLan, jobRes, usersRes, logRootRes] = await Promise.all([
+  const [empRes, lastLan, pendingLan, jobRes, usersRes, logRootRes, statusRes] = await Promise.all([
     db.from("employees").select("id, nama, pin_mesin").eq("status", "aktif").order("nama"),
     db.from("mesin_scans").select("created_at, sn").eq("sumber", "jaringan").order("created_at", { ascending: false }).limit(1),
     db.from("mesin_scans").select("pin").is("employee_id", null).limit(1000),
@@ -42,7 +43,10 @@ export default async function MesinAbsensiPage() {
       .is("induk_id", null)
       .order("created_at", { ascending: false })
       .limit(1),
+    // Bridge heartbeat (0066); missing table = unknown, as with an older bridge.
+    db.from("mesin_bridge_status").select("bridge_at, mesin_at, bridge_ip, port, mesin_ip").eq("id", "utama").maybeSingle(),
   ]);
+  const health = bridgeHealth(statusRes.error ? null : ((statusRes.data ?? null) as BridgeStatusRow | null));
   const logJob = await loadLogJob(db, (logRootRes.data?.[0] ?? null) as LogRow | null);
   const todayWib = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
   const notMigrated = !!empRes.error;
@@ -97,6 +101,7 @@ export default async function MesinAbsensiPage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Network className="size-5" aria-hidden="true" /> 3. Tarik otomatis lewat jaringan kantor
         </h2>
+        <BridgeAlert health={health} />
         <MachineLogs job={logJob} defaultDari={`${todayWib.slice(0, 4)}-01-01`} defaultSampai={todayWib} request={requestMachineLogs} />
         <div className="space-y-2 rounded-xl border border-border bg-card p-4 text-sm">
           <p className="flex flex-wrap items-center gap-2">
@@ -111,6 +116,7 @@ export default async function MesinAbsensiPage() {
               <span className="text-muted-foreground">· Belum ada data dari jaringan</span>
             )}
           </p>
+          <BridgeLine health={health} />
           {orphanPins.length > 0 && (
             <p className="text-warning-foreground">
               Ada scan tersimpan dari PIN yang belum dipasangkan: <span className="font-mono">{orphanPins.join(", ")}</span>. Isi PIN-nya
@@ -125,6 +131,60 @@ export default async function MesinAbsensiPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+const serverIp = (h: { ip: string | null; port: number | null }) => `${h.ip ?? "IP laptop/PC jembatan"}:${h.port ?? 8014}`;
+
+/** Warns above the pull button when the machine can't be reached through the bridge. */
+function BridgeAlert({ health }: { health: BridgeHealth }) {
+  if (health.state === "bridge_mati") {
+    return (
+      <Alert variant="warning">
+        <Unplug aria-hidden="true" />
+        <AlertDescription>
+          Program jembatan tidak melapor sejak <b>{waktuFmt.format(new Date(health.sejak))}</b>. Pastikan laptop/PC jembatan menyala
+          dan terhubung ke internet — tanpa itu, scan dan tarik absen tidak berjalan.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (health.state === "mesin_putus") {
+    return (
+      <Alert variant="warning">
+        <Unplug aria-hidden="true" />
+        <AlertDescription>
+          <span>
+            Mesin tidak terhubung ke jembatan{health.sejak ? <> sejak <b>{waktuFmt.format(new Date(health.sejak))}</b></> : ""}. Tarik
+            absen akan menunggu sampai mesin terhubung lagi.
+          </span>{" "}
+          <span>
+            Di menu jaringan mesin, pastikan Server IP:Port = <b className="font-mono">{serverIp(health)}</b>. IP ini bisa berganti bila
+            laptop/PC jembatan pindah jaringan atau restart.
+          </span>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  return null;
+}
+
+function BridgeLine({ health }: { health: BridgeHealth }) {
+  if (health.state === "tidak_diketahui") return null;
+  return (
+    <p className="flex flex-wrap items-center gap-2">
+      Koneksi mesin:{" "}
+      {health.state === "terhubung" ? (
+        <>
+          <Badge variant="success">Terhubung</Badge>
+          <span className="text-muted-foreground">
+            · terakhir {waktuFmt.format(new Date(health.mesinAt))} · Server IP di mesin <span className="font-mono">{serverIp(health)}</span>
+          </span>
+        </>
+      ) : (
+        <Badge variant="warning">{health.state === "bridge_mati" ? "Jembatan mati" : "Mesin terputus"}</Badge>
+      )}
+    </p>
   );
 }
 
