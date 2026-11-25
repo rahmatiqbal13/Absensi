@@ -60,13 +60,14 @@ export async function runSeed() {
     .eq("branch_id", branch!.id);
 
   if (!existingSchedules || existingSchedules.length === 0) {
-    await db.from("work_schedules").insert({
-      branch_id: branch!.id,
-      jam_masuk: "09:00",
-      jam_pulang: "17:00",
-      hari_kerja: [1, 2, 3, 4, 5],
-      toleransi_terlambat_menit: 15,
-    });
+    const schedule = { jam_masuk: "09:00", jam_pulang: "17:00", hari_kerja: [1, 2, 3, 4, 5], toleransi_terlambat_menit: 15 };
+    // A named jadwal (0067) owns the branch row, so it shows in Pengaturan → Jadwal.
+    const { data: template } = await db
+      .from("schedule_templates")
+      .insert({ nama: `Jadwal cabang ${branch!.id.slice(0, 8)}`, ...schedule })
+      .select("id")
+      .single();
+    await db.from("work_schedules").insert({ branch_id: branch!.id, ...schedule, template_id: template?.id ?? null });
   }
 
   const { data: existingAdmins } = await db
