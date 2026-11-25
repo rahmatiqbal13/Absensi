@@ -242,6 +242,12 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* Except the "Tahan untuk absen" fill: it shows how long is left to hold,
+     not decoration. Collapsed, it looked full instantly while the clock-in
+     still needed the whole hold — people let go too early. */
+  .hold-fill {
+    transition-duration: var(--hold-fill-ms, 0ms) !important;
+  }
 }
 
 /* Batik (kawung) motif on the navy surfaces — sidebar, login panel, kiosk.

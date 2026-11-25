@@ -71,12 +71,15 @@ export function EmployeeFormFields({
   approverOptions,
   defaults = {},
   emailReadOnly = false,
+  canGrantSuperAdmin = true,
 }: {
   branches: { id: string; nama: string }[];
   departments: { id: string; nama: string }[];
   approverOptions: { id: string; nama: string }[];
   defaults?: Partial<EmployeeFieldValues>;
   emailReadOnly?: boolean;
+  /** Only a super admin may grant the role (0068); others don't get the option. */
+  canGrantSuperAdmin?: boolean;
 }) {
   const [role, setRole] = useState(defaults.role ?? "karyawan");
   const [gaji, setGaji] = useState(defaults.gajiPokok ?? "0");
@@ -172,7 +175,7 @@ export function EmployeeFormFields({
         <fieldset className="flex flex-col gap-2 sm:col-span-2">
           <legend className="mb-2 text-sm font-medium">Peran sistem</legend>
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-            {ROLE_OPTIONS.map((o) => {
+            {ROLE_OPTIONS.filter((o) => o.value !== "super_admin" || canGrantSuperAdmin || defaults.role === "super_admin").map((o) => {
               const on = role === o.value;
               return (
                 <label

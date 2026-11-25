@@ -29,6 +29,9 @@ export function HoldButton({
     const el = fill.current;
     if (!el) return;
     el.style.transition = `clip-path ${ms}ms ${full ? "linear" : "cubic-bezier(0.23,1,0.32,1)"}`;
+    // Read by globals.css under prefers-reduced-motion: the fill is the hold's
+    // progress (essential feedback), so it keeps its real duration there.
+    el.style.setProperty("--hold-fill-ms", `${ms}ms`);
     el.style.clipPath = full ? "inset(0 0 0 0)" : "inset(0 100% 0 0)";
   }
 
@@ -75,7 +78,7 @@ export function HoldButton({
       <span
         ref={fill}
         aria-hidden="true"
-        className="absolute inset-0 bg-success-solid"
+        className="hold-fill absolute inset-0 bg-success-solid"
         style={{ clipPath: "inset(0 100% 0 0)" }}
       />
     </button>

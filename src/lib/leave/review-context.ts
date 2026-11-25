@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calculateLeaveDays, requiresBalanceCheck } from "./balance";
+import { countWorkingDays, requiresBalanceCheck } from "./balance";
 import { loadScheduleAssignments, loadSchedules, pickSchedule } from "@/lib/schedule/resolve";
 import { annualAllowance } from "./balance-lookup";
 import { isMagang } from "@/lib/employees/contracts";
@@ -9,10 +9,8 @@ import { isMagang } from "@/lib/employees/contracts";
  * days it covers, what it will actually cost the balance, the balance left,
  * and which teammates are already off in the same window.
  *
- * Note the two day counts differ on purpose. `approve_leave_request` (SQL)
- * deducts calendar days (`tanggal_selesai - tanggal_mulai + 1`) from the
- * balance; `workingDays` is the count the employee is actually absent from a
- * scheduled shift. The panel shows both so the reviewer sees the real charge.
+ * Since 0069 `approve_leave_request` charges cuti tahunan in working days of
+ * the employee's schedule minus holidays — the same count as `workingDays`.
  */
 
 export type ReviewRequestInput = {
@@ -46,31 +44,7 @@ export type LeaveReview = {
 
 // ---------- pure helpers ----------
 
-function* eachDate(from: string, to: string): Generator<string> {
-  const d = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-  while (d <= end) {
-    yield d.toISOString().slice(0, 10);
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-}
-
-/** Working days in [from, to]: weekday in `hariKerja` (0=Sun..6=Sat) and not a holiday. */
-export function countWorkingDays(
-  from: string,
-  to: string,
-  hariKerja: number[],
-  holidayDates: Iterable<string>,
-): number {
-  const dows = new Set(hariKerja);
-  const holidays = new Set(holidayDates);
-  let n = 0;
-  for (const date of eachDate(from, to)) {
-    const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-    if (dows.has(dow) && !holidays.has(date)) n += 1;
-  }
-  return n;
-}
+export { countWorkingDays } from "./balance";
 
 export function rangesOverlap(aFrom: string, aTo: string, bFrom: string, bTo: string): boolean {
   return aFrom <= bTo && bFrom <= aTo;
@@ -224,6 +198,7 @@ export async function loadLeaveReviewContext(
     const schedule = r.branchId ? pickSchedule(schedules, r.branchId, r.departmentId, assigned.get(r.employeeId)) : null;
     const hariKerja = schedule?.hari_kerja ?? [1, 2, 3, 4, 5];
 
+    const workingDays = countWorkingDays(r.tanggalMulai, r.tanggalSelesai, hariKerja, branchHolidays);
     let balance: LeaveReview["balance"] = null;
     let chargedDays: number | null = null;
     if (requiresBalanceCheck(r.jenis)) {
@@ -231,11 +206,11 @@ export async function loadLeaveReviewContext(
       const b = balances.get(balanceKey(r.employeeId, tahun));
       const awal = b?.awal ?? annualAllowance(null, magang.has(r.employeeId));
       balance = { awal, sisa: awal - (b?.terpakai ?? 0), tahun };
-      chargedDays = calculateLeaveDays(r.tanggalMulai, r.tanggalSelesai);
+      chargedDays = workingDays;
     }
 
     byRequest.set(r.id, {
-      workingDays: countWorkingDays(r.tanggalMulai, r.tanggalSelesai, hariKerja, branchHolidays),
+      workingDays,
       chargedDays,
       balance,
       clashes: findClashes(r, teamLeaves),

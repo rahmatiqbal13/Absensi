@@ -6,7 +6,13 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { isMobileUserAgent } from "@/lib/attendance/mobile-detect";
 import { clockIn, type ClockInResult } from "@/lib/attendance/clock-in";
-import { clockOut, type ClockOutResult } from "@/lib/attendance/clock-out";
+import {
+  clockOut,
+  CONSENT_REQUIRED_MESSAGE,
+  DUPLICATE_CLOCK_OUT_MESSAGE,
+  NO_CLOCK_IN_MESSAGE,
+  type ClockOutResult,
+} from "@/lib/attendance/clock-out";
 import { uploadAttendancePhoto } from "@/lib/attendance/photo-upload";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { readGpsQuality } from "@/lib/attendance/location-flags";
@@ -143,6 +149,26 @@ export async function submitClockOut(formData: FormData): Promise<ClockOutResult
   if (!isValidPhoto(photo)) {
     return { ok: false, error: "Foto selfie diperlukan." };
   }
+
+  // Checked BEFORE the selfie is stored, as on clock-in: a withdrawn consent
+  // means no photo processing at all, and a clock-out that is bound to be
+  // refused (no clock-in yet, already out) must not leave an orphan photo that
+  // no retention job can find (its expiry lives on the attendance row).
+  if (!(await hasActiveConsent(guard.authedDb, guard.employee.id))) {
+    return { ok: false, error: CONSENT_REQUIRED_MESSAGE };
+  }
+  const { data: open, error: openErr } = await guard.authedDb
+    .from("attendances")
+    .select("jam_pulang")
+    .eq("employee_id", guard.employee.id)
+    .eq("tanggal", toJakartaDateOnly(new Date()))
+    .maybeSingle();
+  if (openErr) {
+    console.error("submitClockOut: today lookup failed", openErr);
+    return { ok: false, error: "Gagal memeriksa absensi hari ini." };
+  }
+  if (!open) return { ok: false, error: NO_CLOCK_IN_MESSAGE };
+  if (open.jam_pulang) return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
 
   const serviceDb = createServiceRoleSupabaseClient();
 

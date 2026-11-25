@@ -4,12 +4,20 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "user-agent": "Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36" }),
 }));
+// Today's attendance row as the employee's own client sees it (clock-out pre-check).
+let todayRow: { jam_pulang: string | null } | null = { jam_pulang: null };
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: async () => ({ authed: true }),
+  createServerSupabaseClient: async () => {
+    const q: Record<string, unknown> = {};
+    for (const m of ["select", "eq"]) q[m] = () => q;
+    q.maybeSingle = async () => ({ data: todayRow, error: null });
+    return { authed: true, from: () => q };
+  },
   createServiceRoleSupabaseClient: () => ({ service: true }),
 }));
 vi.mock("@/lib/auth/session", () => ({ getCurrentEmployee: async () => ({ id: "emp-1" }) }));
-vi.mock("@/lib/consent/consent", () => ({ hasActiveConsent: async () => true }));
+let consented = true;
+vi.mock("@/lib/consent/consent", () => ({ hasActiveConsent: async () => consented }));
 
 const uploadAttendancePhoto = vi.fn();
 vi.mock("@/lib/attendance/photo-upload", () => ({
@@ -18,7 +26,12 @@ vi.mock("@/lib/attendance/photo-upload", () => ({
 const clockIn = vi.fn();
 const clockOut = vi.fn();
 vi.mock("@/lib/attendance/clock-in", () => ({ clockIn: (...a: unknown[]) => clockIn(...a) }));
-vi.mock("@/lib/attendance/clock-out", () => ({ clockOut: (...a: unknown[]) => clockOut(...a) }));
+vi.mock("@/lib/attendance/clock-out", () => ({
+  clockOut: (...a: unknown[]) => clockOut(...a),
+  CONSENT_REQUIRED_MESSAGE: "consent",
+  NO_CLOCK_IN_MESSAGE: "belum masuk",
+  DUPLICATE_CLOCK_OUT_MESSAGE: "sudah pulang",
+}));
 
 vi.mock("@/lib/requests/service", () => ({ activeDinasLuar: async () => null }));
 const withinRateLimit = vi.fn();
@@ -37,6 +50,8 @@ function fd() {
 }
 
 beforeEach(() => {
+  todayRow = { jam_pulang: null };
+  consented = true;
   withinRateLimit.mockReset();
   withinRateLimit.mockResolvedValue(true);
   uploadAttendancePhoto.mockReset();
@@ -70,5 +85,22 @@ describe("absen rate limiting", () => {
   it("lets a submit within the limit through", async () => {
     expect(await submitClockIn(fd())).toEqual({ ok: true, attendanceId: "a1", status: "tepat_waktu" });
     expect(uploadAttendancePhoto).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("clock-out before the selfie is stored", () => {
+  it("does not upload a photo when the clock-out is bound to be refused", async () => {
+    for (const [setup, error] of [
+      [() => (todayRow = null), "belum masuk"],
+      [() => (todayRow = { jam_pulang: "2026-11-25T09:00:00Z" }), "sudah pulang"],
+      [() => (consented = false), "consent"],
+    ] as const) {
+      todayRow = { jam_pulang: null };
+      consented = true;
+      setup();
+      expect(await submitClockOut(fd())).toEqual({ ok: false, error });
+    }
+    expect(uploadAttendancePhoto).not.toHaveBeenCalled();
+    expect(clockOut).not.toHaveBeenCalled();
   });
 });

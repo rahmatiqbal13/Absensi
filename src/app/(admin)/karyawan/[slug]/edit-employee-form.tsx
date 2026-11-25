@@ -18,6 +18,7 @@ export function EditEmployeeForm({
   setStatus,
   currentStatus,
   isSelf,
+  canGrantSuperAdmin = true,
 }: {
   employeeId: string;
   defaults: Partial<EmployeeFieldValues>;
@@ -28,6 +29,7 @@ export function EditEmployeeForm({
   setStatus: (id: string, status: "aktif" | "nonaktif") => Promise<Result>;
   currentStatus: "aktif" | "nonaktif";
   isSelf: boolean;
+  canGrantSuperAdmin?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function EditEmployeeForm({
           approverOptions={approverOptions}
           defaults={defaults}
           emailReadOnly={!!defaults.email}
+          canGrantSuperAdmin={canGrantSuperAdmin}
         />
         {error && (
           <Alert variant="destructive">

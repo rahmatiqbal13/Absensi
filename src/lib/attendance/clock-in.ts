@@ -8,7 +8,7 @@ import { loadOfficeLocation } from "./office-location";
 import { resolveClockInStatus, type AttendanceStatus } from "./status";
 import { hasActiveConsent } from "@/lib/consent/consent";
 import { isMissingColumn } from "@/lib/supabase/missing-column";
-import { locationFlags } from "./location-flags";
+import { locationFlags, qrFarFromOffice } from "./location-flags";
 
 // Postgres SQLSTATE for unique_violation, surfaced by PostgREST as
 // PostgrestError.code — the `unique (employee_id, tanggal)` constraint on
@@ -73,7 +73,8 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     .eq("id", input.employeeId)
     .single();
   if (employeeErr || !employee) {
-    return { ok: false, error: employeeErr?.message ?? "Data karyawan tidak ditemukan." };
+    if (employeeErr) console.error("clockIn: employee lookup failed", employeeErr);
+    return { ok: false, error: "Data karyawan tidak ditemukan." };
   }
 
   const { data: branch, error: branchErr } = await db
@@ -82,7 +83,8 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     .eq("id", employee.branch_id)
     .single();
   if (branchErr || !branch) {
-    return { ok: false, error: branchErr?.message ?? "Data cabang tidak ditemukan." };
+    if (branchErr) console.error("clockIn: branch lookup failed", branchErr);
+    return { ok: false, error: "Data cabang tidak ditemukan." };
   }
 
   // Separate, migration-tolerant lookup for the QR columns: pre-0031 the columns
@@ -103,7 +105,8 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
     jam_masuk: string; jam_pulang: string; toleransi_terlambat_menit: number;
   }>(db, "jam_masuk, jam_pulang, toleransi_terlambat_menit", employee.branch_id, employee.department_id, input.employeeId);
   if (scheduleErr || !baseSchedule) {
-    return { ok: false, error: scheduleErr?.message ?? "Jadwal kerja cabang tidak ditemukan." };
+    if (scheduleErr) console.error("clockIn: work schedule lookup failed", scheduleErr);
+    return { ok: false, error: "Jadwal kerja cabang tidak ditemukan." };
   }
   // A rostered shift today (0059) replaces the regular times.
   const schedule = await withRosterShift(db, input.employeeId, tanggal, baseSchedule);
@@ -191,13 +194,21 @@ export async function clockIn(db: SupabaseClient, input: ClockInInput): Promise<
       now,
     });
     if (flags.length > 0) gpsAudit.flag_lokasi_masuk = flags;
+  } else if (hasCoords && qrVerified && geo.configured) {
+    // Still a valid QR, but the phone was far away: likely a forwarded photo of
+    // the kiosk screen. Recorded for HR, never blocking (0070).
+    if (input.accuracyMeters !== undefined) gpsAudit.akurasi_masuk_meter = input.accuracyMeters;
+    if (qrFarFromOffice({ distanceMeters: geo.distanceMeters, radiusMeters: office.radius_geofencing_meter, accuracyMeters: input.accuracyMeters })) {
+      gpsAudit.flag_lokasi_masuk = ["qr_jauh"];
+    }
   }
 
   const insert = (payload: Record<string, unknown>) =>
     db.from("attendances").insert(payload).select().single();
   let { data: inserted, error: insertErr } = await insert({ ...insertPayload, ...gpsAudit });
   // Pre-0046 the audit columns don't exist; never lose a clock-in over them.
-  if (isMissingColumn(insertErr) && Object.keys(gpsAudit).length > 0) {
+  // 23514 = check violation: a flag value newer than the database (pre-0070).
+  if ((isMissingColumn(insertErr) || insertErr?.code === "23514") && Object.keys(gpsAudit).length > 0) {
     console.warn("clockIn: kolom akurasi/flag lokasi belum ada — jalankan migrasi 0046.");
     ({ data: inserted, error: insertErr } = await insert(insertPayload));
   }

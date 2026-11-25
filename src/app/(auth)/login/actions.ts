@@ -22,6 +22,8 @@ export async function login(formData: FormData) {
   const db = await createServerSupabaseClient();
   const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
+    // A deactivated employee's auth user is banned (karyawan/actions.ts).
+    if (error.code === "user_banned") redirect("/login?reason=nonaktif");
     console.error("login: signInWithPassword failed", error);
     redirect("/login?error=Email%20atau%20kata%20sandi%20salah.");
   }

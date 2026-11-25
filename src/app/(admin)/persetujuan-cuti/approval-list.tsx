@@ -239,7 +239,7 @@ export function ApprovalList({
           >
             {sel.review.chargedDays > sel.review.balance.sisa
               ? `Saldo tidak cukup: disetujui akan memotong ${sel.review.chargedDays} hari, sisa ${sel.review.balance.sisa} hari. Persetujuan akan ditolak sistem.`
-              : `Disetujui akan memotong ${sel.review.chargedDays} hari dari saldo (dihitung hari kalender) — sisa menjadi ${sel.review.balance.sisa - sel.review.chargedDays} hari.`}
+              : `Disetujui akan memotong ${sel.review.chargedDays} hari hari kerja dari saldo — sisa menjadi ${sel.review.balance.sisa - sel.review.chargedDays} hari.`}
           </p>
         )}
 

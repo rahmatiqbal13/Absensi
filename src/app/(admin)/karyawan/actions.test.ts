@@ -3,11 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const from = vi.fn();
 const auditInsert = vi.fn(async (_row: unknown) => ({ error: null }));
-const serviceFrom = vi.fn((_table: string) => ({ insert: auditInsert }));
+// The reset-link target's role, read with the service client.
+let serviceTarget: { role: string } | null = { role: "karyawan" };
+const serviceFrom = vi.fn((_table: string) => ({
+  insert: auditInsert,
+  select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: serviceTarget, error: null }) }) }),
+}));
+const updateUserById = vi.fn(async (..._a: unknown[]) => ({ error: null }));
 const getUser = vi.fn(async () => ({ data: { user: { id: "actor-1" } } }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({ from, auth: { getUser } })),
-  createServiceRoleSupabaseClient: vi.fn(() => ({ _service: true, from: serviceFrom })),
+  createServiceRoleSupabaseClient: vi.fn(() => ({ _service: true, from: serviceFrom, auth: { admin: { updateUserById } } })),
 }));
 const inviteEmployee = vi.fn();
 vi.mock("@/lib/employees/invite", () => ({ inviteEmployee: (...a: unknown[]) => inviteEmployee(...a) }));
@@ -36,21 +42,16 @@ const validForm = {
 
 const HR_ADMIN = { id: "actor-1", nama: "HR", email: "hr@x", role: "hr_admin", branch_id: "b1", status: "aktif" };
 
-// The hr_admin gate calls getCurrentEmployee → from("employees").select().eq().single().
-// updateEmployee / setEmployeeStatus then do a second employees.select().eq().single() to read
-// the target's current role. `single()` returns gateRow on the first call, targetRow after.
-// Per-test overrides pass `mutation` for the .update().eq() (or .insert()) chain.
+// getCurrentEmployee (the caller) selects its own column list, including
+// foto_profil_url → gateRow. Any other employees.select().eq().single() reads the
+// target → targetRow. Per-test overrides pass `mutation` for .update().eq().
 function mockFrom(opts: { gateRow?: unknown; targetRow?: unknown; mutation?: unknown } = {}) {
   const gateRow = "gateRow" in opts ? opts.gateRow : HR_ADMIN;
-  const targetRow = "targetRow" in opts ? opts.targetRow : gateRow;
-  let calls = 0;
+  const targetRow = "targetRow" in opts ? opts.targetRow : { ...HR_ADMIN, id: "e1", role: "karyawan" };
   from.mockReturnValue({
-    select: () => ({
+    select: (cols: string) => ({
       eq: () => ({
-        single: async () => {
-          calls += 1;
-          return { data: calls === 1 ? gateRow : targetRow, error: null };
-        },
+        single: async () => ({ data: cols.includes("foto_profil_url") ? gateRow : targetRow, error: null }),
       }),
     }),
     ...(opts.mutation as object ?? { update: () => ({ eq: async () => ({ error: null }) }) }),
@@ -64,10 +65,21 @@ beforeEach(() => {
   getUser.mockResolvedValue({ data: { user: { id: "actor-1" } } });
   countActiveSuperAdmins.mockClear();
   countActiveSuperAdmins.mockResolvedValue(5);
+  serviceTarget = { role: "karyawan" };
+  updateUserById.mockClear();
   mockFrom();
 });
 
+const SUPER_ADMIN = { ...HR_ADMIN, role: "super_admin" };
+const SUPER_ADMIN_ONLY = "Hanya Super Admin yang dapat memberi peran Super Admin atau mengubah akun Super Admin.";
+
 describe("createEmployee", () => {
+  it("refuses an HR admin creating a super admin", async () => {
+    const result = await createEmployee(fd({ ...validForm, role: "super_admin", designatedApproverId: "22222222-2222-2222-2222-222222222222" }));
+    expect(result).toEqual({ ok: false, error: SUPER_ADMIN_ONLY });
+    expect(inviteEmployee).not.toHaveBeenCalled();
+  });
+
   it("validates, invites with a service-role client, and returns the link", async () => {
     inviteEmployee.mockResolvedValue({ ok: true, employeeId: "e1", setPasswordUrl: "https://app/set-password#x" });
     const result = await createEmployee(fd(validForm));
@@ -112,7 +124,7 @@ describe("updateEmployee", () => {
 
   it("refuses to demote the last super_admin when only 2 remain", async () => {
     countActiveSuperAdmins.mockResolvedValue(2);
-    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    mockFrom({ gateRow: SUPER_ADMIN, targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await updateEmployee("e1", fd({ ...validForm, role: "karyawan" }));
     expect(result).toEqual({
       ok: false,
@@ -122,9 +134,16 @@ describe("updateEmployee", () => {
 
   it("allows demoting a super_admin while others remain", async () => {
     countActiveSuperAdmins.mockResolvedValue(4);
-    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    mockFrom({ gateRow: SUPER_ADMIN, targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await updateEmployee("e1", fd({ ...validForm, role: "karyawan" }));
     expect(result).toEqual({ ok: true });
+  });
+
+  it("refuses an HR admin changing a super admin's account or granting the role", async () => {
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    expect(await updateEmployee("e1", fd({ ...validForm, role: "super_admin", designatedApproverId: "22222222-2222-2222-2222-222222222222" }))).toEqual({ ok: false, error: SUPER_ADMIN_ONLY });
+    mockFrom();
+    expect(await updateEmployee("e1", fd({ ...validForm, role: "super_admin", designatedApproverId: "22222222-2222-2222-2222-222222222222" }))).toEqual({ ok: false, error: SUPER_ADMIN_ONLY });
   });
 });
 
@@ -141,7 +160,7 @@ describe("setEmployeeStatus", () => {
 
   it("refuses to deactivate the last super_admin when only 2 remain", async () => {
     countActiveSuperAdmins.mockResolvedValue(2);
-    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    mockFrom({ gateRow: SUPER_ADMIN, targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await setEmployeeStatus("e2", "nonaktif");
     expect(result).toEqual({
       ok: false,
@@ -151,9 +170,21 @@ describe("setEmployeeStatus", () => {
 
   it("allows deactivating a super_admin while others remain", async () => {
     countActiveSuperAdmins.mockResolvedValue(4);
-    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    mockFrom({ gateRow: SUPER_ADMIN, targetRow: { ...HR_ADMIN, role: "super_admin" } });
     const result = await setEmployeeStatus("e2", "nonaktif");
     expect(result).toEqual({ ok: true });
+  });
+
+  it("refuses an HR admin deactivating a super admin", async () => {
+    mockFrom({ targetRow: { ...HR_ADMIN, role: "super_admin" } });
+    expect(await setEmployeeStatus("e2", "nonaktif")).toEqual({ ok: false, error: SUPER_ADMIN_ONLY });
+  });
+
+  it("bans the auth user on deactivation and lifts it on reactivation", async () => {
+    await setEmployeeStatus("e2", "nonaktif");
+    expect(updateUserById).toHaveBeenLastCalledWith("e2", { ban_duration: "876000h" });
+    await setEmployeeStatus("e2", "aktif");
+    expect(updateUserById).toHaveBeenLastCalledWith("e2", { ban_duration: "none" });
   });
 });
 
@@ -171,6 +202,13 @@ describe("createPasswordResetLink", () => {
     expect(auditInsert).toHaveBeenCalledWith(
       expect.objectContaining({ actor_id: "actor-1", target_employee_id: "e1", aksi: "password_reset_link" }),
     );
+  });
+
+  it("refuses an HR admin a reset link for a super admin account", async () => {
+    createRecoveryLink.mockReset();
+    serviceTarget = { role: "super_admin" };
+    expect(await createPasswordResetLink("e1")).toEqual({ ok: false, error: SUPER_ADMIN_ONLY });
+    expect(createRecoveryLink).not.toHaveBeenCalled();
   });
 
   it("refuses a non-HR caller without creating a link", async () => {

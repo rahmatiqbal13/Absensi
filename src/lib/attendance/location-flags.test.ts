@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locationFlags, parsePoint, readGpsQuality } from "./location-flags";
+import { locationFlags, parsePoint, readGpsQuality, qrFarFromOffice } from "./location-flags";
 
 const NOW = new Date("2026-11-18T10:00:00Z");
 const OFFICE = { lat: -6.2, long: 106.8 };
@@ -71,5 +71,21 @@ describe("readGpsQuality", () => {
     fd.set("akurasi", "-1");
     fd.set("usiaFix", "3");
     expect(readGpsQuality(fd)).toEqual({ accuracyMeters: undefined, fixAgeSeconds: 3 });
+  });
+});
+
+describe("qrFarFromOffice", () => {
+  it("flags a QR scanned far outside the office (a forwarded photo of the kiosk)", () => {
+    expect(qrFarFromOffice({ distanceMeters: 12_000, radiusMeters: 100, accuracyMeters: 20 })).toBe(true);
+  });
+
+  it("does not flag indoor GPS drift next to the kiosk", () => {
+    // 350 m off with a 100 m radius but the phone itself reports ±80 m: within radius + error + margin.
+    expect(qrFarFromOffice({ distanceMeters: 350, radiusMeters: 100, accuracyMeters: 80 })).toBe(false);
+    expect(qrFarFromOffice({ distanceMeters: 50, radiusMeters: 100 })).toBe(false);
+  });
+
+  it("does not flag without a position", () => {
+    expect(qrFarFromOffice({ distanceMeters: null, radiusMeters: 100 })).toBe(false);
   });
 });

@@ -38,6 +38,8 @@ function makeMockDb(
     /** Successive results for repeated update() calls; the last one repeats. */
     updateResults?: QueryResult[];
     branch?: any;
+    /** Active consent rows; [] = withdrawn / never given. */
+    consentRows?: any[];
     /** Error from the separate qr_enabled/qr_secret lookup — pre-migration. */
     qrColumnsError?: { message: string; code?: string } | null;
   } = {},
@@ -76,7 +78,18 @@ function makeMockDb(
   // loadSchedules: .select(...).in("branch_id", [...]) -> every schedule row of the branch.
   const scheduleInMock = vi.fn().mockResolvedValue({ data: schedules, error: null });
 
+  const consentRows = opts.consentRows ?? [{ id: "consent-1" }];
   const tables: Record<string, any> = {
+    consents: {
+      select: () => ({
+        eq: () => ({
+          eq: () => {
+            const limit = () => Promise.resolve({ data: consentRows, error: null });
+            return { limit, is: () => ({ limit }) };
+          },
+        }),
+      }),
+    },
     employees: {
       select: () => ({
         eq: () => ({ single: () => Promise.resolve({ data: employee, error: null }) }),
@@ -178,6 +191,12 @@ describe("clockOut", () => {
     await clockOut(db as any, { ...BASE_INPUT, now });
 
     expect(db.__todayTanggalEqMock).toHaveBeenCalledWith("tanggal", "2026-09-02");
+  });
+
+  it("refuses when the employee has withdrawn their consent since clocking in", async () => {
+    const db = makeMockDb({ consentRows: [] });
+    const result = await clockOut(db as any, BASE_INPUT);
+    expect(result).toEqual({ ok: false, error: "Persetujuan pemrosesan data lokasi/foto diperlukan sebelum absen." });
   });
 
   it("rejects when there is no clock-in record for today", async () => {

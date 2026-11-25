@@ -35,7 +35,6 @@ function previewText(p: LeaveDaysPreview): string {
   let t = `${p.workingDays} hari kerja`;
   if (p.chargedDays != null) {
     t += ` · saldo cuti tahunan berkurang ${p.chargedDays} hari`;
-    if (p.chargedDays !== p.workingDays) t += " (dihitung per hari kalender)";
     if (p.sisa != null) t += `, sisa saat ini ${Number.isInteger(p.sisa) ? p.sisa : p.sisa.toFixed(1)}`;
   }
   return t;

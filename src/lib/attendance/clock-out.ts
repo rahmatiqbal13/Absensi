@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hasActiveConsent } from "@/lib/consent/consent";
 import { geofenceState, isGeofenceConfigured } from "./geofencing";
 import { verifyQrToken } from "./qr-token";
 import { toJakartaDateOnly } from "./jakarta-date";
@@ -7,13 +8,15 @@ import { withRosterShift } from "@/lib/schedule/roster";
 import { loadOfficeLocation } from "./office-location";
 import { resolveClockOutStatus, mergeAttendanceStatus, type AttendanceStatus } from "./status";
 import { isMissingColumn } from "@/lib/supabase/missing-column";
-import { locationFlags, parsePoint } from "./location-flags";
+import { locationFlags, parsePoint, qrFarFromOffice } from "./location-flags";
 
 // PostgREST's "no rows returned" code, surfaced as PostgrestError.code when a
 // `.single()` matches zero rows. On the update below that means the atomic
 // `jam_pulang is null` filter did NOT match — i.e. the row was already closed.
 const PGRST_NO_ROWS = "PGRST116";
-const DUPLICATE_CLOCK_OUT_MESSAGE = "Anda sudah absen pulang hari ini.";
+export const DUPLICATE_CLOCK_OUT_MESSAGE = "Anda sudah absen pulang hari ini.";
+export const NO_CLOCK_IN_MESSAGE = "Anda belum absen masuk hari ini.";
+export const CONSENT_REQUIRED_MESSAGE = "Persetujuan pemrosesan data lokasi/foto diperlukan sebelum absen.";
 
 // The kiosk QR payload is "<branchId uuid>|<16 lowercase hex token>". Validate
 // the whole shape before trusting `.split("|")`.
@@ -43,6 +46,12 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
   // Asia/Jakarta calendar date — must match the key Task 6's clockIn wrote.
   const tanggal = toJakartaDateOnly(now);
 
+  // Same rule as clock-in: no location / selfie processing once the employee
+  // has withdrawn their consent (UU PDP), even mid-day.
+  if (!(await hasActiveConsent(db, input.employeeId))) {
+    return { ok: false, error: CONSENT_REQUIRED_MESSAGE };
+  }
+
   const { data: today, error: todayErr } = await db
     .from("attendances")
     .select("id, status, jam_pulang, catatan, jam_masuk, lokasi_masuk")
@@ -58,7 +67,7 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
     return { ok: false, error: "Gagal memeriksa absensi hari ini." };
   }
   if (!today) {
-    return { ok: false, error: "Anda belum absen masuk hari ini." };
+    return { ok: false, error: NO_CLOCK_IN_MESSAGE };
   }
   if (today.jam_pulang) {
     return { ok: false, error: DUPLICATE_CLOCK_OUT_MESSAGE };
@@ -201,6 +210,13 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
       now,
     });
     if (flags.length > 0) gpsAudit.flag_lokasi_pulang = flags;
+  } else if (hasCoords && qrVerified && geo.configured) {
+    // Still a valid QR, but the phone was far away: likely a forwarded photo of
+    // the kiosk screen. Recorded for HR, never blocking (0070).
+    if (input.accuracyMeters !== undefined) gpsAudit.akurasi_pulang_meter = input.accuracyMeters;
+    if (qrFarFromOffice({ distanceMeters: geo.distanceMeters, radiusMeters: office.radius_geofencing_meter, accuracyMeters: input.accuracyMeters })) {
+      gpsAudit.flag_lokasi_pulang = ["qr_jauh"];
+    }
   }
 
   const update = (payload: Record<string, unknown>) =>
@@ -223,7 +239,8 @@ export async function clockOut(db: SupabaseClient, input: ClockOutInput): Promis
       .single();
   let { data: updated, error: updateErr } = await update({ ...updatePayload, ...gpsAudit });
   // Pre-0046 the audit columns don't exist; never lose a clock-out over them.
-  if (isMissingColumn(updateErr) && Object.keys(gpsAudit).length > 0) {
+  // 23514 = check violation: a flag value newer than the database (pre-0070).
+  if ((isMissingColumn(updateErr) || updateErr?.code === "23514") && Object.keys(gpsAudit).length > 0) {
     console.warn("clockOut: kolom akurasi/flag lokasi belum ada — jalankan migrasi 0046.");
     ({ data: updated, error: updateErr } = await update(updatePayload));
   }

@@ -40,11 +40,13 @@ export function CreateEmployeeForm({
   departments,
   approverOptions,
   createEmployee,
+  canGrantSuperAdmin = true,
 }: {
   branches: { id: string; nama: string }[];
   departments: { id: string; nama: string }[];
   approverOptions: { id: string; nama: string }[];
   createEmployee: (fd: FormData) => Promise<Result>;
+  canGrantSuperAdmin?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
@@ -192,6 +194,7 @@ export function CreateEmployeeForm({
         branches={branches}
         departments={departments}
         approverOptions={approverOptions}
+        canGrantSuperAdmin={canGrantSuperAdmin}
       />
       {error && (
         <Alert variant="destructive">

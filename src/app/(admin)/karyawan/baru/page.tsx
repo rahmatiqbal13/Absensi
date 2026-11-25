@@ -36,6 +36,7 @@ export default async function KaryawanBaruPage() {
             departments={departments ?? []}
             approverOptions={approvers ?? []}
             createEmployee={createEmployee}
+            canGrantSuperAdmin={employee.role === "super_admin"}
           />
     </div>
   );

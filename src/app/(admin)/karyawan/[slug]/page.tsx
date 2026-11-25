@@ -164,6 +164,7 @@ export default async function KaryawanDetailPage({
             setStatus={setEmployeeStatus}
             currentStatus={emp.status as "aktif" | "nonaktif"}
             isSelf={me.id === emp.id}
+            canGrantSuperAdmin={me.role === "super_admin"}
           />
           </div>
         }

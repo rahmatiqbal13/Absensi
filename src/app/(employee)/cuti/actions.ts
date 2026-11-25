@@ -8,7 +8,7 @@ import { submitLeaveRequest, type SubmitLeaveResult } from "@/lib/leave/submit";
 import { notifyApproverOfLeave } from "@/lib/leave/notify";
 import { LEAVE_ATTACHMENT_BUCKET } from "@/lib/leave/attachments";
 import { calculateLeaveDays, requiresBalanceCheck } from "@/lib/leave/balance";
-import { countWorkingDays } from "@/lib/leave/review-context";
+import { countWorkingDays } from "@/lib/leave/balance";
 import { getLeaveBalance } from "@/lib/leave/balance-lookup";
 import { loadEmployeeSchedule } from "@/lib/schedule/resolve";
 import { isMagang } from "@/lib/employees/contracts";
@@ -122,7 +122,7 @@ export type LeaveDaysPreview =
       ok: true;
       /** Scheduled working days in the range (holidays excluded) — the days actually off. */
       workingDays: number;
-      /** What approval deducts from the annual balance (calendar days); null for types without a balance. */
+      /** What approval deducts from the annual balance (working days, 0069); null for types without a balance. */
       chargedDays: number | null;
       /** Annual balance left before this request; null for types without a balance. */
       sisa: number | null;
@@ -132,7 +132,7 @@ export type LeaveDaysPreview =
 /**
  * Live count under the leave form's dates. Same rules as the approver's
  * review panel (review-context.ts): working days from the employee's schedule
- * minus holidays, and the calendar-day charge approve_leave_request applies.
+ * minus holidays — also what approve_leave_request charges (0069).
  */
 export async function previewLeaveDays(jenis: string, from: string, to: string): Promise<LeaveDaysPreview> {
   if (!DATE_RE.test(from) || !DATE_RE.test(to) || to < from) return { ok: false };
@@ -165,7 +165,7 @@ export async function previewLeaveDays(jenis: string, from: string, to: string):
   return {
     ok: true,
     workingDays,
-    chargedDays: calculateLeaveDays(from, to),
+    chargedDays: workingDays,
     sisa: bal.ok ? bal.balance.sisa : null,
   };
 }

@@ -82,7 +82,7 @@ export function ScheduleForm({
           <Input name="jamPulang" type="time" defaultValue={defaults?.jamPulang ?? "17:00"} onChange={(e) => setPreview((p) => ({ ...p, pulang: e.target.value }))} className="h-11.5 w-38 font-mono" />
         </Field>
         <Field id={`toleransiMenit-${key}`} label="Toleransi (menit)">
-          <div id={`toleransiMenit-${key}-stepper`} className="flex h-11.5 items-center overflow-hidden rounded-[10px] border border-input bg-field">
+          <div id={`toleransiMenit-${key}-stepper`} className="flex h-11.5 items-center overflow-hidden rounded-[10px] border border-input bg-field has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring">
             <button
               type="button"
               aria-label="Kurangi toleransi 5 menit"

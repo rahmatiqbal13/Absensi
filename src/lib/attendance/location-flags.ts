@@ -4,9 +4,11 @@ import { haversineDistanceMeters } from "./geofencing";
  * Signs that a GPS clock-in/out position may not be trustworthy. They never
  * block the employee — a browser cannot prove a position is genuine, and
  * honest phones produce all of these indoors — they mark the record so HR can
- * look at it. A verified kiosk QR proves presence, so QR submits are not flagged.
+ * look at it. A verified kiosk QR proves presence, so QR submits only get
+ * `qr_jauh`: the phone's own GPS says it was far from the office while
+ * scanning — a photo of the kiosk QR forwarded to someone elsewhere (0070).
  */
-export type LocationFlag = "akurasi_rendah" | "lokasi_basi" | "lompatan_lokasi";
+export type LocationFlag = "akurasi_rendah" | "lokasi_basi" | "lompatan_lokasi" | "qr_jauh";
 
 /** The phone's own error radius above which its position says little. */
 export const LOW_ACCURACY_METERS = 100;
@@ -21,7 +23,21 @@ export const LOCATION_FLAG_LABELS: Record<LocationFlag, string> = {
   akurasi_rendah: "Akurasi GPS rendah",
   lokasi_basi: "Lokasi GPS lama",
   lompatan_lokasi: "Pindah lokasi terlalu cepat",
+  qr_jauh: "QR dipindai jauh dari kantor",
 };
+
+/** Slack beyond the radius and the phone's own error before a QR scan counts as far away. */
+export const QR_FAR_MARGIN_METERS = 300;
+
+/**
+ * True when a QR clock-in/out came from a phone whose GPS puts it clearly
+ * outside the office: past the radius by more than its own reported error plus
+ * a margin, so indoor GPS drift next to the kiosk is not flagged.
+ */
+export function qrFarFromOffice(input: { distanceMeters: number | null; radiusMeters: number; accuracyMeters?: number | null }): boolean {
+  if (input.distanceMeters == null) return false;
+  return input.distanceMeters > input.radiusMeters + (input.accuracyMeters ?? 0) + QR_FAR_MARGIN_METERS;
+}
 
 export function isLocationFlag(v: unknown): v is LocationFlag {
   return typeof v === "string" && v in LOCATION_FLAG_LABELS;

@@ -39,12 +39,12 @@ describe("LeaveForm", () => {
     expect(await screen.findByText("Saldo cuti tidak mencukupi.")).toBeInTheDocument();
   });
 
-  it("shows working days and the calendar-day balance charge for the chosen range", async () => {
-    const previewDays = vi.fn().mockResolvedValue({ ok: true, workingDays: 2, chargedDays: 4, sisa: 9 });
+  it("shows the working days and what they cost the balance for the chosen range", async () => {
+    const previewDays = vi.fn().mockResolvedValue({ ok: true, workingDays: 2, chargedDays: 2, sisa: 9 });
     render(<LeaveForm submitLeave={vi.fn()} previewDays={previewDays} />);
     fireEvent.change(screen.getByLabelText(/tanggal mulai/i), { target: { value: "2026-11-20" } });
     fireEvent.change(screen.getByLabelText(/tanggal selesai/i), { target: { value: "2026-11-23" } });
-    expect(await screen.findByText(/2 hari kerja · saldo cuti tahunan berkurang 4 hari \(dihitung per hari kalender\), sisa saat ini 9/)).toBeInTheDocument();
+    expect(await screen.findByText(/2 hari kerja · saldo cuti tahunan berkurang 2 hari, sisa saat ini 9/)).toBeInTheDocument();
     expect(previewDays).toHaveBeenLastCalledWith("tahunan", "2026-11-20", "2026-11-23");
   });
 

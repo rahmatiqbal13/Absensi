@@ -467,8 +467,9 @@ describe("clockIn", () => {
       expect(db.__insertMock).toHaveBeenCalledWith(
         expect.objectContaining({ metode_masuk: "qr", status: "tepat_waktu" }),
       );
-      // A verified QR proves presence: GPS quality is not flagged.
-      expect((db.__insertMock.mock.calls[0] as any[])[0]).not.toHaveProperty("flag_lokasi_masuk");
+      // A verified QR proves presence (no geofence gate), but a phone this far
+      // from the office suggests a forwarded photo of the kiosk QR: flagged for HR.
+      expect((db.__insertMock.mock.calls[0] as any[])[0]).toMatchObject({ flag_lokasi_masuk: ["qr_jauh"] });
     });
 
     it("accepts a valid scanned QR with absent coords and stores lokasi_masuk null", async () => {

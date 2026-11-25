@@ -36,6 +36,28 @@ async function assertHrAdmin(): Promise<{ ok: false; error: string } | null> {
   return null;
 }
 
+const SUPER_ADMIN_ONLY = "Hanya Super Admin yang dapat memberi peran Super Admin atau mengubah akun Super Admin.";
+
+/**
+ * Super admin accounts guard the super-admin-only settings (potongan gaji,
+ * instansi), so only a super admin may grant the role or touch such an
+ * account — otherwise HR could promote themselves through a second account or
+ * take one over with a reset link. The database enforces the same (0068).
+ */
+async function assertMayManage(targetRole: string | null | undefined, newRole?: string): Promise<{ ok: false; error: string } | null> {
+  if (targetRole !== "super_admin" && newRole !== "super_admin") return null;
+  const me = await getCurrentEmployee(await createServerSupabaseClient());
+  return me?.role === "super_admin" ? null : { ok: false, error: SUPER_ADMIN_ONLY };
+}
+
+/** Auth-level block for a deactivated account, so its session can't be refreshed either. */
+async function setAuthBan(id: string, banned: boolean): Promise<void> {
+  const { error } = await createServiceRoleSupabaseClient().auth.admin.updateUserById(id, {
+    ban_duration: banned ? "876000h" : "none",
+  });
+  if (error) console.error("setAuthBan: auth update failed", { id, banned, error });
+}
+
 function formRecord(formData: FormData): Record<string, FormDataEntryValue | null> {
   const rec: Record<string, FormDataEntryValue | null> = {};
   for (const [k, v] of formData.entries()) rec[k] = v;
@@ -50,6 +72,8 @@ export async function createEmployee(
 
   const parsed = validateEmployeeInput(formRecord(formData));
   if (!parsed.ok) return parsed;
+  const notAllowed = await assertMayManage(null, parsed.value.role);
+  if (notAllowed) return notAllowed;
 
   const result = await inviteEmployee(
     {
@@ -81,6 +105,7 @@ const UPDATE_ERROR_MESSAGES: Record<string, string> = {
     "Anda tidak berhak mengubah data terproteksi karyawan.",
   "not allowed to change protected fields on own employee record":
     "Anda tidak berhak mengubah data terproteksi karyawan.",
+  "only a super admin may": SUPER_ADMIN_ONLY,
 };
 
 export async function updateEmployee(id: string, formData: FormData): Promise<Result> {
@@ -97,6 +122,8 @@ export async function updateEmployee(id: string, formData: FormData): Promise<Re
     .select("role, nama, slug, email")
     .eq("id", id)
     .single();
+  const notAllowed = await assertMayManage(target?.role, parsed.value.role);
+  if (notAllowed) return notAllowed;
   if (
     target?.role === "super_admin" &&
     parsed.value.role !== "super_admin"
@@ -188,12 +215,11 @@ export async function setEmployeeStatus(
     return { ok: false, error: "Anda tidak dapat menonaktifkan akun Anda sendiri." };
   }
 
+  const { data: target } = await db.from("employees").select("role").eq("id", id).single();
+  const notAllowed = await assertMayManage(target?.role);
+  if (notAllowed) return notAllowed;
+
   if (status === "nonaktif") {
-    const { data: target } = await db
-      .from("employees")
-      .select("role")
-      .eq("id", id)
-      .single();
     if (target?.role === "super_admin") {
       const count = await countActiveSuperAdmins(db);
       if (count !== null && count <= 2) {
@@ -207,6 +233,9 @@ export async function setEmployeeStatus(
     console.error("setEmployeeStatus: update failed", error);
     return { ok: false, error: "Gagal mengubah status karyawan." };
   }
+  // Ends their access everywhere, not just in this app's pages: a banned
+  // auth user can't sign in or refresh an existing session (K2).
+  await setAuthBan(id, status === "nonaktif");
   revalidatePath(routePatterns.karyawan, "page");
   revalidatePath("/karyawan");
   return { ok: true };
@@ -225,6 +254,8 @@ export async function createPasswordResetLink(id: string): Promise<Result<{ url:
   }
 
   const service = createServiceRoleSupabaseClient();
+  const { data: target } = await service.from("employees").select("role").eq("id", id).maybeSingle();
+  if (target?.role === "super_admin" && me.role !== "super_admin") return { ok: false, error: SUPER_ADMIN_ONLY };
   const result = await createRecoveryLink(service, { employeeId: id }, { throttle: false });
   if (!result.ok) {
     if (result.reason === "inactive") {
