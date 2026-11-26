@@ -2,6 +2,8 @@ import { jakartaMinutesOfDay, scheduleMinutes } from "@/lib/payroll/minutes";
 import { approvedOvertimeMinutes, restDayOvertimeMinutes, type ApprovedOvertime } from "@/lib/payroll/overtime";
 import type { Roster } from "@/lib/schedule/roster";
 import { leaveJenisLabel } from "@/lib/leave/labels";
+import { toJakartaDateOnly } from "@/lib/attendance/jakarta-date";
+import { PULANG_WINDOW_MIN } from "@/lib/mesin/merge-day";
 import { LOCATION_FLAG_LABELS, isLocationFlag, type LocationFlag } from "@/lib/attendance/location-flags";
 
 /**
@@ -39,7 +41,22 @@ export type DailyRow = {
   metodePulang?: string | null;
   /** Every raw machine scan of this day (ISO, ascending) — HR only (mesin_scans RLS). */
   scansMesin?: string[];
+  /**
+   * Only one of the two clock events exists: "masuk" = clocked in, never out
+   * (flagged once the day is over); "pulang" = only a clock-out (no jam masuk,
+   * or the lone time falls in the clock-out window, see PULANG_WINDOW_MIN).
+   * Still counts as hadir, but the work time is taken as 0 (Unesa's rule) and
+   * the row gets its own colour so HR can follow it up / correct it.
+   */
+  absenSekali?: "masuk" | "pulang";
 };
+
+export const ABSEN_SEKALI_LABEL = { masuk: "Hanya absen masuk", pulang: "Hanya absen pulang" } as const;
+
+/** Keterangan prefixed with the single-clock warning, for exports. */
+export function keteranganLengkap(r: Pick<DailyRow, "absenSekali" | "keterangan">): string {
+  return [r.absenSekali ? ABSEN_SEKALI_LABEL[r.absenSekali] : null, r.keterangan].filter(Boolean).join(" · ");
+}
 
 export const LEMBUR_LIBUR_NOTE = "Lembur hari libur (dicatat, belum dihitung ke gaji)";
 export const LEMBUR_TANPA_ABSEN_NOTE = "Lembur disetujui, tidak ada absen";
@@ -113,8 +130,11 @@ export function buildEmployeeDaily(input: {
   approvedOvertime?: Map<string, ApprovedOvertime[]>;
   /** Shift roster (0059): that day's shift times / working day, or libur. */
   roster?: Roster;
+  /** Jakarta date (YYYY-MM-DD); a missing clock-out is only flagged before this day. Defaults to now. */
+  today?: string;
 }): DailyRow[] {
   const { from, to, schedule, holidays, attendance, leaves, joinDate, roster } = input;
+  const today = input.today ?? toJakartaDateOnly(new Date());
   const workingDow = new Set(schedule?.hariKerja ?? []);
   const rows: DailyRow[] = [];
 
@@ -154,18 +174,36 @@ export function buildEmployeeDaily(input: {
       const masuk = att.jam_masuk ? jakartaMinutesOfDay(att.jam_masuk) : null;
       const pulang = att.jam_pulang ? jakartaMinutesOfDay(att.jam_pulang) : null;
       const scheduled = isWorkday && !holiday;
+      // A lone time inside the clock-out window is a clock-out the machine
+      // import stored as jam masuk (it always takes the earliest scan).
+      const loneIsPulang =
+        att.jam_masuk != null && !att.jam_pulang && masuk != null && endMin != null && masuk >= endMin - PULANG_WINDOW_MIN;
+      const absenSekali: DailyRow["absenSekali"] =
+        loneIsPulang || (!att.jam_masuk && att.jam_pulang)
+          ? "pulang"
+          : att.jam_masuk && !att.jam_pulang && tanggal < today
+            ? "masuk"
+            : undefined;
+      const jamMasuk = loneIsPulang ? null : att.jam_masuk;
+      const jamPulang = loneIsPulang ? att.jam_masuk : att.jam_pulang;
+      const metodeMasukRaw = loneIsPulang ? null : att.metode_masuk;
+      const metodePulangRaw = loneIsPulang ? att.metode_masuk : att.metode_pulang;
+      const masukMin = loneIsPulang ? null : masuk;
+      const pulangMin = loneIsPulang ? masuk : pulang;
+      const status = loneIsPulang ? (endMin != null && pulangMin! < endMin ? "pulang_cepat" : "tepat_waktu") : att.status;
       const dayOff = holiday ? `Libur: ${holiday}` : !isWorkday ? (onRoster ? "Libur (roster)" : "Di luar hari kerja") : null;
       rows.push({
         ...base,
-        status: att.status,
-        jamMasuk: att.jam_masuk,
-        jamPulang: att.jam_pulang,
-        durasiMenit:
-          att.jam_masuk && att.jam_pulang
+        status: att.status === "di_luar_lokasi" ? att.status : status,
+        jamMasuk,
+        jamPulang,
+        durasiMenit: absenSekali
+          ? 0
+          : att.jam_masuk && att.jam_pulang
             ? Math.max(0, Math.round((Date.parse(att.jam_pulang) - Date.parse(att.jam_masuk)) / 60_000))
             : null,
-        menitTerlambat: scheduled && masuk != null && lateThreshold != null ? Math.max(0, masuk - lateThreshold) : 0,
-        menitPulangCepat: scheduled && pulang != null && endMin != null ? Math.max(0, endMin - pulang) : 0,
+        menitTerlambat: scheduled && masukMin != null && lateThreshold != null ? Math.max(0, masukMin - lateThreshold) : 0,
+        menitPulangCepat: scheduled && pulangMin != null && endMin != null ? Math.max(0, endMin - pulangMin) : 0,
         menitLembur: scheduled
           ? schedule?.hitungLembur
             ? approvedOvertimeMinutes(att.jam_pulang, (rostered ?? schedule).jamPulang, approvals)
@@ -175,8 +213,9 @@ export function buildEmployeeDaily(input: {
         shift: isWorkday && rostered?.nama ? rostered.nama : null,
         catatan: att.catatan,
         flagLokasi: mergeFlags(att),
-        metodeMasuk: att.jam_masuk ? att.metode_masuk ?? "gps" : null,
-        metodePulang: att.jam_pulang ? att.metode_pulang ?? "gps" : null,
+        metodeMasuk: jamMasuk ? metodeMasukRaw ?? "gps" : null,
+        metodePulang: jamPulang ? metodePulangRaw ?? "gps" : null,
+        ...(absenSekali ? { absenSekali } : {}),
       });
       continue;
     }
@@ -206,12 +245,14 @@ export type DailySummary = {
   menitPulangCepat: number;
   menitLembur: number;
   menitKerja: number;
+  /** Days present with only one clock event (work time counted as 0). */
+  absenSekali: number;
 };
 
 export function summarizeDaily(rows: readonly DailyRow[]): DailySummary {
   const s: DailySummary = {
     hariKerja: 0, hadir: 0, tepatWaktu: 0, terlambat: 0, pulangCepat: 0, diLuarLokasi: 0,
-    alpa: 0, cuti: 0, menitTerlambat: 0, menitPulangCepat: 0, menitLembur: 0, menitKerja: 0,
+    alpa: 0, cuti: 0, menitTerlambat: 0, menitPulangCepat: 0, menitLembur: 0, menitKerja: 0, absenSekali: 0,
   };
   for (const r of rows) {
     if (r.kind === "alpa" || r.kind === "cuti" || (r.kind === "hadir" && r.keterangan == null)) s.hariKerja += 1;
@@ -227,6 +268,7 @@ export function summarizeDaily(rows: readonly DailyRow[]): DailySummary {
     s.menitPulangCepat += r.menitPulangCepat;
     s.menitLembur += r.menitLembur;
     s.menitKerja += r.durasiMenit ?? 0;
+    if (r.absenSekali) s.absenSekali += 1;
   }
   return s;
 }
@@ -245,8 +287,9 @@ export function formatJamWib(iso: string | null): string {
     .replace(/\./g, ":");
 }
 
-/** Seconds between jam masuk and jam pulang, or null when either is missing. */
-export function durasiDetik(r: Pick<DailyRow, "jamMasuk" | "jamPulang">): number | null {
+/** Seconds between jam masuk and jam pulang; 0 on a single-clock day; null otherwise when either is missing. */
+export function durasiDetik(r: Pick<DailyRow, "jamMasuk" | "jamPulang" | "absenSekali">): number | null {
+  if (r.absenSekali) return 0;
   if (!r.jamMasuk || !r.jamPulang) return null;
   return Math.max(0, Math.floor((Date.parse(r.jamPulang) - Date.parse(r.jamMasuk)) / 1000));
 }
@@ -307,7 +350,7 @@ export function employeeDailyToCsv(rows: readonly DailyRow[]): string {
         r.jamMasuk ? formatJamWib(r.jamMasuk) : "", sumberLabel(r.metodeMasuk, r.jamMasuk) ?? "",
         r.jamPulang ? formatJamWib(r.jamPulang) : "", sumberLabel(r.metodePulang, r.jamPulang) ?? "",
         r.durasiMenit ?? "", r.menitTerlambat, r.menitPulangCepat, r.menitLembur,
-        r.keterangan ?? "", r.catatan ?? "", locationFlagsLabel(r.flagLokasi),
+        keteranganLengkap(r), r.catatan ?? "", locationFlagsLabel(r.flagLokasi),
       ].map(csvField).join(","),
     );
   }

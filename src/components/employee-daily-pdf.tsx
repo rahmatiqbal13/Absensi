@@ -3,6 +3,7 @@ import {
   dailyStatusLabel,
   formatDurasiSingkat,
   formatJamWib,
+  keteranganLengkap,
   sumberSingkat,
   summarizeDaily,
   type DailyRow,
@@ -58,6 +59,7 @@ const s = StyleSheet.create({
   headRow: { flexDirection: "row", borderBottom: "1px solid #333", paddingBottom: 3, fontFamily: "Helvetica-Bold" },
   row: { flexDirection: "row", paddingVertical: 2.5, borderBottom: "0.5px solid #E4E4E8" },
   muted: { color: "#9A9AA3" },
+  absenSekali: { backgroundColor: "#FBDCF0" },
   cTgl: { width: "13%" },
   cStatus: { width: "15%" },
   cJam: { width: "11%", textAlign: "right" },
@@ -126,11 +128,11 @@ export function EmployeeDailyPage({
       </View>
       {data.rows.map((r) => {
         const off = r.kind === "bukan_hari_kerja" || r.kind === "libur" || r.kind === "belum_bekerja";
-        const ket = [r.shift ? `Shift ${r.shift}` : null, r.keterangan, r.catatan ? `"${r.catatan}"` : null]
+        const ket = [r.shift ? `Shift ${r.shift}` : null, keteranganLengkap(r) || null, r.catatan ? `"${r.catatan}"` : null]
           .filter(Boolean)
           .join(" · ");
         return (
-          <View key={r.tanggal} style={[s.row, off ? s.muted : {}]} wrap={false}>
+          <View key={r.tanggal} style={[s.row, off ? s.muted : r.absenSekali ? s.absenSekali : {}]} wrap={false}>
             <Text style={s.cTgl}>{tanggalLabel(r.tanggal)}</Text>
             <Text style={s.cStatus}>{dailyStatusLabel(r)}</Text>
             <Text style={s.cJam}>

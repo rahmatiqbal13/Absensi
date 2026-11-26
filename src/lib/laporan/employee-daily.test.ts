@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildEmployeeDaily, summarizeDaily, formatJamWib, employeeDailyToCsv, dailyStatusLabel, sumberLabel, sumberSingkat } from "./employee-daily";
+import { buildEmployeeDaily, summarizeDaily, formatJamWib, employeeDailyToCsv, dailyStatusLabel, sumberLabel, sumberSingkat, durasiDetik } from "./employee-daily";
 
 // Mon 3 Aug – Sun 9 Aug 2026; schedule 09:00–17:00, 15 min tolerance, Mon–Fri.
 const SCHEDULE = { jamMasuk: "09:00", jamPulang: "17:00", toleransiMenit: 15, hariKerja: [1, 2, 3, 4, 5], hitungLembur: true };
@@ -177,5 +177,42 @@ describe("sumber absen", () => {
     expect(["mesin", "qr", "koreksi", "gps"].map((m) => sumberLabel(m, "x"))).toEqual(["Mesin finger", "Aplikasi (QR)", "Koreksi HR", "Aplikasi (GPS)"]);
     expect(["mesin", "qr", "koreksi", null].map((m) => sumberSingkat(m, "x"))).toEqual(["Mesin", "QR", "Koreksi", "GPS"]);
     expect(sumberLabel("mesin", null)).toBe(null);
+  });
+});
+
+describe("buildEmployeeDaily single clock event", () => {
+  const build = (today: string) =>
+    buildEmployeeDaily({
+      from: "2026-08-03", to: "2026-08-05", schedule: SCHEDULE, holidays: new Map(),
+      attendance: new Map([
+        at("03", "07:24", null),
+        // Lone afternoon machine scan, stored as jam masuk by the import.
+        at("04", "17:05", null, "terlambat"),
+        at("05", "08:50", null),
+      ]),
+      leaves: [], joinDate: null, today,
+    });
+
+  it("flags masuk-only on a past day: still hadir, work time 0, labelled in exports", () => {
+    const [mon] = build("2026-08-05");
+    expect(mon).toMatchObject({ kind: "hadir", status: "tepat_waktu", absenSekali: "masuk", durasiMenit: 0 });
+    expect(durasiDetik(mon)).toBe(0);
+    expect(employeeDailyToCsv([mon])).toContain("Hanya absen masuk");
+  });
+
+  it("reads a lone time in the clock-out window as pulang-only", () => {
+    const [, tue] = build("2026-08-05");
+    expect(tue).toMatchObject({ absenSekali: "pulang", jamMasuk: null, status: "tepat_waktu", menitTerlambat: 0, durasiMenit: 0 });
+    expect(formatJamWib(tue.jamPulang)).toBe("17:05:00");
+  });
+
+  it("leaves today's masuk-only alone (the employee may still be at work)", () => {
+    const [, , wed] = build("2026-08-05");
+    expect(wed.absenSekali).toBeUndefined();
+    expect(wed.durasiMenit).toBeNull();
+  });
+
+  it("counts them in the summary", () => {
+    expect(summarizeDaily(build("2026-08-05"))).toMatchObject({ hadir: 3, absenSekali: 2, menitKerja: 0 });
   });
 });

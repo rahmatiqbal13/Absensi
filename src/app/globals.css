@@ -54,6 +54,10 @@
   --danger: #fddadb;
   --danger-foreground: #a31d24;
   --danger-solid: #d93a40;
+  /* Single clock event (only masuk / only pulang): its own hue, not a status colour. */
+  --single: #fbdcf0;
+  --single-foreground: #8c1563;
+  --single-solid: #c2187f;
   --neutral: #e8eaf4;
   --neutral-foreground: #3a4066;
   --chart-1: #0b7a5c;
@@ -109,6 +113,9 @@
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
   --color-danger-solid: var(--danger-solid);
+  --color-single: var(--single);
+  --color-single-foreground: var(--single-foreground);
+  --color-single-solid: var(--single-solid);
   --color-neutral: var(--neutral);
   --color-neutral-foreground: var(--neutral-foreground);
   --color-sidebar-muted: var(--sidebar-muted);
@@ -195,6 +202,9 @@ body {
   --danger: #3d1418;
   --danger-foreground: #ff9ea2;
   --danger-solid: #ff6b72;
+  --single: #3b1230;
+  --single-foreground: #f9a8d4;
+  --single-solid: #f472b6;
   --neutral: #24235a;
   --neutral-foreground: #c8cce6;
   --chart-1: #2dd4a8;

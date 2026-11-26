@@ -7,6 +7,7 @@ import {
   formatDurasiPanjang,
   formatJamWib,
   locationFlagsLabel,
+  keteranganLengkap,
   summarizeDaily,
   type DailyRow,
 } from "@/lib/laporan/employee-daily";
@@ -42,6 +43,8 @@ const COLS = 13;
 const BORDER = "#000000";
 const HEAD_BG = "#D9E1F2";
 const MUTED_BG = "#F2F2F2";
+/** Only one clock event (masuk or pulang): work time 0, its own colour (= --single). */
+const ABSEN_SEKALI_BG = "#FBDCF0";
 const INT = "#,##0";
 
 const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -205,7 +208,7 @@ function employeeSheet(input: AttendanceXlsxInput, r: RecapRow, sheet: string): 
   const body = days.map((d, i) => {
     // Days off / before joining are shaded, alpa is red — like a printed register.
     const off = d.kind === "libur" || d.kind === "bukan_hari_kerja" || d.kind === "belum_bekerja";
-    const row: CellStyle = off ? { backgroundColor: MUTED_BG } : {};
+    const row: CellStyle = off ? { backgroundColor: MUTED_BG } : d.absenSekali ? { backgroundColor: ABSEN_SEKALI_BG } : {};
     const status: CellStyle = d.kind === "alpa" ? { ...row, textColor: "#C00000", fontWeight: "bold" } : row;
     const det = durasiDetik(d);
     const c: CellStyle = { ...row, align: "center" };
@@ -214,7 +217,7 @@ function employeeSheet(input: AttendanceXlsxInput, r: RecapRow, sheet: string): 
       td(dailyStatusLabel(d), status), td(d.jamMasuk ? formatJamWib(d.jamMasuk) : "", c),
       td(d.jamPulang ? formatJamWib(d.jamPulang) : "", c), td(det == null ? "" : formatDurasiJms(det), c),
       td(d.menitTerlambat || "", row), td(d.menitPulangCepat || "", row), td(d.menitLembur || "", row),
-      td(d.keterangan ?? "", { ...row, wrap: true }), td(d.catatan ?? "", { ...row, wrap: true }),
+      td(keteranganLengkap(d), { ...row, wrap: true }), td(d.catatan ?? "", { ...row, wrap: true }),
       td(locationFlagsLabel(d.flagLokasi), { ...row, wrap: true }),
     ];
   });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Download, FileBarChart, Fingerprint, PenLine, QrCode, Smartphone, TriangleAlert } from "lucide-react";
+import { ChevronLeft, CircleAlert, Download, FileBarChart, Fingerprint, PenLine, QrCode, Smartphone, TriangleAlert } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { employeeIdBySlug, paths } from "@/lib/routing/paths";
@@ -15,6 +15,7 @@ import {
   formatDurasiSingkat,
   dailyStatusLabel,
   locationFlagsLabel,
+  ABSEN_SEKALI_LABEL,
   type DailyRow,
 } from "@/lib/laporan/employee-daily";
 import type { AttendanceStatus } from "@/lib/attendance/status";
@@ -214,6 +215,12 @@ export default async function LaporanKaryawanPage({
               </div>
             ))}
           </dl>
+          {summary.absenSekali > 0 && (
+            <p className="flex items-center gap-1.5 text-sm text-single-foreground">
+              <span className="size-3 rounded-sm bg-single-solid" aria-hidden="true" />
+              {summary.absenSekali} hari hanya absen sekali (masuk saja atau pulang saja). Jam kerja hari itu dihitung 0 sampai dikoreksi.
+            </p>
+          )}
           {summary.menitLembur > 0 && (
             <p className="text-sm text-muted-foreground">
               Lembur tercatat: <b className="text-foreground">{formatDurasiSingkat(summary.menitLembur)}</b>
@@ -229,12 +236,18 @@ export default async function LaporanKaryawanPage({
               { key: "pulang", header: "Pulang", cell: (r: DailyRow) => (
                   <span className="inline-flex flex-col gap-1">
                     <JamCell jam={r.jamPulang} metode={r.metodePulang} />
+                    {r.absenSekali && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-single-foreground">
+                        <CircleAlert className="size-3.5" aria-hidden="true" />
+                        {ABSEN_SEKALI_LABEL[r.absenSekali]}
+                      </span>
+                    )}
                     {r.scansMesin && r.scansMesin.length > 0 && (
                       <ScanListPopover scans={r.scansMesin} jamMasuk={r.jamMasuk} jamPulang={r.jamPulang} tanggalLabel={tanggalLabel(r.tanggal)} />
                     )}
                   </span>
                 ), mobileLabel: "Pulang" },
-              { key: "durasi", header: "Durasi", align: "right", cell: (r: DailyRow) => <span className="font-mono tabular-nums">{formatDurasiSingkat(r.durasiMenit)}</span>, mobileLabel: "Durasi" },
+              { key: "durasi", header: "Durasi", align: "right", cell: (r: DailyRow) => <span className={`font-mono tabular-nums ${r.absenSekali ? "font-semibold text-single-foreground" : ""}`}>{formatDurasiSingkat(r.durasiMenit)}</span>, mobileLabel: "Durasi" },
               { key: "telat", header: "Terlambat", align: "right", cell: (r: DailyRow) => <span className={r.menitTerlambat ? "text-warning-foreground" : "text-muted-foreground"}>{mins(r.menitTerlambat)}</span>, mobileLabel: "Terlambat" },
               { key: "pc", header: "Pulang cepat", align: "right", cell: (r: DailyRow) => <span className={r.menitPulangCepat ? "text-early-foreground" : "text-muted-foreground"}>{mins(r.menitPulangCepat)}</span>, mobileLabel: "Pulang cepat" },
               { key: "lembur", header: "Lembur", align: "right", cell: (r: DailyRow) => <span className={r.menitLembur ? "" : "text-muted-foreground"}>{mins(r.menitLembur)}</span>, mobileLabel: "Lembur" },
@@ -260,7 +273,7 @@ export default async function LaporanKaryawanPage({
                       header: "",
                       cell: (r: DailyRow) => (
                         <span className="flex flex-wrap items-center justify-end gap-1">
-                          {canViewEvidence && r.kind === "hadir" && r.jamMasuk && (
+                          {canViewEvidence && r.kind === "hadir" && (r.jamMasuk || r.jamPulang) && (
                             <AttendanceEvidenceDialog
                               tanggalLabel={tanggalLabel(r.tanggal)}
                               load={getAttendanceEvidence.bind(null, id, r.tanggal)}
@@ -288,6 +301,7 @@ export default async function LaporanKaryawanPage({
             ]}
             rows={report.rows}
             rowKey={(r) => r.tanggal}
+            rowClassName={(r) => (r.absenSekali ? "bg-single/70 hover:bg-single" : undefined)}
             emptyState={<EmptyState icon={FileBarChart} message="Tidak ada data untuk rentang ini." />}
           />
         </>

@@ -31,6 +31,7 @@ export function ResponsiveTable<T>({
   rows,
   rowKey,
   rowHref,
+  rowClassName,
   caption,
   emptyState,
   footer,
@@ -40,6 +41,8 @@ export function ResponsiveTable<T>({
   rows: T[];
   rowKey: (row: T) => string;
   rowHref?: (row: T) => string;
+  /** Extra classes for a row (desktop) / card (mobile), e.g. to highlight it. */
+  rowClassName?: (row: T) => string | undefined;
   caption?: string;
   emptyState: React.ReactNode;
   footer?: React.ReactNode;
@@ -72,7 +75,7 @@ export function ResponsiveTable<T>({
             {rows.map((row) => {
               const href = rowHref?.(row);
               return (
-                <TableRow key={rowKey(row)}>
+                <TableRow key={rowKey(row)} className={rowClassName?.(row)}>
                   {columns.map((c, i) => (
                     <TableCell
                       key={c.key}
@@ -108,7 +111,7 @@ export function ResponsiveTable<T>({
           const href = rowHref?.(row);
           const [first, ...rest] = columns;
           const inner = (
-            <Card size="sm" className="gap-2">
+            <Card size="sm" className={cn("gap-2", rowClassName?.(row))}>
               <div className="text-sm font-medium text-foreground">{first.cell(row)}</div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                 {rest
